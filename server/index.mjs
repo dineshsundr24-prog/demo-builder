@@ -5,7 +5,7 @@ import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
 import {applyOperations,locateNode,targetLabel} from './operations.mjs';
-import {buildRegistry,compactRegistry,resolveChangeSet} from './registry.mjs';
+import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -162,6 +162,16 @@ async function planEdit(body){
  }
  // One grounded model call: target IDs may only come from this registry.
  const registry=buildRegistry(demo,target);
+ // Deterministic single-field reorder bypasses AI-generated position IDs.
+ const fastReorder=resolveSimpleFieldReorder(registry,target,instruction);
+ if(fastReorder){
+  let result;
+  try{result=applyOperations(demo,target,fastReorder,project.channel);}
+  catch(e){throw Object.assign(new Error('Reorder blocked: '+e.message+'. Original demo remains unchanged.'),{status:422});}
+  return{scope:'planned',target,label:targetLabel(demo,target),operations:fastReorder,definition:result.definition,checks:result.checks,
+   preservedScreens:result.preservedScreens,summary:'Proposed scoped field reordering. Review before applying.',
+   usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+ }
  const candidates=compactRegistry(registry,target);
  const selected=registry.find(e=>e.exactSelection);
  const scopeContext={instruction,selection:selected?.id||null,
@@ -175,7 +185,7 @@ async function planEdit(body){
   'Only plan capabilities explicitly advertised for a registry object. If the request asks for unsupported layouts, rules or operations, return unsupported instead of a partial change. When a name matches multiple targets and the selection does not disambiguate, return ambiguous.',
   'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
   'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
-  'For move-field, afterFieldId must be an existing field id from the same form, or __start__. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
+  'For move-field, use beforeFieldId or afterFieldId. Use a real field ID, full field registry ID, or unique existing field label from the same form. For above/before use beforeFieldId, for below/after use afterFieldId. Use afterFieldId=__start__ for first position. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
   'For a requested visual UI component missing from the existing element kinds, use add-component targeting screen:<selected screen id> and include component:{id,title,items:[{id,kind,label,text?,required?,options?,nextScreen?,inputType?,value?}]}. Supported item kinds: text,card,input,checkbox,select,button,progress. Use unique ASCII IDs and no more than 16 items. Compose a realistic clickable demo component; do not ask to write React, CSS or JavaScript.',
   'For add-component do not reject simply because the request names a widget absent from the current catalogue: approximate it using the available item kinds. Only return unsupported when a faithful useful clickable approximation cannot be made. User-specified business logic is not required unless explicitly requested.',
   'Do not emit executable code, CSS, markdown, commentary or arbitrary JSON paths.'
