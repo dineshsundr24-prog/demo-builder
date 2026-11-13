@@ -70,13 +70,13 @@ function moveAnchor(registry,moving,change){
 // Multi-change requests continue through the AI planner.
 export function resolveSimpleFieldReorder(registry,selection,instruction){
  const text=String(instruction||'').trim();
- if(!/^(?:please\s+)?(?:move|place|position|reorder)\b/i.test(text))return null;
+ const command=/\b(?:move|place|position|reorder)\b/i.exec(text);\n if(!command)return null;\n const moveText=text.slice(command.index);
  if(/\b(?:also|and then|add|remove|delete|rename|change|update|create)\b/i.test(text))return null;
- const direction=/\b(above|before|below|after)\b/i.exec(text);
+ const direction=/\b(above|before|below|after)\b/i.exec(moveText);
  if(!direction)return null;
  const fields=registry.filter(e=>e.target.level==='field'&&e.target.screenId===selection.screenId);
- const first=text.slice(0,direction.index);
- const second=text.slice(direction.index+direction[0].length).replace(/\b(?:without changing|without modifying|without affecting|and keep|keep|please keep)\b[\s\S]*$/i,'').trim();
+ const first=moveText.slice(0,direction.index);
+ const second=moveText.slice(direction.index+direction[0].length).replace(/\b(?:without changing|without modifying|without affecting|and keep|keep|please keep)\b[\s\S]*$/i,'').trim();
  const normalizePhrase=v=>normalizeName(String(v).replace(/^(?:please\s+)?(?:move|place|position|reorder)\s+(?:the\s+)?/i,'').replace(/\s+(?:field|input|control)\s*$/i,'').replace(/[.!?]+$/,''));
  const source=normalizePhrase(first),destination=normalizePhrase(second);
  const find=(phrase)=>fields.filter(e=>normalizeName(e.label)===phrase||normalizeName(e.target.childId)===phrase);
@@ -118,5 +118,5 @@ export function resolveChangeSet(registry,selection,changes){
  });
 }
 export function compactRegistry(registry,selection){
- return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,parentId,capabilities,exactSelection})=>({id,label,type,parentId,capabilities,exactSelection}));
+ return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,parentId,capabilities,exactSelection,target})=>({id,label,type,parentId,capabilities,exactSelection,...(type==='field'?{fieldId:target.childId}: {})}));
 }
