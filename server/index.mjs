@@ -232,15 +232,4 @@ const server=http.createServer(async(req,res)=>{
  try{const body=await readBody(req);const result=req.url==='/api/plan'?await planEdit(body):req.url==='/api/refine'?await refine(body):await generate(body);respond(res,200,result);}
  catch(err){console.error('Generation error:',err?.message||'unknown');respond(res,err?.status||500,{error:err?.status?err.message:'Unable to generate the demo. Please try again.',...(err?.code==='AMBIGUOUS_TARGET'?{code:err.code,choices:err.choices}: {})});}
 });
-server.listen(port,'0.0.0.0',()=>{
- console.log(`Demo Builder API listening on ${port}`);
- // Temporary one-time integration smoke test on deploy. Never logs credentials or user data.
- if(process.env.OPENAI_API_KEY){
-  const sample={schemaVersion:1,id:'smoke',name:'Smoke Demo',description:'Smoke test',channel:'mobile',theme:'teal',
-   screens:[{id:'welcome',title:'Welcome',subtitle:'Welcome',elements:[{id:'actions',kind:'actions',buttons:[{id:'start',label:'Get Started',nextScreen:'done'}]}]},
-   {id:'done',title:'Done',subtitle:'Done',elements:[{id:'notice',kind:'notice',tone:'success',title:'Done',body:'Complete'}]}]};
-  planEdit({definition:sample,project:{channel:'mobile',name:'Smoke Demo'},target:{level:'screen',screenId:'welcome'},instruction:'Change the Get Started button text to Continue'})
-    .then(result=>console.log('AI_SMOKE_TEST',{status:'passed',operations:result.operations?.length,model:result.usage?.model}))
-    .catch(error=>console.error('AI_SMOKE_TEST',{status:'failed',reason:String(error?.message||'unknown').slice(0,300)}));
- }
-});
+server.listen(port,'0.0.0.0',()=>console.log(`Demo Builder API listening on ${port}`));
