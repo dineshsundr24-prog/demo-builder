@@ -143,7 +143,19 @@ async function planEdit(body){
  if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
- if(isGlobalRequest(instruction))throw Object.assign(new Error('Application-wide edits are not yet supported in scoped preview mode. Use the existing AI chat global-header change route.'),{status:422});
+ if(isGlobalRequest(instruction)){
+  const change=classifyGlobalEdit(instruction);
+  if(!change?.supported)throw Object.assign(new Error(change?.reason||'Unsupported multi-screen request.'),{status:422});
+  let out;
+  try{out=applyChromeEdit(demo,change,project.company,project.name);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
+  if(!validateStrictDemo(out.definition,project.channel))throw Object.assign(new Error('Global header proposal failed schema validation.'),{status:422});
+  return{scope:'global',target,label:'Application header · all '+demo.screens.length+' screens',
+   definition:out.definition,operations:[{op:'set-global-header',brandName:change.brandName,removeBrandIcon:change.removeBrandIcon,preserveBack:change.preserveBack,hideBack:change.hideBack}],
+   checks:['Application-wide header settings verified','All screen content and navigation preserved','No other definition properties changed'],
+   preservedScreens:demo.screens.length,
+   summary:'Proposed a shared header update across '+demo.screens.length+' screens. Review before applying.',
+   usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+ }
  let operations=deriveFastOperations(demo,target,instruction);
  let usedModel=false,raw;
  if(!operations){
