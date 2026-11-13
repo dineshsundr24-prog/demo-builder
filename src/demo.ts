@@ -8,7 +8,8 @@ export type Element =
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string}[]};
 export type Screen = {id:string;title:string;subtitle:string;elements:Element[]};
-export type DemoDefinition = {schemaVersion:1;id:string;name:string;description:string;channel:'portal'|'mobile';theme:'navy'|'teal';screens:Screen[]};
+export type DemoChrome={brandName:string;showBrandIcon:boolean;showBackButton:boolean};
+export type DemoDefinition = {schemaVersion:1;id:string;name:string;description:string;channel:'portal'|'mobile';theme:'navy'|'teal';chrome?:DemoChrome;screens:Screen[]};
 export const starter:DemoDefinition = {
  schemaVersion:1,id:'banking-operations',name:'Banking Operations',description:'Customer onboarding and servicing workflow',channel:'portal',theme:'navy',
  screens:[
@@ -44,6 +45,7 @@ export const mobileStarter:DemoDefinition={
 export function validateDemo(value:unknown):value is DemoDefinition {
  if(!value||typeof value!=='object')return false;
  const d=value as Partial<DemoDefinition>;
+ if(d.chrome&&(!d.chrome.brandName||typeof d.chrome.brandName!=='string'||d.chrome.brandName.length>100||typeof d.chrome.showBrandIcon!=='boolean'||typeof d.chrome.showBackButton!=='boolean'))return false;
  if(d.schemaVersion!==1||!d.id||!d.name||!['portal','mobile'].includes(d.channel||'')||!['navy','teal'].includes(d.theme||'')||!Array.isArray(d.screens)||d.screens.length===0)return false;
  const ids=new Set<string>();
  for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;ids.add(s.id);
