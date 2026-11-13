@@ -1,6 +1,7 @@
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
+import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -88,6 +89,17 @@ async function refine(body){
  if(!validateStrictDemo(demo,body?.project?.channel))throw Object.assign(new Error('Saved demo definition failed validation. Export a backup or generate again.'),{status:400});
  const instruction=String(body?.instruction||'').trim();
  if(instruction.length<8||instruction.length>5000)throw Object.assign(new Error('Enter an edit instruction between 8 and 5,000 characters.'),{status:400});
+ // Global header edits update shared app chrome, never a selected screen.
+ if(isGlobalRequest(instruction)){
+  const plan=classifyGlobalEdit(instruction);
+  if(!plan?.supported)throw Object.assign(new Error(plan?.reason||'Unsupported global refinement.'),{status:422});
+  let result;
+  try{result=applyChromeEdit(demo,plan,body?.project?.company,body?.project?.name);}catch(err){throw Object.assign(new Error(err.message),{status:422});}
+  if(!validateStrictDemo(result.definition,demo.channel))throw Object.assign(new Error('Global header patch failed schema validation. Original demo unchanged.'),{status:422});
+  const summary='Updated application-wide header on all '+demo.screens.length+' screens. Verified screen content and navigation unchanged.';
+  console.log('Global header change applied',{screenCount:demo.screens.length,brandChanged:Boolean(plan.brandName),iconRemoved:plan.removeBrandIcon});
+  return{definition:result.definition,scope:'global',changedScreenId:null,changedScreenTitle:'Application header',preservedScreens:demo.screens.length,summary,usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+ }
  const target=locateScreen(demo,body.screenId,instruction);
  const prompt=JSON.stringify({instruction,selectedScreenId:target.id,originalScreen:target,availableScreens:demo.screens.map(s=>({id:s.id,title:s.title})),project:{name:String(body.project?.name||'').slice(0,100),company:String(body.project?.company||'').slice(0,100),guidelines:String(body.project?.guidelines||'').slice(0,1000)},responseFormat:'JSON screen object only'});
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
@@ -106,7 +118,7 @@ async function refine(body){
  try{edited=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned invalid JSON. Original screen was preserved.'),{status:422});}
  let merged;
  try{merged=applyScreenPatch(demo,target.id,edited,validateStrictDemo);}catch(err){throw Object.assign(new Error(err.message+' Original demo was preserved.'),{status:422});}
- return{definition:merged,changedScreenId:target.id,changedScreenTitle:target.title,preservedScreens:demo.screens.length-1,summary:'Updated '+target.title+' only. Verified '+(demo.screens.length-1)+' other screens unchanged.',usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+ return{definition:merged,scope:'screen',changedScreenId:target.id,changedScreenTitle:target.title,preservedScreens:demo.screens.length-1,summary:'Updated '+target.title+' only. Verified '+(demo.screens.length-1)+' other screens unchanged.',usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
 }
 
 const server=http.createServer(async(req,res)=>{
