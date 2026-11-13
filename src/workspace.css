@@ -85,3 +85,51 @@
 @media(max-width:540px){
  .studio .preview-canvas .mobile-frame{width:min(355px,100%);height:clamp(400px,calc(85dvh - 190px),700px)}
 }
+
+/* True 1:1 mobile design canvas. Zoom scales the presentation, not the phone layout. */
+.studio .preview-canvas.mobile-canvas{
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  width:100%;
+  min-height:0;
+  padding:8px 12px 28px;
+}
+.studio .device-zoom-stage{
+  flex:none;
+  position:relative;
+  max-width:none;
+  margin:0 auto;
+}
+.studio .device-zoom-stage .mobile-frame{
+  box-sizing:border-box;
+  position:absolute;
+  left:0;
+  top:0;
+  width:390px !important;
+  min-width:390px !important;
+  max-width:390px !important;
+  height:780px !important;
+  min-height:780px !important;
+  max-height:780px !important;
+  border-width:7px;
+  border-radius:34px;
+  overflow:hidden;
+}
+.studio .device-zoom-stage .demo-shell{height:100%;min-height:0 !important}
+.studio .device-zoom-stage .demo-main{overflow-y:auto;height:100%;min-height:0;overscroll-behavior:contain;scrollbar-width:thin}
+.studio .web-zoom-stage{width:100%;min-width:0}
+.studio .preview-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
+.studio .zoom-controls{display:flex;align-items:center;gap:0;background:#f5f8fc;border:1px solid #dbe4f0;border-radius:8px;overflow:hidden;margin-right:6px}
+.studio .zoom-controls button{height:29px;width:29px;border:0;border-radius:0;background:transparent;color:#405a7d;display:grid;place-items:center;font-size:11px}
+.studio .zoom-controls button:hover:not(:disabled){background:#e6eefc}
+.studio .zoom-controls .zoom-value{width:51px;border-left:1px solid #dbe4f0;border-right:1px solid #dbe4f0;font-weight:800;font-variant-numeric:tabular-nums}
+.studio .zoom-controls button:disabled{opacity:.35;cursor:not-allowed}
+.studio .preview-viewport{overflow:auto;scrollbar-gutter:stable}
+@media(max-width:540px){
+ .studio .preview-toolbar{gap:4px;padding:7px}
+ .studio .preview-toolbar-actions{gap:3px}
+ .studio .zoom-controls{margin-right:2px}
+ .studio .zoom-controls button{height:28px;width:27px}
+ .studio .zoom-controls .zoom-value{width:47px}
+}
