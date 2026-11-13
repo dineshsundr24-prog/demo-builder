@@ -12,6 +12,7 @@ import './workspace.css';
 
 type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
 type Target={level:'screen'|'header'|'element'|'field'|'button';screenId:string;elementId?:string;childId?:string};
+type AmbiguousTarget={projectId:string;instruction:string;choices:{id:string;label:string;screen:string;type:string;target:Target}[];question:string};
 type PendingEdit={projectId:string;instruction:string;target:Target;scope:'global'|'screen';before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
 type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[];publishedVersions?:PublishedVersion[]};
@@ -31,6 +32,7 @@ function App(){
  const[publishOpen,setPublishOpen]=useState(false);const[publishedUrl,setPublishedUrl]=useState('');
  const[selectMode,setSelectMode]=useState(false);const[selected,setSelected]=useState<Target|null>(null);const[visualComment,setVisualComment]=useState('');
  const[pending,setPending]=useState<PendingEdit|null>(null);
+ const[ambiguity,setAmbiguity]=useState<AmbiguousTarget|null>(null);
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[accessToken,setAccessToken]=useState('');const[accessDraft,setAccessDraft]=useState('');
  const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
@@ -69,7 +71,7 @@ function App(){
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
  useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
  function updateProject(change:Partial<Project>){setState(s=>({...s,projects:s.projects.map(p=>p.id===s.activeId?{...p,...change}:p)}));}
- function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);}
+ function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);setAmbiguity(null);}
  function createProject(){const name=createName.trim();if(!name){setToast('Enter a project name.');return;}const p:Project={id:makeId(),name,company:createCompany.trim(),channel:createChannel,guidelines:'',requirement:'',files:[],demo:null,messages:[]};setState(s=>({projects:[...s.projects,p],activeId:p.id}));setScreenId('');setCreateOpen(false);setCreateName('');setCreateCompany('');setComposer('');}
  async function generateFor(projectSnapshot:Project,brief:string){
   if(aiBusy)return;
@@ -96,12 +98,20 @@ function App(){
   if(!accessToken){setAccessModal(true);setToast('Connect the AI access token first.');return;}
   const target:Target=override||{level:'screen',screenId:targetScreenId};
   const before=cloneDemo(projectSnapshot.demo);
+  setAmbiguity(null);
   setAiBusy(true);
   try{
    const response=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},
     body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,target,instruction})});
    const result=await response.json();
-   if(!response.ok)throw Error(String(result.error||'Unable to prepare edit.'));
+   if(!response.ok){
+    if(result.code==='AMBIGUOUS_TARGET'&&Array.isArray(result.choices)){
+     setAmbiguity({projectId:projectSnapshot.id,instruction,choices:result.choices,question:String(result.error||'Which component do you mean?')});
+     setToast('Select the correct component to continue.');
+     return;
+    }
+    throw Error(String(result.error||'Unable to prepare edit.'));
+   }
    const next=result.definition as DemoDefinition;
    if(!validateDemo(next)||next.channel!==before.channel||next.screens.length!==before.screens.length)throw Error('Plan failed schema validation.');
    const isGlobal=result.scope==='global';
@@ -235,6 +245,14 @@ function App(){
   <div className="visual-review-title"><CheckCircle2 size={17}/><strong>Review proposed edit</strong><span>{pending.label}</span></div>
   <p>{pending.summary}</p><div className="visual-review-checks">{pending.checks.map(c=><span key={c}><Check size={12}/>{c}</span>)}</div>
   <div className="visual-review-actions"><button className="visual-discard" onClick={discardPending}>Discard</button><button className="visual-apply" onClick={applyPending}><Check size={15}/> Apply change</button></div>
+ </div>}
+ {ambiguity?.projectId===project.id&&!pending&&<div className="visual-review">
+  <div className="visual-review-title"><MousePointer2 size={17}/><strong>Which component should change?</strong></div>
+  <p>{ambiguity.question}</p>
+  <div className="visual-review-actions" style={{flexWrap:'wrap'}}>
+    {ambiguity.choices.map(choice=><button key={choice.id} className="visual-apply" disabled={aiBusy} onClick={()=>{const instruction=ambiguity.instruction;setAmbiguity(null);void refineFor(project,instruction,choice.target.screenId,choice.target);}}>{choice.label} · {choice.screen}</button>)}
+    <button className="visual-discard" onClick={()=>setAmbiguity(null)}>Cancel</button>
+  </div>
  </div>}
  {demo&&tab==='preview'&&selectMode&&!pending&&<div className="visual-comment-bar">
   <div className="visual-comment-heading"><MousePointer2 size={15}/><strong>{activeSelection?'Selected: '+targetName(activeSelection):'Select a screen or component'}</strong><span>{activeSelection?'Add a comment below':'Click a component or blank screen area'}</span></div>
