@@ -70,7 +70,7 @@ export function validateStrictDemo(d,channel){
    if(e.kind==='stats'&&(!Array.isArray(e.items)||e.items.some(x=>!x||typeof x.id!=='string'||typeof x.label!=='string'||typeof x.value!=='string')))return false;
    if(e.kind==='notice'&&(!['info','success'].includes(e.tone)||typeof e.title!=='string'||typeof e.body!=='string'))return false;
    if(e.kind==='actions'&&(!Array.isArray(e.buttons)||e.buttons.some(b=>!b||typeof b.id!=='string'||typeof b.label!=='string'||b.nextScreen&&typeof b.nextScreen!=='string')))return false;
-   if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date'].includes(f.type))))return false;
+   if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date','checkbox'].includes(f.type))))return false;
    if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
    if(!['hero','stats','notice','actions','form','table'].includes(e.kind))return false;
   }
