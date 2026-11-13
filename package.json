@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "node --test server/refine.test.mjs && tsc -b && vite build",
+    "build": "npm test && tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test server/refine.test.mjs"
+    "test": "node --test server/*.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
