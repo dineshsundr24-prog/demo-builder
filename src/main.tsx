@@ -5,7 +5,8 @@ import{cloneDemo,DemoDefinition,Element,mobileStarter,starter,validateDemo}from 
 import './styles.css';
 import './workspace.css';
 
-type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[]};
+type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
+type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[]};
 type Message={id:string;role:'user'|'system';text:string;date:string};
 type WorkspaceState={projects:Project[];activeId:string};
 const KEY='demo-builder-piece1-v1';
@@ -44,17 +45,70 @@ function App(){
     if(!result.ok)throw Error(String(data.error||'Generation failed.'));
     if(!validateDemo(data.definition)||data.definition.channel!==projectSnapshot.channel)throw Error('Generated demo did not pass client validation.');
     const msg:Message={id:makeId(),role:'system',text:String(data.summary||'Demo generated successfully.')+'\nModel: '+String(data.usage?.model||'Configured model')+' · Input tokens: '+String(data.usage?.inputTokens||0)+' · Output tokens: '+String(data.usage?.outputTokens||0),date:new Date().toISOString()};
-    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,demo:cloneDemo(data.definition),messages:[...p.messages,msg]}:p)}));
+    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,demo:cloneDemo(data.definition),revisions:[],messages:[...p.messages,msg]}:p)}));
     if(state.activeId===target){setScreenId(data.definition.screens[0].id);setTab('preview');setFormValues({});}
     setToast('AI generated '+data.definition.screens.length+' interactive screens.');
   }catch(err){const message=err instanceof Error?err.message:'Unable to connect to AI service.';setToast(message);}
   finally{setAiBusy(false);}
  }
- function send(){const text=composer.trim();if(!text||aiBusy)return;const msg:Message={id:makeId(),role:'user',text,date:new Date().toISOString()};const brief=[project.requirement,text].filter(Boolean).join('\n\n');const snapshot=project;setState(s=>({...s,projects:s.projects.map(p=>p.id===snapshot.id?{...p,requirement:brief,messages:[...p.messages,msg]}:p)}));setComposer('');if(aiReady&&accessToken){void generateFor(snapshot,brief);}else if(!aiReady){setToast('Requirement saved. Configure OPENAI_API_KEY on the AI backend before generating.');}else{setAccessModal(true);setToast('Requirement saved. Enter your access token to generate the demo.');}}
+ async function refineFor(projectSnapshot:Project,instruction:string,targetScreenId:string){
+  if(aiBusy||!projectSnapshot.demo)return;
+  if(!aiReady){setToast('AI backend is not ready. Existing demo remains unchanged.');return;}
+  if(!accessToken){setAccessModal(true);setToast('Connect the access token before refining. Your existing demo is unchanged.');return;}
+  setAiBusy(true);
+  const targetId=projectSnapshot.id;
+  const before=cloneDemo(projectSnapshot.demo);
+  try{
+    const response=await fetch(API+'/api/refine',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,screenId:targetScreenId,instruction})});
+    const result=await response.json();
+    if(!response.ok)throw Error(String(result.error||'Unable to refine selected screen.'));
+    const updated=result.definition as DemoDefinition;
+    if(!validateDemo(updated)||updated.channel!==before.channel||updated.screens.length!==before.screens.length)throw Error('Refinement validation failed; original demo retained.');
+    const idx=before.screens.findIndex(x=>x.id===result.changedScreenId);
+    if(idx<0||updated.screens[idx]?.id!==before.screens[idx].id||before.screens.some((sc,i)=>i!==idx&&JSON.stringify(sc)!==JSON.stringify(updated.screens[i])))throw Error('Preservation verification failed; original demo retained.');
+    const revision:DemoRevision={id:makeId(),date:new Date().toISOString(),instruction,screenId:String(result.changedScreenId),before};
+    const msg:Message={id:makeId(),role:'system',text:String(result.summary)+'\nUndo is available. Model: '+String(result.usage?.model||aiModel),date:new Date().toISOString()};
+    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===targetId?{...p,demo:cloneDemo(updated),revisions:[...(p.revisions||[]),revision].slice(-8),messages:[...p.messages,msg]}:p)}));
+    if(state.activeId===targetId){setScreenId(result.changedScreenId);setTab('preview');setFormValues({});setErrors({});}
+    setToast('Updated '+result.changedScreenTitle+' only; '+result.preservedScreens+' other screens verified unchanged.');
+  }catch(err){
+    const message=err instanceof Error?err.message:'Refinement failed.';
+    const failed:Message={id:makeId(),role:'system',text:'No changes applied: '+message,date:new Date().toISOString()};
+    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===targetId?{...p,messages:[...p.messages,failed]}:p)}));
+    setToast(message);
+  }finally{setAiBusy(false);}
+ }
+ function undoLastEdit(){
+  const history=project.revisions||[];
+  if(!history.length)return;
+  const last=history[history.length-1];
+  const restored=cloneDemo(last.before);
+  updateProject({demo:restored,revisions:history.slice(0,-1),messages:[...project.messages,{id:makeId(),role:'system',date:new Date().toISOString(),text:'Undid the previous edit on '+(restored.screens.find(s=>s.id===last.screenId)?.title||'selected screen')+'. All prior screens restored.'}]});
+  setScreenId(last.screenId);setTab('preview');setFormValues({});setErrors({});
+  setToast('Previous screen edit undone.');
+ }
+ function send(){
+  const text=composer.trim();
+  if(!text||aiBusy)return;
+  const snapshot=project;
+  const msg:Message={id:makeId(),role:'user',text,date:new Date().toISOString()};
+  setComposer('');
+  if(snapshot.demo){
+    const target=screen?.id||snapshot.demo.screens[0].id;
+    setState(p=>({...p,projects:p.projects.map(x=>x.id===snapshot.id?{...x,messages:[...x.messages,msg]}:x)}));
+    void refineFor(snapshot,text,target);
+  }else{
+    const brief=[snapshot.requirement,text].filter(Boolean).join('\n\n');
+    setState(p=>({...p,projects:p.projects.map(x=>x.id===snapshot.id?{...x,requirement:brief,messages:[...x.messages,msg]}:x)}));
+    if(aiReady&&accessToken){void generateFor(snapshot,brief);}
+    else if(!aiReady){setToast('Requirement saved. Configure AI backend before generating.');}
+    else{setAccessModal(true);setToast('Requirement saved. Connect AI to generate your demo.');}
+  }
+}
  function generateBrief(){if(!project.requirement.trim()){setToast('Enter a requirement first.');return;}void generateFor(project,project.requirement);}
- function loadSample(){const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
- function applyDefinition(){try{const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj)});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
- function resetDemo(){updateProject({demo:null});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
+ function loadSample(){const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
+ function applyDefinition(){try{const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj),revisions:[]});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
+ function resetDemo(){updateProject({demo:null,revisions:[]});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
  function go(id?:string){if(id&&demo?.screens.some(s=>s.id===id)){setScreenId(id);setErrors({});setSearch('');}}
  function submit(el:Extract<Element,{kind:'form'}>){const err:Record<string,string>={};for(const f of el.fields){const v=(formValues[f.id]||'').trim();if(f.required&&!v)err[f.id]='Required field';if(v&&f.type==='email'&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))err[f.id]='Enter a valid email';}setErrors(err);if(!Object.keys(err).length){go(el.nextScreen);if(!el.nextScreen)setToast('Demo form submitted. No actual backend call was made.');}}
  function exportJSON(){if(!demo)return;const url=URL.createObjectURL(new Blob([JSON.stringify(demo,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=demo.id+'.json';a.click();URL.revokeObjectURL(url);}
@@ -75,17 +129,17 @@ function App(){
  <div className="studio-side-label">WORKSPACE</div><div className="studio-side-active"><LayoutDashboard size={17}/>Demo studio</div>
  <div className="studio-side-label projects-label">YOUR PROJECTS <button title="New project" aria-label="New project" onClick={()=>setCreateOpen(true)}><Plus size={16}/></button></div>
  <div className="studio-projects">{state.projects.map(p=><button key={p.id} onClick={()=>switchProject(p.id)} className={'studio-project '+(project.id===p.id?'active':'')}><span className="project-initial">{p.name.slice(0,1).toUpperCase()}</span><span className="project-label">{p.name}<small>{p.channel==='mobile'?'Mobile application':'Web portal'}</small></span></button>)}</div>
- <div className="studio-side-footer"><ShieldCheck size={15}/>Standalone NONPROD <small>Piece 2 / 4</small></div>
+ <div className="studio-side-footer"><ShieldCheck size={15}/>Standalone NONPROD <small>Piece 3 / 4</small></div>
  </aside>
  <main className="studio-main"><header className="studio-header"><div className="studio-breadcrumb"><span>Projects</span><ChevronRight size={15}/><strong>{project.name}</strong><span className="studio-status">Draft</span></div><div className="studio-header-actions"><span className="local-label"><Check size={14}/>Saved in this browser</span><button className="studio-icon" title="Project settings" onClick={()=>setDetails(v=>!v)}><Settings2 size={18}/></button><button className="studio-button" onClick={()=>setCreateOpen(true)}><Plus size={16}/>New project</button></div></header>
  <div className="studio-heading"><div><h1>{project.name}</h1><p>Chat on the left. Interactive demo on the right.</p></div><span className="studio-mode">{project.channel==='mobile'?<Smartphone size={15}/>:<Monitor size={15}/>} {project.channel==='mobile'?'Mobile application':'Web portal'}</span></div>
  {details&&<div className="studio-modal-overlay" onClick={()=>setDetails(false)}><section className="studio-details" onClick={e=>e.stopPropagation()}><div className="details-header"><h3>Project context</h3><button className="studio-icon" onClick={()=>setDetails(false)}><X size={16}/></button></div><div className="details-grid"><label>Company<input value={project.company} onChange={e=>updateProject({company:e.target.value})} placeholder="Company or bank"/></label><label>Design guidelines<textarea value={project.guidelines} onChange={e=>updateProject({guidelines:e.target.value})} placeholder="Brand colors, spacing, typography, style..."/></label></div><div className="details-summary"><strong>Integration-ready fields</strong><span>companyId · projectId · storyId · demoId · demoVersion · designGuidelines · approvedRequirements</span><p>MEYON integration is planned after standalone acceptance. No MEYON connection is active.</p></div></section></div>}
  <section className="studio-workarea"><div className="chat-pane"><div className="pane-heading"><div><MessageSquare size={18}/><strong>AI Demo Chat</strong></div><button className={'ai-connect '+(aiReady?'ready':'pending')} onClick={()=>setAccessModal(true)} title="AI backend connection">{aiBusy?'Generating…':!aiOnline?'AI service offline':!aiReady?'AI setup required':accessToken?'AI connected':'Connect AI'}</button></div><div className="chat-scroll">
- {project.messages.length===0?<div className="chat-welcome"><span className="chat-welcome-mark"><Sparkles size={23}/></span><h2>What are we building?</h2><p>Describe an application, paste a user story or attach reference material. Your input is saved to the project brief.</p><div className="chat-note"><Info size={17}/><span>{aiReady?'AI generation is available after connecting the access token. Enter a requirement to create real interactive screens.':'AI generation requires an OpenAI API key on the separate Render backend. Requirements are saved locally until it is configured.'}</span></div><div className="hint-title">A GOOD STARTING PROMPT</div><div className="sample-prompt">Create a mobile customer onboarding demo with registration, identity verification, consent and a final confirmation screen.</div></div>:<div className="message-list">{project.messages.map(m=><div className={'chat-message '+m.role} key={m.id}><div className="message-role">{m.role==='user'?'You':'System'}</div><p>{m.text}</p></div>)}</div>}
- {aiBusy&&<div className="chat-progress" role="status"><Sparkles size={17}/> Interpreting requirements and generating application screens…</div>}<div ref={end}/></div>
- {project.requirement&&<div className="brief-status"><CheckCircle2 size={15}/><span>Project brief saved</span><button className="brief-generate" disabled={aiBusy} onClick={generateBrief}>{aiBusy?'Generating…':'Generate demo'}</button><button onClick={()=>setDetails(true)}>Context</button></div>}
+ {project.messages.length===0?<div className="chat-welcome"><span className="chat-welcome-mark"><Sparkles size={23}/></span><h2>What are we building?</h2><p>Describe an application, paste a user story or attach reference material. Your input is saved to the project brief.</p><div className="chat-note"><Info size={17}/><span>{aiReady?'AI generation is available after connecting the access token. Enter a requirement to create real interactive screens. Once generated, chat edits only the currently selected preview screen.':'AI generation requires an OpenAI API key on the separate Render backend. Requirements are saved locally until it is configured.'}</span></div><div className="hint-title">A GOOD STARTING PROMPT</div><div className="sample-prompt">Create a mobile customer onboarding demo with registration, identity verification, consent and a final confirmation screen.</div></div>:<div className="message-list">{project.messages.map(m=><div className={'chat-message '+m.role} key={m.id}><div className="message-role">{m.role==='user'?'You':'System'}</div><p>{m.text}</p></div>)}</div>}
+ {aiBusy&&<div className="chat-progress" role="status"><Sparkles size={17}/> {demo?'Updating selected screen and checking preservation…':'Interpreting requirements and generating application screens…'}</div>}<div ref={end}/></div>
+ {project.requirement&&<div className="brief-status"><CheckCircle2 size={15}/><span>Project brief saved {demo?'· Refine selected screen':''}</span>{(project.revisions||[]).length>0&&<button className="undo-edit" title="Restore the demo before its most recent AI screen edit" disabled={aiBusy} onClick={undoLastEdit}>Undo edit ({project.revisions?.length})</button>}<button className="brief-generate" disabled={aiBusy} onClick={generateBrief}>{aiBusy?'Generating…':'Generate demo'}</button><button onClick={()=>setDetails(true)}>Context</button></div>}
  {project.files.length>0&&<div className="attachment-list">{project.files.map((f,i)=><span key={i}><Paperclip size={12}/>{f}</span>)}</div>}
- <div className="chat-composer"><textarea aria-label="Describe your requirements" placeholder="Describe the application to generate or expand the project brief..." value={composer} onChange={e=>setComposer(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send();}}}/><div className="composer-bottom"><div><input type="file" multiple accept=".txt,.md,.json,.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" ref={fileInput} hidden onChange={e=>handleFiles(e.target.files)}/><button className="attach-btn" title="Attach references" onClick={()=>fileInput.current?.click()}><Paperclip size={17}/> Attach</button><span className="composer-hint">Ctrl/⌘ + Enter to add</span></div><button className="send-btn" disabled={!composer.trim()||aiBusy} onClick={send} title="Send requirement to AI generator"><Send size={17}/></button></div></div>
+ <div className="chat-composer"><textarea aria-label="Describe your requirements" placeholder={demo?'Refine the selected '+(screen?.title||'screen')+' screen without changing others...':'Describe the application to generate...'} value={composer} onChange={e=>setComposer(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send();}}}/><div className="composer-bottom"><div><input type="file" multiple accept=".txt,.md,.json,.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" ref={fileInput} hidden onChange={e=>handleFiles(e.target.files)}/><button className="attach-btn" title="Attach references" onClick={()=>fileInput.current?.click()}><Paperclip size={17}/> Attach</button><span className="composer-hint">Ctrl/⌘ + Enter to add</span></div><button className="send-btn" disabled={!composer.trim()||aiBusy} onClick={send} title={demo?'Refine selected demo screen':'Generate demo from requirement'}><Send size={17}/></button></div></div>
  </div>
  <div className={'preview-pane '+(expanded?'large-preview':'')}><div className="pane-heading preview-heading"><div><Eye size={18}/><strong>Interactive Preview</strong></div><div className="preview-controls"><button className={tab==='preview'?'active':''} onClick={()=>setTab('preview')}>Preview</button><button className={tab==='definition'?'active':''} onClick={()=>setTab('definition')}>Definition</button></div></div><div className="preview-toolbar"><span>{demo?demo.name:'No demo loaded'} <span className="dot-separator">·</span> {project.channel==='mobile'?'Mobile':'Web'}</span><div className="preview-toolbar-actions">{demo&&project.channel==='mobile'&&tab==='preview'&&<div className="zoom-controls" aria-label="Mobile preview zoom"><button aria-label="Zoom out" title="Zoom out" disabled={zoom<=50} onClick={()=>setZoom(z=>Math.max(50,z-10))}><Minus size={15}/></button><button className="zoom-value" title="Reset zoom to 100%" aria-label="Reset zoom to 100%" onClick={()=>setZoom(100)}>{zoom}%</button><button aria-label="Zoom in" title="Zoom in" disabled={zoom>=150} onClick={()=>setZoom(z=>Math.min(150,z+10))}><Plus size={15}/></button></div>}<button title="Toggle wider preview" onClick={()=>setExpanded(v=>!v)}><Monitor size={16}/></button><button title="Import JSON" onClick={()=>{setJsonDraft(demo?JSON.stringify(demo,null,2):'');setImportOpen(true);}}><Upload size={16}/></button><button title="Export demo JSON" onClick={exportJSON} disabled={!demo}><Download size={16}/></button>{demo&&<button title="Clear preview" onClick={resetDemo}><RefreshCw size={16}/></button>}</div></div>
  {tab==='definition'?<div className="studio-json">{demo?<pre>{JSON.stringify(demo,null,2)}</pre>:<div className="studio-json-empty">A validated Demo Definition will appear here when a demo is loaded or generated.</div>}</div>:<div className="preview-viewport">{demo&&screen?<><div className="screen-strip">{demo.screens.map((s,i)=><button key={s.id} className={screen.id===s.id?'active':''} onClick={()=>go(s.id)}>{String(i+1).padStart(2,'0')} · {s.title}</button>)}</div><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage':'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,height:780*zoom/100}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame':'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?{transform:`scale(${zoom/100})`,transformOrigin:'top left'}:undefined}><div className="demo-shell">{project.channel==='portal'&&<nav className="demo-nav"><div className="demo-logo"><Wallet size={18}/> NORTHBANK</div>{demo.screens.filter(s=>!['application','complete'].includes(s.id)).map(s=><button key={s.id} className={s.id===screen.id?'on':''} onClick={()=>go(s.id)}><LayoutDashboard size={15}/>{s.title}</button>)}</nav>}<div className="demo-main">{project.channel==='mobile'&&<div className="mobile-brand"><span className="mobile-symbol"><Wallet size={17}/></span> northbank</div>}{screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className="elements">{screen.elements.map(el=><React.Fragment key={el.id}>{render(el)}</React.Fragment>)}</div></div></div></div></div></div></>:empty}</div>}
