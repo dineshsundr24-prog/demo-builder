@@ -1,3 +1,4 @@
+import {validScreenChrome} from './screenChrome.mjs';
 // Portable, immutable viewer snapshots. No credentials, messages or private project context.
 // The public URL contains the demo data; only publish information suitable for sharing.
 const VERSION=1;
@@ -30,7 +31,7 @@ export function isValidShareDemo(d){
  if(d.chrome&&(typeof d.chrome.brandName!=='string'||typeof d.chrome.showBrandIcon!=='boolean'||typeof d.chrome.showBackButton!=='boolean'))return false;
  const screens=new Set();
  for(const sc of d.screens){
-  if(!sc||typeof sc.id!=='string'||typeof sc.title!=='string'||typeof sc.subtitle!=='string'||screens.has(sc.id)||!Array.isArray(sc.elements)||sc.elements.length>16)return false;
+  if(!sc||typeof sc.id!=='string'||typeof sc.title!=='string'||typeof sc.subtitle!=='string'||screens.has(sc.id)||!Array.isArray(sc.elements)||sc.elements.length>16||!validScreenChrome(sc.chrome))return false;
   screens.add(sc.id);
   const elements=new Set();
   for(const el of sc.elements){
