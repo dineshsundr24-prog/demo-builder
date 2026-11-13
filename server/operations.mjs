@@ -110,12 +110,16 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
   if(at.screenId!==target.screenId)fail('Operation attempted to change another screen.');
-  if(target.level!=='screen' && (at.level!==target.level||at.elementId!==target.elementId||at.childId!==target.childId))fail('Operation escaped the selected component.');
+  if(target.level!=='screen'){
+   const same=at.level===target.level&&at.elementId===target.elementId&&at.childId===target.childId;
+   const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
+   if(!same&&!formChild)fail('Operation escaped the selected component.');
+  }
   if(op.op==='set'){
    if(typeof op.property!=='string')fail('Missing property.');
    propertySet(candidate,at,op.property,op.value);
@@ -128,6 +132,19 @@ export function applyOperations(original,target,operations,channel){
    if(idx<0)fail('Element to remove does not exist.');
    sc.elements.splice(idx,1);
    changed.push({target:{...at,elementId:id},operation:'remove-element'});
+  }else if(op.op==='move-field'){
+   if(at.level!=='field')fail('Move-field requires a specific existing field.');
+   const sc=candidate.screens.find(x=>x.id===at.screenId);
+   const form=chosenForm(sc,at.elementId);
+   const index=form.fields.findIndex(f=>f.id===at.childId);
+   if(index<0)fail('Field to move does not exist.');
+   const anchor=op.afterFieldId;
+   if(anchor!=='__start__'&&!form.fields.some(f=>f.id===anchor))fail('Move-field anchor is not an existing field in this form.');
+   if(anchor===at.childId)fail('Cannot position field after itself.');
+   const [field]=form.fields.splice(index,1);
+   const after=anchor==='__start__'?-1:form.fields.findIndex(f=>f.id===anchor);
+   form.fields.splice(after+1,0,field);
+   changed.push({target:at,operation:'move-field'});
   }else if(op.op==='remove-field'){
    if(!['screen','element','field'].includes(at.level))fail('Remove-field requires a screen, form, or field selection.');
    const sc=candidate.screens.find(x=>x.id===at.screenId);
@@ -179,6 +196,14 @@ export function applyOperations(original,target,operations,channel){
    const at=op.target||target;
    const sc=candidate.screens.find(s=>s.id===at.screenId);
    if(sc.elements.some(e=>e.id===(at.elementId||op.elementId)))fail('Outcome verification failed: element remains.');
+  }else if(op.op==='move-field'){
+   const at=op.target||target;
+   const sc=candidate.screens.find(x=>x.id===at.screenId);
+   const fields=chosenForm(sc,at.elementId).fields;
+   const atIndex=fields.findIndex(f=>f.id===at.childId);
+   if(atIndex<0)fail('Outcome verification failed: moved field missing.');
+   if(op.afterFieldId==='__start__'&&atIndex!==0)fail('Outcome verification failed: field not first.');
+   if(op.afterFieldId!=='__start__'&&fields[atIndex-1]?.id!==op.afterFieldId)fail('Outcome verification failed: field not after requested anchor.');
   }else if(op.op==='remove-field'){
    const at=op.target||target;const sc=candidate.screens.find(s=>s.id===at.screenId);
    const form=chosenForm(sc,at.elementId||op.elementId);
