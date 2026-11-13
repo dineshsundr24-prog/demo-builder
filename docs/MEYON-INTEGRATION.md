@@ -36,7 +36,17 @@ All identifiers refer to MEYON-owned resources. Identity and permissions must be
 ## Integration invariant
 One Demo Builder service and renderer; standalone and embedded workspaces share the same capabilities. A project retains its demo ID across successive stories. No cross-project data access. Published demo URLs use a separately sandboxed viewer; no access to editor credentials or MEYON resources.
 
-## Piece 1 boundaries
-The Piece 1 UI persists drafts only in the current browser's local storage. It allows adding requirement text, project settings and attachment *names*; uploaded file content is not retained or parsed. The chat collects user instructions **but does not call AI**. It never invents a response. The live preview uses a labeled sample or imported JSON definition.
+## Piece 4 current readiness (November 2026)
 
-Do not describe Piece 1 as AI-powered generation, screenshot parsing, durable server-side saving, or MEYON integration. Those are later pieces.
+- Standalone projects, chat-generated Demo Definition, and scope-verified single-screen/global-header refinements work without MEYON.
+- Read-only portable published snapshots are available at the frontend's `#/view/<encoded-snapshot>` route. These do **not** implement the future MEYON version API, server publication database, access permissions, or revocation.
+- Shared viewer is a client-side route on the same frontend origin; it is **not** an iframe sandbox or separately hosted isolated renderer.
+- The future MEYON Project → Demo tab must pass **server-authenticated, permission-checked** context with explicit feature/story baseline versions, not a user-controllable URL string.
+- A durable `demoId` and version ID, story/feature baseline references, design guidelines, change provenance, optional custom component allowlisting and a signed embed session are requirements for a production integration.
+- Do not expose `DEMO_ACCESS_TOKEN` or `OPENAI_API_KEY` to an embedded viewer. The current shared access token is a NONPROD measure, not proper project isolation.
+- No MEYON repository, deployment or database was modified by Piece 4.
+
+## Current browser-only limitations
+
+The project editor stores drafts, chats and saved snapshot-link metadata in its own local browser storage. Files record names only. A published URL embeds demo content, so links must be treated as publicly shareable data, not private links. No automatic sync or server-side project record exists yet.
+
