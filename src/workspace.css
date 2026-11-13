@@ -147,3 +147,9 @@
 .studio .ai-connection strong{font-size:12px}
 .studio .ai-connection p{font-size:11px;line-height:1.7;margin-top:7px}
 .studio .ai-connection small{display:block;color:#8092aa;margin-top:9px}
+
+/* Piece 3: small undo action inside the existing project-brief bar. */
+.studio .brief-status .undo-edit{background:#fff;border:1px solid #d9e2f0;border-radius:7px;color:#617392;padding:6px 9px;font-size:10px;font-weight:700;white-space:nowrap}
+.studio .brief-status .undo-edit:hover{color:#2454a6;background:#f4f8ff}
+.studio .brief-status .undo-edit:disabled{opacity:.45;cursor:wait}
+.studio .chat-message.system p{white-space:pre-wrap}
