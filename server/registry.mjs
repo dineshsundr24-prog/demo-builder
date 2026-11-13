@@ -12,7 +12,7 @@ export function buildRegistry(demo,selected){
    parentId:parent||null,screenTitle:screen.title,capabilities});
  }
  for(const screen of demo.screens){
-  add('screen',screen,null,screen,null,['set']);
+  add('screen',screen,null,screen,null,['set','add-component']);
   add('header',screen,null,{label:'Header'},nodeId('screen',screen.id),['set']);
   for(const element of screen.elements){
    const caps=['hero','notice','form','table'].includes(element.kind)?['set','remove-element']:['remove-element'];
