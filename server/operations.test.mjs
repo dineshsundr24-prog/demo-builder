@@ -103,3 +103,56 @@ test('No change after wallet already removed returns a no-op rather than success
  const once=applyOperations(baseline,target,deriveFastOperations(baseline,target,'Remove the wallet icon from the header'),'mobile').definition;
  assert.throws(()=>applyOperations(once,target,deriveFastOperations(once,target,'Remove the wallet icon from the header'),'mobile'),/did not produce a change/);
 });
+
+test('RCA: Emirates ID and EID Expiry request creates two correctly typed fields',()=>{
+ const before=structuredClone(baseline);
+ before.screens[1].title='Personal & Income Details';
+ before.screens[1].elements[0].fields.unshift({id:'passport',label:'Passport Number',type:'text',required:true});
+ const target=t('screen','register');
+ const ops=deriveFastOperations(before,target,'ADD EMIRATES ID & EID EXPIRY INPUT BOX');
+ assert.equal(ops.length,2);
+ const result=applyOperations(before,target,ops,'mobile');
+ const fields=result.definition.screens[1].elements[0].fields;
+ assert.deepEqual(fields.slice(-2).map(f=>({id:f.id,label:f.label,type:f.type})),[
+  {id:'emirates-id',label:'Emirates ID',type:'text'},
+  {id:'eid-expiry',label:'EID Expiry',type:'date'}
+ ]);
+ assert.equal(fields[0].id,'passport');
+ assert.deepEqual(result.definition.screens[0],baseline.screens[0]);
+ assert.deepEqual(result.definition.screens[2],baseline.screens[2]);
+ assert.equal(before.screens[1].elements[0].fields.length,2);
+});
+test('AI missing field IDs gets stable deterministic IDs from its labels',()=>{
+ const target=t('screen','register');
+ const result=applyOperations(baseline,target,[
+ {op:'add-field',target:{level:'element',screenId:'register',elementId:'form'},field:{label:'Emirates ID',type:'text'}},
+ {op:'add-field',target:{level:'element',screenId:'register',elementId:'form'},field:{label:'EID Expiry',type:'date'}}
+ ],'mobile');
+ assert.deepEqual(result.definition.screens[1].elements[0].fields.slice(-2).map(f=>f.id),['emirates-id','eid-expiry']);
+});
+test('Semantic duplicate form labels are refused with an actionable error',()=>{
+ const target=t('screen','register');
+ assert.throws(()=>applyOperations(baseline,target,[{op:'add-field',target:{level:'element',screenId:'register',elementId:'form'},field:{label:' Mobile Number ',type:'text'}}],'mobile'),/already exists in this form/);
+});
+test('Duplicate stable ID is distinguished from invalid field type',()=>{
+ const target=t('screen','register');
+ assert.throws(()=>applyOperations(baseline,target,[{op:'add-field',target:{level:'element',screenId:'register',elementId:'form'},field:{id:'mobile',label:'EID',type:'text'}}],'mobile'),/ID "mobile" already exists/);
+ assert.throws(()=>applyOperations(baseline,target,[{op:'add-field',target:{level:'element',screenId:'register',elementId:'form'},field:{id:'expiry',label:'EID Expiry',type:'calendar'}}],'mobile'),/Unsupported form field type "calendar"/);
+});
+test('Already existing Emirates ID field is preserved and only missing EID Expiry is added',()=>{
+ const d=structuredClone(baseline);
+ d.screens[1].elements[0].fields.push({id:'existing-eid',label:'Emirates ID',type:'text',required:true});
+ const target=t('screen','register');
+ const operations=deriveFastOperations(d,target,'Add Emirates ID & EID Expiry input boxes');
+ assert.equal(operations.length,1);
+ assert.equal(operations[0].field.id,'eid-expiry');
+ const after=applyOperations(d,target,operations,'mobile').definition;
+ assert.equal(after.screens[1].elements[0].fields.find(f=>f.id==='existing-eid').required,true);
+});
+test('Ambiguous screen containing multiple forms cannot silently add identity fields to a guessed form',()=>{
+ const d=structuredClone(baseline);
+ d.screens[1].elements.push({id:'second-form',kind:'form',title:'Additional Data',fields:[{id:'a',label:'Another',type:'text'}],actionLabel:'Continue'});
+ const target=t('screen','register');
+ assert.equal(deriveFastOperations(d,target,'Add Emirates ID & EID Expiry input boxes'),null);
+ assert.throws(()=>applyOperations(d,target,[{op:'add-field',target,field:{label:'Emirates ID',type:'text'}}],'mobile'),/Multiple forms are present/);
+});
