@@ -3,6 +3,8 @@ import{createRoot}from'react-dom/client';
 import{ArrowLeft,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Code2,Copy,Download,Eye,FileJson,FolderPlus,Info,LayoutDashboard,MessageSquare,Monitor,MoreHorizontal,Paperclip,Plus,Minus,RefreshCw,Search,Send,Settings2,ShieldCheck,Smartphone,Sparkles,Upload,Wallet,X}from'lucide-react';
 import{cloneDemo,DemoDefinition,Element,mobileStarter,starter,validateDemo}from './demo';
 import PublishedViewer from './PublishedViewer';
+// @ts-ignore Shared pure JS contract is also exercised by backend tests.
+import {resolveScreenChrome} from './screenChrome.mjs';
 // @ts-ignore JS source is shared with Node regression tests.
 import{makeSnapshot,encodeSnapshot,decodeSnapshot,isViewerPath}from './publish.mjs';
 import './styles.css';
@@ -32,10 +34,10 @@ function App(){
  const project=state.projects.find(p=>p.id===state.activeId)||state.projects[0];
  const demo=project.demo;
  const screen=demo?.screens.find(s=>s.id===screenId)||demo?.screens[0];
- const bankFromName=(demo?.name||project.name).match(/^(.+?\bBank)\b/i)?.[1];
- const brandName=demo?.chrome?.brandName||project.company||bankFromName||project.name||'Demo application';
- const showBrandIcon=demo?.chrome?.showBrandIcon!==false;
- const showBackButton=demo?.chrome?.showBackButton!==false;
+ const screenChrome=resolveScreenChrome(demo,screen,project.company,project.name);
+ const brandName=screenChrome.brandName;
+ const showBrandIcon=screenChrome.showBrandIcon;
+ const showBackButton=screenChrome.showBackButton;
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch{setToast('Browser storage is unavailable. Export your definition before leaving.');}},[state]);
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
  useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
@@ -86,7 +88,7 @@ function App(){
     const msg:Message={id:makeId(),role:'system',text:String(result.summary)+'\nUndo is available.'+(global?'':' Model: '+String(result.usage?.model||aiModel)),date:new Date().toISOString()};
     setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===targetId?{...p,demo:cloneDemo(updated),revisions:[...(p.revisions||[]),revision].slice(-8),messages:[...p.messages,msg]}:p)}));
     if(state.activeId===targetId){setScreenId(global?(targetScreenId||before.screens[0].id):result.changedScreenId);setTab('preview');setFormValues({});setErrors({});}
-    setToast(global?'Shared header updated across all '+updated.screens.length+' screens; existing screen content preserved.':'Updated '+result.changedScreenTitle+' only; '+result.preservedScreens+' other screens verified unchanged.');
+    setToast(global?'Shared header updated across all '+updated.screens.length+' screens; existing screen content preserved.':result.scope==='screen-chrome'?'Header icon updated on '+result.changedScreenTitle+' only; all other screen headers preserved.':'Updated '+result.changedScreenTitle+' only; '+result.preservedScreens+' other screens verified unchanged.');
   }catch(err){
     const message=err instanceof Error?err.message:'Refinement failed.';
     const failed:Message={id:makeId(),role:'system',text:'No changes applied: '+message,date:new Date().toISOString()};
