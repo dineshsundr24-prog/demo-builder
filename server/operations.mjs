@@ -1,3 +1,4 @@
+import {validComposed} from '../src/composed.mjs';
 // Constrained operation-based Demo Definition edits.
 // Only existing stable screen/element/field/button IDs are used as targets.
 // No executable code, CSS or arbitrary object path operations.
@@ -110,7 +111,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -159,6 +160,19 @@ export function applyOperations(original,target,operations,channel){
    const removed=matches[0].field;
    form.fields.splice(matches[0].index,1);
    changed.push({target:{level:'field',screenId:at.screenId,elementId:form.id,childId:removed.id},operation:'remove-field'});
+  }else if(op.op==='add-component'){
+   if(at.level!=='screen')fail('Adding a composed component requires screen selection.');
+   const screen=candidate.screens.find(x=>x.id===at.screenId);
+   const component=structuredClone(op.component);
+   if(!component||typeof component!=='object'||Array.isArray(component))fail('AI component definition missing.');
+   const safeId=String(component.id||component.title||'component').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48);
+   component.id=safeId;
+   component.kind='composed';
+   if(screen.elements.some(e=>e.id===component.id))fail('Component ID already exists on this screen.');
+   if(screen.elements.length>=15)fail('Screen contains too many components.');
+   if(!validComposed(component,candidate.screens.map(x=>x.id)))fail('AI component did not pass the clickable-demo component schema.');
+   screen.elements.push(component);
+   changed.push({target:at,operation:'add-component',componentId:component.id});
   }else if(op.op==='add-field'){
    if(at.level!=='element'&&at.level!=='screen')fail('Add-field requires form or screen selection.');
    const sc=candidate.screens.find(s=>s.id===at.screenId);
@@ -209,6 +223,10 @@ export function applyOperations(original,target,operations,channel){
    const form=chosenForm(sc,at.elementId||op.elementId);
    const id=at.childId||op.fieldId;
    if(form.fields.some(f=>id?f.id===id:normalizeLabel(f.label)===normalizeLabel(op.fieldLabel)))fail('Outcome verification failed: removed field remains.');
+  }else if(op.op==='add-component'){
+   const at=op.target||target;const screen=candidate.screens.find(x=>x.id===at.screenId);
+   const id=String(op.component.id||op.component.title||'component').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48);
+   if(!screen.elements.some(e=>e.id===id&&e.kind==='composed'))fail('Outcome verification failed: created component missing.');
   }else if(op.op==='add-field'){
    const at=op.target||target;const sc=candidate.screens.find(s=>s.id===at.screenId);
    const form=sc.elements.find(e=>e.id===(at.elementId||op.elementId));
