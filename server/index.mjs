@@ -193,8 +193,8 @@ async function planEdit(body){
  if(plan?.status==='ambiguous'){
   const valid=Array.isArray(plan.candidateIds)?plan.candidateIds.filter(id=>candidates.some(e=>e.id===id)).slice(0,6):[];
   if(valid.length<2)throw Object.assign(new Error('Target is unclear. Click the component in the preview and retry.'),{status:422});
-  const names=valid.map(id=>{const item=registry.find(e=>e.id===id);return item.label+' ('+item.screenTitle+')';});
-  throw Object.assign(new Error('Multiple matching targets: '+names.join(', ')+'. Select the correct component in the preview and retry.'),{status:422});
+  const choices=valid.map(id=>{const item=registry.find(e=>e.id===id);return {id,label:item.label,screen:item.screenTitle,type:item.type,target:item.target};});
+  throw Object.assign(new Error(String(plan.question||'Which component do you mean?').slice(0,220)),{status:409,code:'AMBIGUOUS_TARGET',choices});
  }
  if(plan?.status!=='resolved')throw Object.assign(new Error('AI returned an unrecognized plan status. No changes were made.'),{status:422});
  let operations;
@@ -219,6 +219,6 @@ const server=http.createServer(async(req,res)=>{
  if(!authorized(req.headers['x-builder-access'],process.env.DEMO_ACCESS_TOKEN)){respond(res,401,{error:'Invalid Demo Builder access token.'});return;}
  const client=req.socket.remoteAddress||'unknown';if(rateLimited(client)){respond(res,429,{error:'Generation limit reached (6 requests/minute).'});return;}
  try{const body=await readBody(req);const result=req.url==='/api/plan'?await planEdit(body):req.url==='/api/refine'?await refine(body):await generate(body);respond(res,200,result);}
- catch(err){console.error('Generation error:',err?.message||'unknown');respond(res,err?.status||500,{error:err?.status?err.message:'Unable to generate the demo. Please try again.'});}
+ catch(err){console.error('Generation error:',err?.message||'unknown');respond(res,err?.status||500,{error:err?.status?err.message:'Unable to generate the demo. Please try again.',...(err?.code==='AMBIGUOUS_TARGET'?{code:err.code,choices:err.choices}: {})});}
 });
 server.listen(port,'0.0.0.0',()=>console.log(`Demo Builder API listening on ${port}`));
