@@ -3,7 +3,8 @@ import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
-import {applyOperations,deriveFastOperations,locateNode,targetLabel} from './operations.mjs';
+import {applyOperations,locateNode,targetLabel} from './operations.mjs';
+import {buildRegistry,compactRegistry,resolveChangeSet} from './registry.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -156,33 +157,55 @@ async function planEdit(body){
    summary:'Proposed a shared header update across '+demo.screens.length+' screens. Review before applying.',
    usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
  }
- let operations=deriveFastOperations(demo,target,instruction);
- let usedModel=false,raw;
- if(!operations){
-  const node=locateNode(demo,target);
-  const scopeContext={instruction,target,selectedScreen:{id:node.screen.id,title:node.screen.title,subtitle:node.screen.subtitle},selectedNode:node.node,
-   selectedParent:node.element&&node.element!==node.node?node.element:null,
-   availableScreens:demo.screens.map(x=>({id:x.id,title:x.title})),
-   project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
-  const instructions='You are a precise JSON patch operation planner for a constrained banking demo. Return ONLY a JSON object with an operations array. Max 8 operations. Operations: {"op":"set","target":{level,screenId,elementId?,childId?},"property":"...","value":...}; {"op":"remove-element","target":{level:"element",screenId,elementId}}; {"op":"add-field","target":{level:"element",screenId,elementId},"field":{id,label,type,required?,placeholder?,options?},"afterFieldId":"optional"}. Supported element kinds: hero,notice,form,table,stats,actions. set properties: screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; form field label/placeholder/required/type/options; action button label/variant/nextScreen. NO CSS, no custom component, no executable code. Only reference stable existing IDs. For field insertion, use an existing form and unique stable field IDs; id can be omitted to derive from label. Supported field types: text, email, password, number, select, date. Dates such as EID Expiry must use date. If screen contains multiple forms, do not guess: return unsupported. Do not add a field if its label or ID already exists. For header changes target the header. Do not edit anything beyond selected scope. If request cannot be achieved, return {"operations":[],"unsupported":"short reason"}. No other text. JSON only.';
-  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
-  try{
-   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Return a valid JSON operations object for the following selected demo context: '+JSON.stringify(scopeContext),text:{format:{type:'json_object'}},max_output_tokens:2000,store:false})});
-   raw=await response.json();
-   if(!response.ok){console.error('Patch planning OpenAI error',{status:response.status,type:raw?.error?.type});throw Object.assign(new Error('AI could not propose the change. No modification was made.'),{status:502});}
-  }finally{clearTimeout(timeout);}
-  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
-  let result;
-  try{result=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned an invalid patch plan. No modification was made.'),{status:422});}
-  if(!Array.isArray(result?.operations)||!result.operations.length)throw Object.assign(new Error('Unsupported change: '+String(result?.unsupported||'No valid operations proposed.').slice(0,250)),{status:422});
-  operations=result.operations;usedModel=true;
+ // One grounded model call: target IDs may only come from this registry.
+ const registry=buildRegistry(demo,target);
+ const candidates=compactRegistry(registry,target);
+ const selected=registry.find(e=>e.exactSelection);
+ const scopeContext={instruction,selection:selected?.id||null,
+  selectedScreen:demo.screens.find(x=>x.id===target.screenId)?.title,
+  candidates,project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
+ const instructions=[
+  'You are the grounded intent interpreter for a structured interactive application demo.',
+  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
+  'Make one change per user intent, maximum eight. Never silently skip a requested change. Use only candidate registry IDs, which include real type, parent and allowed capabilities. Never fabricate target IDs, invent fields to remove or refer to other screens.',
+  'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
+  'Only plan capabilities explicitly advertised for a registry object. If the request asks for unsupported layouts, rules or operations, return unsupported instead of a partial change. When a name matches multiple targets and the selection does not disambiguate, return ambiguous.',
+  'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
+  'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
+  'For move-field, afterFieldId must be an existing field id from the same form, or __start__. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
+  'Do not emit executable code, CSS, markdown, commentary or arbitrary JSON paths.'
+ ].join(' ');
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
+ let raw;
+ try{
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,
+   headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},
+   body:JSON.stringify({model,instructions,input:JSON.stringify(scopeContext),
+    text:{format:{type:'json_object'}},max_output_tokens:3000,store:false})});
+  raw=await response.json();
+  if(!response.ok){console.error('Grounded planner model error',{status:response.status,type:raw?.error?.type});throw Object.assign(new Error('AI planning failed. Original demo remains unchanged.'),{status:502});}
+ }finally{clearTimeout(timeout);}
+ if(raw?.status!=='completed'||raw?.incomplete_details)throw Object.assign(new Error('AI plan was incomplete or truncated. No changes were made.'),{status:422});
+ const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
+ let plan;
+ try{plan=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned malformed JSON. No changes were made.'),{status:422});}
+ if(plan?.status==='unsupported')throw Object.assign(new Error('Unsupported change: '+String(plan.reason||'The requested capability is not available.').slice(0,250)),{status:422});
+ if(plan?.status==='ambiguous'){
+  const valid=Array.isArray(plan.candidateIds)?plan.candidateIds.filter(id=>candidates.some(e=>e.id===id)).slice(0,6):[];
+  if(valid.length<2)throw Object.assign(new Error('Target is unclear. Click the component in the preview and retry.'),{status:422});
+  const names=valid.map(id=>{const item=registry.find(e=>e.id===id);return item.label+' ('+item.screenTitle+')';});
+  throw Object.assign(new Error('Multiple matching targets: '+names.join(', ')+'. Select the correct component in the preview and retry.'),{status:422});
  }
+ if(plan?.status!=='resolved')throw Object.assign(new Error('AI returned an unrecognized plan status. No changes were made.'),{status:422});
+ let operations;
+ try{operations=resolveChangeSet(registry,target,plan.changes);}
+ catch(e){throw Object.assign(new Error('Target/capability validation blocked the change: '+e.message+'. Original demo unchanged.'),{status:422});}
  let verification;
  try{verification=applyOperations(demo,target,operations,project.channel);}
  catch(e){throw Object.assign(new Error('Patch blocked: '+e.message+'. Original demo remains unchanged.'),{status:422});}
  return{scope:'planned',target,label:targetLabel(demo,target),operations,definition:verification.definition,checks:verification.checks,
    preservedScreens:verification.preservedScreens,summary:'Proposed '+operations.length+' scoped operation(s) for '+targetLabel(demo,target)+'. Review before applying.',
-   usage:{model:usedModel?(raw?.model||model):'deterministic',inputTokens:raw?.usage?.input_tokens||0,outputTokens:raw?.usage?.output_tokens||0}};
+   usage:{model:raw?.model||model,inputTokens:raw?.usage?.input_tokens||0,outputTokens:raw?.usage?.output_tokens||0}};
 }
 
 const server=http.createServer(async(req,res)=>{
