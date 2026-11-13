@@ -156,3 +156,66 @@ test('Ambiguous screen containing multiple forms cannot silently add identity fi
  assert.equal(deriveFastOperations(d,target,'Add Emirates ID & EID Expiry input boxes'),null);
  assert.throws(()=>applyOperations(d,target,[{op:'add-field',target,field:{label:'Emirates ID',type:'text'}}],'mobile'),/Multiple forms are present/);
 });
+
+
+test('Canonical registry: field, form, and header have stable distinct IDs',async()=>{
+ const {buildRegistry,compactRegistry}=await import('./registry.mjs');
+ const entries=buildRegistry(baseline,t('screen','register'));
+ assert.equal(entries.find(e=>e.id==='field:register:form:mobile').label,'Mobile Number');
+ assert.deepEqual(entries.find(e=>e.id==='field:register:form:mobile').capabilities,['set','remove-field','move-field']);
+ assert.ok(entries.some(e=>e.id==='header:register'));
+ assert.ok(entries.some(e=>e.id==='element:register:form'&&e.capabilities.includes('add-field')));
+ assert.ok(compactRegistry(entries,t('screen','register')).every(e=>!e.id.includes('welcome')));
+});
+test('Grounded full change set removes a field and inserts two fields atomically',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const d=structuredClone(baseline);
+ const form=d.screens[1].elements[0];
+ form.fields.push({id:'passport',label:'Passport Number',type:'text'});
+ const selected=t('screen','register');
+ const registry=buildRegistry(d,selected);
+ const changes=[
+  {action:'remove-field',targetId:'field:register:form:passport'},
+  {action:'add-field',targetId:'element:register:form',field:{label:'Emirates ID',type:'text',required:true}},
+  {action:'add-field',targetId:'element:register:form',field:{label:'EID Expiry',type:'date'}}
+ ];
+ const operations=resolveChangeSet(registry,selected,changes);
+ const result=applyOperations(d,selected,operations,'mobile');
+ assert.deepEqual(result.definition.screens[1].elements[0].fields.map(f=>f.label),['Mobile Number','Emirates ID','EID Expiry']);
+ assert.deepEqual(d.screens[1].elements[0].fields.map(f=>f.label),['Mobile Number','Passport Number']);
+ assert.deepEqual(result.definition.screens[0],d.screens[0]);
+});
+test('Grounded operation rejects invented IDs, capabilities and unrelated screens',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const selected=t('screen','register'),r=buildRegistry(baseline,selected);
+ assert.throws(()=>resolveChangeSet(r,selected,[{action:'remove-field',targetId:'field:register:form:unknown'}]),/not found/);
+ assert.throws(()=>resolveChangeSet(r,selected,[{action:'remove-element',targetId:'field:register:form:mobile'}]),/unsupported/);
+ assert.throws(()=>resolveChangeSet(r,selected,[{action:'set',targetId:'screen:welcome',property:'title',value:'Hacked'}]),/another screen/);
+});
+test('Move field supports anchor and verifies resulting order',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const d=structuredClone(baseline),selected=t('screen','register');
+ d.screens[1].elements[0].fields.push({id:'passport',label:'Passport Number',type:'text'},{id:'eid',label:'Emirates ID',type:'text'});
+ const registry=buildRegistry(d,selected);
+ const operations=resolveChangeSet(registry,selected,[{action:'move-field',targetId:'field:register:form:eid',afterFieldId:'__start__'}]);
+ const result=applyOperations(d,selected,operations,'mobile');
+ assert.equal(result.definition.screens[1].elements[0].fields[0].id,'eid');
+ assert.deepEqual(result.definition.screens[0],d.screens[0]);
+});
+test('Multi-change atomic rollback: one bad action leaves original unchanged',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const d=structuredClone(baseline),selected=t('screen','register');
+ const r=buildRegistry(d,selected);
+ assert.throws(()=>resolveChangeSet(r,selected,[
+  {action:'add-field',targetId:'element:register:form',field:{label:'Emirates ID',type:'text'}},
+  {action:'remove-field',targetId:'field:register:form:invented'}
+ ]),/not found/);
+ assert.deepEqual(d,baseline);
+});
+test('Form selection allows editing its descendant field but forbids escaping its form',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const selected=t('element','register','form'),r=buildRegistry(baseline,selected);
+ const operations=resolveChangeSet(r,selected,[{action:'set',targetId:'field:register:form:mobile',property:'label',value:'Phone'}]);
+ assert.equal(applyOperations(baseline,selected,operations,'mobile').definition.screens[1].elements[0].fields[0].label,'Phone');
+ assert.throws(()=>resolveChangeSet(r,selected,[{action:'set',targetId:'screen:register',property:'title',value:'Unsafe'}]),/outside the selected component/);
+});
