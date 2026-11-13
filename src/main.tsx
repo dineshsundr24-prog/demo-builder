@@ -12,7 +12,7 @@ import './workspace.css';
 
 type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
 type Target={level:'screen'|'header'|'element'|'field'|'button';screenId:string;elementId?:string;childId?:string};
-type PendingEdit={projectId:string;instruction:string;target:Target;before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
+type PendingEdit={projectId:string;instruction:string;target:Target;scope:'global'|'screen';before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
 type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[];publishedVersions?:PublishedVersion[]};
 type Message={id:string;role:'user'|'system';text:string;date:string};
@@ -104,10 +104,16 @@ function App(){
    if(!response.ok)throw Error(String(result.error||'Unable to prepare edit.'));
    const next=result.definition as DemoDefinition;
    if(!validateDemo(next)||next.channel!==before.channel||next.screens.length!==before.screens.length)throw Error('Plan failed schema validation.');
-   if(JSON.stringify(next.chrome)!==JSON.stringify(before.chrome))throw Error('Plan changed application-wide header unexpectedly.');
-   if(before.screens.some((sc,i)=>sc.id!==target.screenId&&JSON.stringify(sc)!==JSON.stringify(next.screens[i])))throw Error('Plan changed another screen unexpectedly.');
+   const isGlobal=result.scope==='global';
+   if(isGlobal){
+    if(JSON.stringify(before.screens)!==JSON.stringify(next.screens))throw Error('Global plan unexpectedly changed screen content.');
+    if(JSON.stringify(next.chrome)===JSON.stringify(before.chrome))throw Error('Global header settings were not changed.');
+   }else{
+    if(JSON.stringify(next.chrome)!==JSON.stringify(before.chrome))throw Error('Plan changed application-wide header unexpectedly.');
+    if(before.screens.some((sc,i)=>sc.id!==target.screenId&&JSON.stringify(sc)!==JSON.stringify(next.screens[i])))throw Error('Plan changed another screen unexpectedly.');
+   }
    if(JSON.stringify(next)===JSON.stringify(before))throw Error('No changes proposed.');
-   const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target,before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
+   const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target,scope:isGlobal?'global':'screen',before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
    setPending(draft);setScreenId(target.screenId);setSelectMode(false);setTab('preview');setFormValues({});setErrors({});
    setToast('Change proposed. Review the preview and choose Apply or Discard.');
   }catch(err){
