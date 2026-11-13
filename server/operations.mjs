@@ -66,9 +66,25 @@ function propertySet(demo,target,property,value){
  if(['title','brandName','label','actionLabel'].includes(property)&&!String(value).trim())fail('Required title or label cannot be blank.');
  node[property]=value;
 }
+// Accept a small, explicit set of model path aliases but never arbitrary JSON paths.
+// The editor's implicit screen scope can select descendants of that screen.
+export function normalizeOperations(selection,operations){
+ if(!Array.isArray(operations))return operations;
+ return operations.map(op=>{
+  if(!op||op.op!=='set'||typeof op.property!=='string')return op;
+  const match=/^header\.(brandName|showBrandIcon|showBackButton)$/.exec(op.property);
+  if(!match)return op;
+  const supplied=op.target||selection;
+  if(!supplied||!['screen','header'].includes(supplied.level)||supplied.screenId!==selection.screenId)return op;
+  if(!['screen','header'].includes(selection.level))return op;
+  return {...op,property:match[1],target:{level:'header',screenId:selection.screenId}};
+ });
+}
+
 export function applyOperations(original,target,operations,channel){
  if(!validateStrictDemo(original,channel))fail('Original demo is invalid.');
  locateNode(original,target);
+ operations=normalizeOperations(target,operations);
  if(!Array.isArray(operations)||!operations.length||operations.length>8)fail('Provide one to eight change operations.');
  const candidate=structuredClone(original);
  const before=JSON.stringify(original);
@@ -140,9 +156,14 @@ export function applyOperations(original,target,operations,channel){
 }
 export function deriveFastOperations(demo,target,instruction){
  const text=String(instruction||'');
- if(target.level==='header'){
-  if(/\b(remove|hide)\b/i.test(text)&&/\b(icon|logo|wallet)\b/i.test(text))return [{op:'set',target,property:'showBrandIcon',value:false}];
-  if(/\b(show|restore)\b/i.test(text)&&/\b(icon|logo|wallet)\b/i.test(text))return [{op:'set',target,property:'showBrandIcon',value:true}];
+ // Header controls live in the renderer, not screen content. Resolve explicitly
+ // named wallet/brand-icon requests to the header within the chosen screen.
+ const brandIcon=/\b(?:wallet\s*(?:icon|symbol)?|(?:brand|bank|branding|header)\s*(?:icon|logo))\b/i.test(text);
+ const remove=/\b(remove|hide|delete)\b/i.test(text);
+ const restore=/\b(show|restore|display)\b/i.test(text);
+ const mentionsOtherChange=/\b(?:also|and)\s+(?:add|create|rename|change|update|remove|hide|delete|move)\b/i.test(text);
+ if(['screen','header'].includes(target.level)&&brandIcon&&!mentionsOtherChange&&remove!==restore){
+  return [{op:'set',target:{level:'header',screenId:target.screenId},property:'showBrandIcon',value:restore}];
  }
  const match=text.match(/\b(?:rename|change)\b.*?\b(?:to|as)\s+['\"“]?([^'\"”.,\n]{2,80})/i);
  if(match){
