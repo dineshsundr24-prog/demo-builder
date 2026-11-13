@@ -6,3 +6,19 @@
 .field.checkbox-field input[type=checkbox]{width:17px;height:17px;min-width:17px;accent-color:#157b8c;cursor:pointer;padding:0;margin:0}
 .field.checkbox-field>span{font-size:12px;line-height:1.4}
 .field.checkbox-field>.error{width:100%;margin-left:27px}
+
+/* Safe AI-composed demo-only UI blocks. */
+.composed-surface .section-head{padding:16px 18px 8px}
+.composed-items{display:flex;flex-direction:column;gap:13px;padding:14px 18px 22px}
+.composed-text{font-size:12px;line-height:1.6;color:#495a70}
+.composed-card{padding:15px;border-radius:11px;background:#f0f6fa;border:1px solid #e4edf2}
+.composed-card strong{font-size:13px;color:#203448}
+.composed-card p{font-size:12px;line-height:1.5;margin-top:5px}
+.composed-field{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.composed-field label{font-weight:600;color:#4d5d70}
+.composed-field input:not([type=checkbox]),.composed-field select{height:38px;width:100%;padding:0 10px;border:1px solid #dae3e9;border-radius:7px;background:white;color:#26384a}
+.composed-checkbox{display:flex;align-items:center;gap:10px;cursor:pointer}
+.composed-checkbox input{width:17px;height:17px;accent-color:#167f91}
+.composed-action{width:100%;justify-content:center}
+.composed-progress{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.composed-progress progress{width:100%;height:10px;accent-color:#167f91}
