@@ -11,6 +11,8 @@ import './styles.css';
 import './workspace.css';
 
 type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
+type Target={level:'screen'|'header'|'element'|'field'|'button';screenId:string;elementId?:string;childId?:string};
+type PendingEdit={projectId:string;instruction:string;target:Target;before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
 type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[];publishedVersions?:PublishedVersion[]};
 type Message={id:string;role:'user'|'system';text:string;date:string};
@@ -27,13 +29,42 @@ function App(){
  const[zoom,setZoom]=useState(100);const[tab,setTab]=useState<'preview'|'definition'>('preview');const[toast,setToast]=useState('');const[search,setSearch]=useState('');const[expanded,setExpanded]=useState(false);
  const[importOpen,setImportOpen]=useState(false);const[jsonDraft,setJsonDraft]=useState('');
  const[publishOpen,setPublishOpen]=useState(false);const[publishedUrl,setPublishedUrl]=useState('');
+ const[selectMode,setSelectMode]=useState(false);const[selected,setSelected]=useState<Target|null>(null);const[visualComment,setVisualComment]=useState('');
+ const[pending,setPending]=useState<PendingEdit|null>(null);
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[accessToken,setAccessToken]=useState('');const[accessDraft,setAccessDraft]=useState('');
  const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
  const fileInput=useRef<HTMLInputElement>(null);const end=useRef<HTMLDivElement>(null);
  const project=state.projects.find(p=>p.id===state.activeId)||state.projects[0];
- const demo=project.demo;
+ const demo=pending?.projectId===project.id?pending.definition:project.demo;
  const screen=demo?.screens.find(s=>s.id===screenId)||demo?.screens[0];
+ const activeSelection=selected?.screenId===screen?.id?selected:null;
+ const targetName=(t:Target|null)=>{
+  if(!t||!demo)return 'Current screen';
+  const scr=demo.screens.find(x=>x.id===t.screenId);
+  if(!scr)return 'Current screen';
+  if(t.level==='screen')return scr.title+' · Entire screen';
+  if(t.level==='header')return scr.title+' · Header';
+  const el=scr.elements.find(x=>x.id===t.elementId);
+  if(t.level==='element')return (el&&'title' in el?String(el.title):el?.kind||'Section')+' · Section';
+  if(t.level==='field'&&el?.kind==='form')return (el.fields.find(x=>x.id===t.childId)?.label||'Field')+' · Field';
+  if(t.level==='button'&&el?.kind==='actions')return (el.buttons.find(x=>x.id===t.childId)?.label||'Button')+' · Button';
+  return 'Selected component';
+ };
+ const pickAttrs=(level:Target['level'],elementId?:string,childId?:string)=>({
+  'data-select-level':level,'data-select-element':elementId||'','data-select-child':childId||'',
+  className:activeSelection?.level===level&&activeSelection.elementId===elementId&&activeSelection.childId===childId?'visual-selected':''
+ });
+ function pick(e:React.MouseEvent<HTMLElement>){
+  if(!selectMode||!screen)return;
+  e.preventDefault();e.stopPropagation();
+  const clicked=(e.target as HTMLElement).closest<HTMLElement>('[data-select-level]');
+  const level=(clicked?.dataset.selectLevel||'screen') as Target['level'];
+  const choice:Target={level,screenId:screen.id};
+  if(clicked?.dataset.selectElement)choice.elementId=clicked.dataset.selectElement;
+  if(clicked?.dataset.selectChild)choice.childId=clicked.dataset.selectChild;
+  setSelected(choice);setVisualComment('');
+ }
  const screenChrome=resolveScreenChrome(demo,screen,project.company,project.name);
  const brandName=screenChrome.brandName;
  const showBrandIcon=screenChrome.showBrandIcon;
@@ -42,7 +73,7 @@ function App(){
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
  useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
  function updateProject(change:Partial<Project>){setState(s=>({...s,projects:s.projects.map(p=>p.id===s.activeId?{...p,...change}:p)}));}
- function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');}
+ function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);}
  function createProject(){const name=createName.trim();if(!name){setToast('Enter a project name.');return;}const p:Project={id:makeId(),name,company:createCompany.trim(),channel:createChannel,guidelines:'',requirement:'',files:[],demo:null,messages:[]};setState(s=>({projects:[...s.projects,p],activeId:p.id}));setScreenId('');setCreateOpen(false);setCreateName('');setCreateCompany('');setComposer('');}
  async function generateFor(projectSnapshot:Project,brief:string){
   if(aiBusy)return;
@@ -58,45 +89,59 @@ function App(){
     const msg:Message={id:makeId(),role:'system',text:String(data.summary||'Demo generated successfully.')+'\nModel: '+String(data.usage?.model||'Configured model')+' · Input tokens: '+String(data.usage?.inputTokens||0)+' · Output tokens: '+String(data.usage?.outputTokens||0),date:new Date().toISOString()};
     setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,demo:cloneDemo(data.definition),revisions:[],messages:[...p.messages,msg]}:p)}));
     if(state.activeId===target){setScreenId(data.definition.screens[0].id);setTab('preview');setFormValues({});}
-    setToast('AI generated '+data.definition.screens.length+' interactive screens.');
+    setSelected(null);setPending(null);setToast('AI generated '+data.definition.screens.length+' interactive screens.');
   }catch(err){const message=err instanceof Error?err.message:'Unable to connect to AI service.';setToast(message);}
   finally{setAiBusy(false);}
  }
- async function refineFor(projectSnapshot:Project,instruction:string,targetScreenId:string){
+ async function refineFor(projectSnapshot:Project,instruction:string,targetScreenId:string,override?:Target){
   if(aiBusy||!projectSnapshot.demo)return;
-  if(!aiReady){setToast('AI backend is not ready. Existing demo remains unchanged.');return;}
-  if(!accessToken){setAccessModal(true);setToast('Connect the access token before refining. Your existing demo is unchanged.');return;}
-  setAiBusy(true);
-  const targetId=projectSnapshot.id;
+  if(pending){setToast('Apply or discard the pending preview before requesting another change.');return;}
+  if(!aiReady){setToast('AI backend is not ready. Original demo unchanged.');return;}
+  if(!accessToken){setAccessModal(true);setToast('Connect the AI access token first.');return;}
+  const target:Target=override||{level:'screen',screenId:targetScreenId};
   const before=cloneDemo(projectSnapshot.demo);
+  setAiBusy(true);
   try{
-    const response=await fetch(API+'/api/refine',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,screenId:targetScreenId,instruction})});
-    const result=await response.json();
-    if(!response.ok)throw Error(String(result.error||'Unable to refine selected screen.'));
-    const updated=result.definition as DemoDefinition;
-    if(!validateDemo(updated)||updated.channel!==before.channel||updated.screens.length!==before.screens.length)throw Error('Refinement validation failed; original demo retained.');
-    const global=result.scope==='global';
-    const idx=before.screens.findIndex(x=>x.id===result.changedScreenId);
-    if(global){
-      if(JSON.stringify(before.screens)!==JSON.stringify(updated.screens))throw Error('Global change affected screen content; original demo retained.');
-      if(!updated.chrome||JSON.stringify(before.chrome)===JSON.stringify(updated.chrome))throw Error('Global change was not applied; original demo retained.');
-    }else{
-      if(idx<0||updated.screens[idx]?.id!==before.screens[idx].id||before.screens.some((sc,i)=>i!==idx&&JSON.stringify(sc)!==JSON.stringify(updated.screens[i])))throw Error('Preservation verification failed; original demo retained.');
-      if(JSON.stringify(before.chrome)!==JSON.stringify(updated.chrome))throw Error('Screen edit changed the shared header unexpectedly; original demo retained.');
-    }
-    const revision:DemoRevision={id:makeId(),date:new Date().toISOString(),instruction,screenId:global?(targetScreenId||before.screens[0].id):String(result.changedScreenId),before};
-    const msg:Message={id:makeId(),role:'system',text:String(result.summary)+'\nUndo is available.'+(global?'':' Model: '+String(result.usage?.model||aiModel)),date:new Date().toISOString()};
-    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===targetId?{...p,demo:cloneDemo(updated),revisions:[...(p.revisions||[]),revision].slice(-8),messages:[...p.messages,msg]}:p)}));
-    if(state.activeId===targetId){setScreenId(global?(targetScreenId||before.screens[0].id):result.changedScreenId);setTab('preview');setFormValues({});setErrors({});}
-    setToast(global?'Shared header updated across all '+updated.screens.length+' screens; existing screen content preserved.':result.scope==='screen-chrome'?'Header icon updated on '+result.changedScreenTitle+' only; all other screen headers preserved.':'Updated '+result.changedScreenTitle+' only; '+result.preservedScreens+' other screens verified unchanged.');
+   const response=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},
+    body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,target,instruction})});
+   const result=await response.json();
+   if(!response.ok)throw Error(String(result.error||'Unable to prepare edit.'));
+   const next=result.definition as DemoDefinition;
+   if(!validateDemo(next)||next.channel!==before.channel||next.screens.length!==before.screens.length)throw Error('Plan failed schema validation.');
+   if(JSON.stringify(next.chrome)!==JSON.stringify(before.chrome))throw Error('Plan changed application-wide header unexpectedly.');
+   if(before.screens.some((sc,i)=>sc.id!==target.screenId&&JSON.stringify(sc)!==JSON.stringify(next.screens[i])))throw Error('Plan changed another screen unexpectedly.');
+   if(JSON.stringify(next)===JSON.stringify(before))throw Error('No changes proposed.');
+   const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target,before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
+   setPending(draft);setScreenId(target.screenId);setSelectMode(false);setTab('preview');setFormValues({});setErrors({});
+   setToast('Change proposed. Review the preview and choose Apply or Discard.');
   }catch(err){
-    const message=err instanceof Error?err.message:'Refinement failed.';
-    const failed:Message={id:makeId(),role:'system',text:'No changes applied: '+message,date:new Date().toISOString()};
-    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===targetId?{...p,messages:[...p.messages,failed]}:p)}));
-    setToast(message);
+   const message=err instanceof Error?err.message:'Unable to plan edit.';
+   const failed:Message={id:makeId(),role:'system',text:'No changes applied: '+message,date:new Date().toISOString()};
+   setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===projectSnapshot.id?{...p,messages:[...p.messages,failed]}:p)}));
+   setToast(message);
   }finally{setAiBusy(false);}
  }
+ function applyPending(){
+  if(!pending||pending.projectId!==project.id)return;
+  if(JSON.stringify(project.demo)!==JSON.stringify(pending.before)){setToast('Draft changed since preview was created. Discard and prepare the edit again.');return;}
+  const history:DemoRevision={id:makeId(),date:new Date().toISOString(),instruction:pending.instruction,screenId:pending.target.screenId,before:cloneDemo(pending.before)};
+  const note:Message={id:makeId(),role:'system',text:'Applied verified operations on '+pending.label+'. Checks: '+pending.checks.join('; ')+'. Undo is available.',date:new Date().toISOString()};
+  updateProject({demo:cloneDemo(pending.definition),revisions:[...(project.revisions||[]),history].slice(-8),messages:[...project.messages,note]});
+  setPending(null);setSelected(null);setVisualComment('');setFormValues({});setErrors({});
+  setToast('Changes applied. Undo is available.');
+ }
+ function discardPending(){setPending(null);setSelected(null);setVisualComment('');setFormValues({});setErrors({});setToast('Proposed edit discarded. Existing demo unchanged.');}
+ function requestVisualEdit(){
+  const comment=visualComment.trim();
+  if(!comment||!project.demo||!screen)return;
+  const t=activeSelection||{level:'screen' as const,screenId:screen.id};
+  const msg:Message={id:makeId(),role:'user',text:'['+targetName(t)+'] '+comment,date:new Date().toISOString()};
+  setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===project.id?{...p,messages:[...p.messages,msg]}:p)}));
+  void refineFor(project,comment,screen.id,t);
+ }
+
  function undoLastEdit(){
+  if(pending){setToast('Apply or discard the preview first.');return;}
   const history=project.revisions||[];
   if(!history.length)return;
   const last=history[history.length-1];
@@ -107,14 +152,14 @@ function App(){
  }
  function send(){
   const text=composer.trim();
-  if(!text||aiBusy)return;
+  if(!text||aiBusy||pending){if(pending)setToast('Apply or discard the preview first.');return;}
   const snapshot=project;
   const msg:Message={id:makeId(),role:'user',text,date:new Date().toISOString()};
   setComposer('');
   if(snapshot.demo){
     const target=screen?.id||snapshot.demo.screens[0].id;
     setState(p=>({...p,projects:p.projects.map(x=>x.id===snapshot.id?{...x,messages:[...x.messages,msg]}:x)}));
-    void refineFor(snapshot,text,target);
+    void refineFor(snapshot,text,target,activeSelection||undefined);
   }else{
     const brief=[snapshot.requirement,text].filter(Boolean).join('\n\n');
     setState(p=>({...p,projects:p.projects.map(x=>x.id===snapshot.id?{...x,requirement:brief,messages:[...x.messages,msg]}:x)}));
@@ -124,9 +169,9 @@ function App(){
   }
 }
  function generateBrief(){if(!project.requirement.trim()){setToast('Enter a requirement first.');return;}void generateFor(project,project.requirement);}
- function loadSample(){const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
- function applyDefinition(){try{const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj),revisions:[]});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
- function resetDemo(){updateProject({demo:null,revisions:[]});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
+ function loadSample(){setPending(null);setSelected(null);const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
+ function applyDefinition(){try{if(pending)throw Error('Discard the proposed change before importing.');const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj),revisions:[]});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
+ function resetDemo(){if(pending){setToast('Discard the proposed change first.');return;}setSelected(null);updateProject({demo:null,revisions:[]});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
  function publishDemo(){
   if(!demo||aiBusy){setToast('A completed demo is required to publish a snapshot.');return;}
   try{
@@ -151,7 +196,7 @@ function App(){
    setToast('Draft restored from version '+v.version+'. Published snapshots were not changed.');
   }catch(err){setToast(err instanceof Error?err.message:'Could not restore version.');}
  }
- function go(id?:string){if(id&&demo?.screens.some(s=>s.id===id)){setScreenId(id);setErrors({});setSearch('');}}
+ function go(id?:string){if(id&&demo?.screens.some(s=>s.id===id)){setSelected(null);setScreenId(id);setErrors({});setSearch('');}}
  function submit(el:Extract<Element,{kind:'form'}>){const err:Record<string,string>={};for(const f of el.fields){const v=(formValues[f.id]||'').trim();if(f.required&&!v)err[f.id]='Required field';if(v&&f.type==='email'&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))err[f.id]='Enter a valid email';}setErrors(err);if(!Object.keys(err).length){go(el.nextScreen);if(!el.nextScreen)setToast('Demo form submitted. No actual backend call was made.');}}
  function exportJSON(){if(!demo)return;const url=URL.createObjectURL(new Blob([JSON.stringify(demo,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=demo.id+'.json';a.click();URL.revokeObjectURL(url);}
  async function handleFiles(files:FileList|null){if(!files?.length)return;const names=Array.from(files).map(f=>f.name);updateProject({files:[...project.files,...names]});setToast('Attached filenames recorded locally. Document extraction and AI processing are not connected yet.');if(fileInput.current)fileInput.current.value='';}
