@@ -21,6 +21,13 @@ const allowedChrome=new Set(['brandName','showBrandIcon','showBackButton']);
 const fieldTypes=new Set(['text','email','password','number','select','date']);
 const normalizeLabel=(value)=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const fieldIdFromLabel=(label)=>normalizeLabel(label).replace(/\s+/g,'-').slice(0,60);
+function findNamedField(screen,label,elementId){
+ const name=normalizeLabel(label);
+ const forms=elementId?[chosenForm(screen,elementId)]:screen.elements.filter(e=>e.kind==='form');
+ const matches=forms.flatMap(form=>form.fields.filter(field=>normalizeLabel(field.label)===name||normalizeLabel(field.id)===name).map(field=>({form,field})));
+ if(matches.length!==1)return null;
+ return matches[0];
+}
 function chosenForm(screen,elementId){
  if(elementId){
   const form=screen.elements.find(e=>e.id===elementId);
@@ -103,7 +110,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -121,6 +128,20 @@ export function applyOperations(original,target,operations,channel){
    if(idx<0)fail('Element to remove does not exist.');
    sc.elements.splice(idx,1);
    changed.push({target:{...at,elementId:id},operation:'remove-element'});
+  }else if(op.op==='remove-field'){
+   if(!['screen','element','field'].includes(at.level))fail('Remove-field requires a screen, form, or field selection.');
+   const sc=candidate.screens.find(x=>x.id===at.screenId);
+   const form=chosenForm(sc,at.elementId||op.elementId);
+   const id=at.childId||op.fieldId;
+   const label=op.fieldLabel;
+   if(!id&&!label)fail('Remove-field requires an existing field ID or exact field label.');
+   const matches=form.fields.map((field,index)=>({field,index})).filter(x=>
+     (id&&x.field.id===id)||(label&&normalizeLabel(x.field.label)===normalizeLabel(label)));
+   if(matches.length!==1)fail('Field to remove was not found uniquely in the selected form.');
+   if(form.fields.length<=1)fail('Cannot remove the only field from a form. Redesign the form instead.');
+   const removed=matches[0].field;
+   form.fields.splice(matches[0].index,1);
+   changed.push({target:{level:'field',screenId:at.screenId,elementId:form.id,childId:removed.id},operation:'remove-field'});
   }else if(op.op==='add-field'){
    if(at.level!=='element'&&at.level!=='screen')fail('Add-field requires form or screen selection.');
    const sc=candidate.screens.find(s=>s.id===at.screenId);
@@ -158,6 +179,11 @@ export function applyOperations(original,target,operations,channel){
    const at=op.target||target;
    const sc=candidate.screens.find(s=>s.id===at.screenId);
    if(sc.elements.some(e=>e.id===(at.elementId||op.elementId)))fail('Outcome verification failed: element remains.');
+  }else if(op.op==='remove-field'){
+   const at=op.target||target;const sc=candidate.screens.find(s=>s.id===at.screenId);
+   const form=chosenForm(sc,at.elementId||op.elementId);
+   const id=at.childId||op.fieldId;
+   if(form.fields.some(f=>id?f.id===id:normalizeLabel(f.label)===normalizeLabel(op.fieldLabel)))fail('Outcome verification failed: removed field remains.');
   }else if(op.op==='add-field'){
    const at=op.target||target;const sc=candidate.screens.find(s=>s.id===at.screenId);
    const form=sc.elements.find(e=>e.id===(at.elementId||op.elementId));
@@ -187,6 +213,22 @@ export function deriveFastOperations(demo,target,instruction){
  const mentionsOtherChange=/\b(?:also|and)\s+(?:add|create|rename|change|update|remove|hide|delete|move)\b/i.test(text);
  if(['screen','header'].includes(target.level)&&brandIcon&&!mentionsOtherChange&&remove!==restore){
   return [{op:'set',target:{level:'header',screenId:target.screenId},property:'showBrandIcon',value:restore}];
+ }
+ // Exact single-field removal: deterministic field ownership; never remove the
+ // entire form for a request about one field. No model call is needed.
+ const fieldRemoval=text.match(/^\s*(?:please\s+)?(?:remove|delete)\s+(?:the\s+)?(.+?)\s*(?:field|input(?:\s+box)?)?\s*[.!]?\s*$/i);
+ if(fieldRemoval&&['screen','element','field'].includes(target.level)){
+  const screen=demo.screens.find(s=>s.id===target.screenId);
+  const phrase=fieldRemoval[1].replace(/\s+(?:field|input(?:\s+box)?)$/i,'').trim();
+  if(target.level==='field'){
+   const chosen=locateNode(demo,target);
+   if(normalizeLabel(phrase)===normalizeLabel(chosen.node.label)||normalizeLabel(phrase)===normalizeLabel(chosen.node.id)){
+    return [{op:'remove-field',target,fieldId:chosen.node.id}];
+   }
+   return null;
+  }
+  const located=findNamedField(screen,phrase,target.level==='element'?target.elementId:undefined);
+  if(located)return [{op:'remove-field',target:{level:'element',screenId:target.screenId,elementId:located.form.id},fieldId:located.field.id}];
  }
  // Common banking form edits can be compiled deterministically rather than
  // asking the model to invent field IDs or unsupported input types.
