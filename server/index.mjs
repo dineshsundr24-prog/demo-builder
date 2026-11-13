@@ -185,12 +185,13 @@ async function planEdit(body){
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,
    headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},
-   body:JSON.stringify({model,instructions,input:JSON.stringify(scopeContext),
+   body:JSON.stringify({model,instructions,input:'Return a valid JSON object only. '+JSON.stringify(scopeContext),
     text:{format:{type:'json_object'}},max_output_tokens:3000,store:false})});
   raw=await response.json();
   if(!response.ok){
    const code=String(raw?.error?.code||'unknown');const type=String(raw?.error?.type||'unknown');
-   console.error('Grounded planner model error',{httpStatus:response.status,type,code});
+   const detail=String(raw?.error?.message||'').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,500);
+   console.error('Grounded planner model error',{httpStatus:response.status,type,code,detail});
    const reason=response.status===429?'AI request limit or quota reached. Try again after checking API limits.':response.status===401?'Backend OpenAI credentials are invalid.':code==='model_not_found'?'Configured model is not available.':'AI planning request failed (HTTP '+response.status+').';
    throw Object.assign(new Error(reason+' Original demo remains unchanged.'),{status:502});
   }
