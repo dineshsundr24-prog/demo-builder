@@ -18,6 +18,19 @@ const allowedElement={
 const allowedField=new Set(['label','placeholder','required','type','options']);
 const allowedButton=new Set(['label','variant','nextScreen']);
 const allowedChrome=new Set(['brandName','showBrandIcon','showBackButton']);
+const fieldTypes=new Set(['text','email','password','number','select','date']);
+const normalizeLabel=(value)=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const fieldIdFromLabel=(label)=>normalizeLabel(label).replace(/\s+/g,'-').slice(0,60);
+function chosenForm(screen,elementId){
+ if(elementId){
+  const form=screen.elements.find(e=>e.id===elementId);
+  if(form?.kind!=='form')fail('Selected target is not a form. Select a form section before adding fields.');
+  return form;
+ }
+ const forms=screen.elements.filter(e=>e.kind==='form');
+ if(forms.length!==1)fail(forms.length?'Multiple forms are present. Select the specific form section before adding fields.':'No form exists on the selected screen.');
+ return forms[0];
+}
 export function locateNode(demo,target){
  if(!target||!['screen','element','field','button','header'].includes(target.level))fail('Unsupported selection level.');
  const screen=demo.screens.find(s=>s.id===target.screenId);
@@ -58,7 +71,7 @@ function propertySet(demo,target,property,value){
  const node=target.level==='header'?(n.screen.chrome||(n.screen.chrome={})):n.node;
  if(property==='showBrandIcon'||property==='showBackButton'||property==='required'){if(typeof value!=='boolean')fail(property+' must be boolean.');}
  else if(property==='options'){if(!Array.isArray(value)||value.length>20||value.some(x=>typeof x!=='string'))fail('Options must be strings.');}
- else if(property==='type'){if(!['text','email','password','number','select'].includes(value))fail('Invalid field type.');}
+ else if(property==='type'){if(!fieldTypes.has(value))fail('Invalid field type.');}
  else if(property==='tone'){if(!['info','success'].includes(value))fail('Invalid notice tone.');}
  else if(property==='variant'){if(!['primary','secondary'].includes(value))fail('Invalid button variant.');}
  else if(typeof value!=='string'||value.length>350)fail('Text property must be a string of 350 characters or fewer.');
@@ -111,11 +124,17 @@ export function applyOperations(original,target,operations,channel){
   }else if(op.op==='add-field'){
    if(at.level!=='element'&&at.level!=='screen')fail('Add-field requires form or screen selection.');
    const sc=candidate.screens.find(s=>s.id===at.screenId);
-   const el=sc.elements.find(e=>e.id===(at.elementId||op.elementId));
-   if(el?.kind!=='form')fail('Field insertion requires an existing form.');
+   const el=chosenForm(sc,at.elementId||op.elementId);
    const f=op.field;
-   if(!f||typeof f.id!=='string'||!/^[a-zA-Z0-9_-]{1,60}$/.test(f.id)||!f.label||!['text','email','password','number','select'].includes(f.type)||el.fields.some(x=>x.id===f.id)||el.fields.length>=20)fail('Invalid or duplicate new field.');
-   const field={id:f.id,label:String(f.label).slice(0,100),type:f.type,required:f.required===true};
+   if(!f||typeof f!=='object'||typeof f.label!=='string'||!f.label.trim())fail('New form field must have a non-empty label.');
+   if(typeof f.type!=='string'||!fieldTypes.has(f.type))fail('Unsupported form field type "'+String(f.type)+'". Allowed: '+[...fieldTypes].join(', ')+'.');
+   const label=f.label.trim().slice(0,100);
+   const id=f.id===undefined||f.id===null||f.id===''?fieldIdFromLabel(label):f.id;
+   if(typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,60}$/.test(id))fail('New field ID must contain 1–60 letters, numbers, underscores or hyphens.');
+   if(el.fields.some(x=>x.id===id))fail('A field with ID "'+id+'" already exists in this form.');
+   if(el.fields.some(x=>normalizeLabel(x.label)===normalizeLabel(label)))fail('A field labeled "'+label+'" already exists in this form.');
+   if(el.fields.length>=20)fail('This form already contains the maximum 20 fields.');
+   const field={id,label,type:f.type,required:f.required===true};
    if(f.placeholder)field.placeholder=String(f.placeholder).slice(0,160);
    if(f.type==='select'){if(!Array.isArray(f.options)||f.options.some(x=>typeof x!=='string'))fail('Select field requires options.');field.options=f.options.slice(0,20);}
    const after=el.fields.findIndex(x=>x.id===op.afterFieldId);
@@ -142,7 +161,8 @@ export function applyOperations(original,target,operations,channel){
   }else if(op.op==='add-field'){
    const at=op.target||target;const sc=candidate.screens.find(s=>s.id===at.screenId);
    const form=sc.elements.find(e=>e.id===(at.elementId||op.elementId));
-   if(!form.fields.some(f=>f.id===op.field.id))fail('Outcome verification failed: field missing.');
+   const expectedId=op.field.id||fieldIdFromLabel(op.field.label);
+   if(!form.fields.some(f=>f.id===expectedId))fail('Outcome verification failed: field missing.');
   }
  }
  const checks=['Valid Demo Definition and navigation','All operations stayed inside selected scope','Requested property/structure changes present','Unselected screens and global chrome preserved'];
@@ -167,6 +187,23 @@ export function deriveFastOperations(demo,target,instruction){
  const mentionsOtherChange=/\b(?:also|and)\s+(?:add|create|rename|change|update|remove|hide|delete|move)\b/i.test(text);
  if(['screen','header'].includes(target.level)&&brandIcon&&!mentionsOtherChange&&remove!==restore){
   return [{op:'set',target:{level:'header',screenId:target.screenId},property:'showBrandIcon',value:restore}];
+ }
+ // Common banking form edits can be compiled deterministically rather than
+ // asking the model to invent field IDs or unsupported input types.
+ const adding=/\b(add|insert|create|include)\b/i.test(text);
+ const emiratesId=/\b(?:emirates\s*id|eid)\b/i.test(text);
+ const expiry=/\b(?:expiry|expiration|expiration date|expiry date)\b/i.test(text);
+ if(adding&&emiratesId&&['screen','element'].includes(target.level)){
+  const screen=demo.screens.find(x=>x.id===target.screenId);
+  const form=screen&&target.level==='element'?screen.elements.find(x=>x.id===target.elementId):screen?.elements.filter(x=>x.kind==='form')[0];
+  const forms=screen?.elements.filter(x=>x.kind==='form')||[];
+  // Ambiguous form targeting must not silently select the wrong form.
+  if(target.level==='element'&&form?.kind!=='form')return null;
+  if(target.level==='screen'&&forms.length!==1)return null;
+  const desired=[{id:'emirates-id',label:'Emirates ID',type:'text'},...(expiry?[{id:'eid-expiry',label:'EID Expiry',type:'date'}]:[])];
+  const missing=desired.filter(f=>!form.fields.some(existing=>existing.id===f.id||normalizeLabel(existing.label)===normalizeLabel(f.label)));
+  if(!missing.length)return null;
+  return missing.map(f=>({op:'add-field',target:{level:'element',screenId:target.screenId,elementId:form.id},field:f}));
  }
  const match=text.match(/\b(?:rename|change)\b.*?\b(?:to|as)\s+['\"“]?([^'\"”.,\n]{2,80})/i);
  if(match){
