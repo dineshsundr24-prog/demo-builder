@@ -58,7 +58,7 @@ async function generate(body){
  const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),90000);
  let raw;
  try{
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:system,input:context,text:{format:{type:'json_object'}},max_output_tokens:7500,store:false})});
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:system,input:'Generate a valid JSON Demo Definition object that follows the schema and requirements. Project context JSON:\n'+context,text:{format:{type:'json_object'}},max_output_tokens:7500,store:false})});
   raw=await response.json();
   if(!response.ok){
    const code=String(raw?.error?.code||'unknown');
