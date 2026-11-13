@@ -153,3 +153,18 @@
 .studio .brief-status .undo-edit:hover{color:#2454a6;background:#f4f8ff}
 .studio .brief-status .undo-edit:disabled{opacity:.45;cursor:wait}
 .studio .chat-message.system p{white-space:pre-wrap}
+
+/* Piece 4: controlled publication actions live in the existing preview toolbar. */
+.studio .preview-toolbar-actions .publish-action{display:flex;align-items:center;gap:6px;color:#23654a;font-size:11px;font-weight:800;background:#e7f6ec;border:1px solid #c7e8d1;padding:9px 11px;border-radius:9px;white-space:nowrap}
+.studio .preview-toolbar-actions .version-action{font-size:11px;font-weight:700;color:#456d9a;background:#fff;border:1px solid #dbe6f5;border-radius:9px;padding:9px 11px;white-space:nowrap}
+.studio .publish-caution{display:flex;align-items:flex-start;gap:10px;font-size:11px;line-height:1.6;color:#765523;background:#fff9eb;border:1px solid #f0dfb1;border-radius:9px;padding:12px;margin:5px 0 18px}
+.studio .publish-caution svg{flex-shrink:0;margin-top:1px}
+.studio .publish-versions{max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:7px}
+.studio .publish-version{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #e2eaf4;background:#fafcff;padding:11px;border-radius:9px}
+.studio .publish-version strong{display:block;font-size:12px}
+.studio .publish-version small{display:block;font-size:10px;color:#8193aa;margin-top:5px}
+.studio .publish-version-actions{display:flex;gap:6px;flex-wrap:wrap}
+.studio .publish-version-actions button{border:1px solid #dce7f6;border-radius:7px;padding:7px 9px;background:#fff;color:#2b64aa;font-size:10px;font-weight:700}
+.studio .publish-share-label{display:block;margin-top:16px;font-size:11px;font-weight:700;color:#526680}
+.studio .publish-share-label input{width:100%;font-size:11px;margin-top:7px;border:1px solid #dce7f6;border-radius:8px;padding:10px;color:#70829a}
+@media(max-width:1050px){.studio .preview-toolbar-actions .publish-action{padding:8px}.studio .preview-toolbar-actions .version-action{padding:8px}}
