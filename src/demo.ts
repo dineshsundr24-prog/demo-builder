@@ -7,7 +7,8 @@ export type Element =
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string}[]};
-export type Screen = {id:string;title:string;subtitle:string;elements:Element[]};
+export type ScreenChrome={brandName?:string;showBrandIcon?:boolean;showBackButton?:boolean};
+export type Screen = {id:string;title:string;subtitle:string;elements:Element[];chrome?:ScreenChrome};
 export type DemoChrome={brandName:string;showBrandIcon:boolean;showBackButton:boolean};
 export type DemoDefinition = {schemaVersion:1;id:string;name:string;description:string;channel:'portal'|'mobile';theme:'navy'|'teal';chrome?:DemoChrome;screens:Screen[]};
 export const starter:DemoDefinition = {
@@ -48,7 +49,9 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  if(d.chrome&&(!d.chrome.brandName||typeof d.chrome.brandName!=='string'||d.chrome.brandName.length>100||typeof d.chrome.showBrandIcon!=='boolean'||typeof d.chrome.showBackButton!=='boolean'))return false;
  if(d.schemaVersion!==1||!d.id||!d.name||!['portal','mobile'].includes(d.channel||'')||!['navy','teal'].includes(d.theme||'')||!Array.isArray(d.screens)||d.screens.length===0)return false;
  const ids=new Set<string>();
- for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;ids.add(s.id);
+ for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;
+ if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
+ ids.add(s.id);
  const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!['hero','stats','form','table','notice','actions'].includes(e.kind))return false;els.add(e.id);}}
  return d.screens.every(s=>s.elements.every(e=>(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select'].includes(f.type)))?false:true));
 }
