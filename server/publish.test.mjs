@@ -31,3 +31,16 @@ test('Large demos are rejected rather than producing misleading broken links',()
  demo.screens[0].elements[0].description='x'.repeat(25000);
  assert.throws(()=>encodeSnapshot(makeSnapshot(demo,{version:1,publishedAt:'2026-11-13T08:00:00.000Z',projectName:'K',company:'K'})),/too large/);
 });
+
+test('Malformed published definitions and broken screen links are rejected',()=>{
+ const bad=structuredClone(original);
+ bad.screens[1].elements[0].nextScreen='missing';
+ const snap=makeSnapshot(bad,{version:3,publishedAt:'2026-11-13T08:00:00Z',projectName:'K',company:'K'});
+ assert.throws(()=>decodeSnapshot(encodeSnapshot(snap)),/Unsupported/);
+});
+test('Malformed form fields cannot crash shared viewer',()=>{
+ const bad=structuredClone(original);
+ delete bad.screens[1].elements[0].fields;
+ const snap=makeSnapshot(bad,{version:1,publishedAt:'2026-11-13T08:00:00Z',projectName:'K',company:'K'});
+ assert.throws(()=>decodeSnapshot(encodeSnapshot(snap)),/Unsupported/);
+});
