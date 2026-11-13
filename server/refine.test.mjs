@@ -19,3 +19,16 @@ test('Patch rejects target screen ID change',()=>{const bad={...structuredClone(
 test('Patch rejects navigation to nonexistent screen',()=>{const bad=structuredClone(original.screens[1]);bad.elements[0].nextScreen='missing';assert.throws(()=>applyScreenPatch(original,'registration',bad,validateStrictDemo),/validation/);});
 test('Patch rejects no-op',()=>{assert.throws(()=>applyScreenPatch(original,'registration',structuredClone(original.screens[1]),validateStrictDemo),/no changes/);});
 test('Patch rejects invalid field types',()=>{const bad=structuredClone(original.screens[1]);bad.elements[0].fields[0].type='script';assert.throws(()=>applyScreenPatch(original,'registration',bad,validateStrictDemo),/validation/);});
+
+test('Explicit registration instruction overrides selected Welcome screen',()=>{
+ const demo=structuredClone(original);demo.screens[1].title='Register Your Account';
+ const target=locateScreen(demo,'welcome','On the Registration screen, add a mandatory Confirm Mobile Number field below the Mobile Number field. Keep other screens unchanged.');
+ assert.equal(target.id,'registration');
+});
+test('Exact named screen beats preview selection',()=>{assert.equal(locateScreen(original,'welcome','On the Registration screen add a new required field').id,'registration');});
+test('Unmatched named screen fails safely without editing selected preview',()=>{
+ assert.throws(()=>locateScreen(original,'welcome','On the Mortgage screen add fields'),/No screen matches/);
+});
+test('Without explicit target, selected preview is used',()=>{
+ assert.equal(locateScreen(original,'welcome','Make the main heading friendlier').id,'welcome');
+});
