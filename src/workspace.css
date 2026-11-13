@@ -44,3 +44,44 @@
  .preview-pane{height:85vh}
  .studio-details{padding:18px}
 }
+
+/* Mobile presentation: keep the full phone within the visible preview panel.
+   The application scrolls inside the device rather than moving the phone bezel. */
+.studio .preview-canvas.mobile-canvas{min-height:0;display:flex;align-items:flex-start;justify-content:center;padding:4px 0 14px}
+.studio .preview-canvas .mobile-frame{
+  box-sizing:border-box;
+  width:min(355px,100%);
+  max-width:355px;
+  height:clamp(340px,calc(100dvh - 345px),760px);
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border-width:6px;
+  border-radius:29px;
+  flex-shrink:0;
+}
+.studio .preview-canvas .mobile-frame .demo-shell{
+  flex:1;
+  height:100%;
+  min-height:0 !important;
+  overflow:hidden;
+}
+.studio .preview-canvas .mobile-frame .demo-main{
+  flex:1;
+  min-height:0;
+  height:100%;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  padding:19px 18px 28px;
+}
+.studio .preview-canvas .mobile-frame .mobile-brand{margin-bottom:22px}
+.studio .preview-canvas .mobile-frame .screen-intro{margin-bottom:16px}
+.studio .preview-viewport{min-height:0;overflow-y:auto}
+@media(max-width:800px){
+ .studio .preview-canvas .mobile-frame{height:clamp(440px,calc(85dvh - 185px),730px)}
+}
+@media(max-width:540px){
+ .studio .preview-canvas .mobile-frame{width:min(355px,100%);height:clamp(400px,calc(85dvh - 190px),700px)}
+}
