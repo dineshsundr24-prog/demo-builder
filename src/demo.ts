@@ -1,5 +1,5 @@
 // Versioned, declarative demo contract. No eval, Function constructor, or arbitrary code.
-export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select';placeholder?:string;required?:boolean;options?:string[]};
+export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date';placeholder?:string;required?:boolean;options?:string[]};
 export type Element =
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
@@ -53,6 +53,6 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
  ids.add(s.id);
  const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!['hero','stats','form','table','notice','actions'].includes(e.kind))return false;els.add(e.id);}}
- return d.screens.every(s=>s.elements.every(e=>(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select'].includes(f.type)))?false:true));
+ return d.screens.every(s=>s.elements.every(e=>(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date'].includes(f.type)))?false:true));
 }
 export function cloneDemo(d:DemoDefinition):DemoDefinition{return JSON.parse(JSON.stringify(d)) as DemoDefinition;}
