@@ -247,3 +247,38 @@ test('AI composed component validation rejects unsafe kinds, invalid links and d
  assert.equal(validComposed({...base,items:[{id:'ok',kind:'button',label:'Continue',nextScreen:'invented'}]},['done']),false);
  assert.equal(validComposed({...base,items:[base.items[0],base.items[0]]},['done']),false);
 });
+
+test('Reorder: move Mobile Number above Email Address using real IDs and preserve other screens',async()=>{
+ const {buildRegistry,resolveSimpleFieldReorder}=await import('./registry.mjs');
+ const d=structuredClone(baseline);
+ d.screens[1].elements[0].fields=[
+ {id:'full',label:'Full Name',type:'text'},
+ {id:'email',label:'Email Address',type:'email'},
+ {id:'mobile',label:'Mobile Number',type:'text'}
+ ];
+ const selected=t('screen','register'),r=buildRegistry(d,selected);
+ const ops=resolveSimpleFieldReorder(r,selected,'On the Registration screen, move the Mobile Number field above Email Address without changing the other fields.');
+ assert.equal(ops?.length,1);
+ assert.equal(ops[0].afterFieldId,'full');
+ const out=applyOperations(d,selected,ops,'mobile').definition;
+ assert.deepEqual(out.screens[1].elements[0].fields.map(f=>f.id),['full','mobile','email']);
+ assert.deepEqual(out.screens[0],d.screens[0]);
+ assert.deepEqual(out.screens[2],d.screens[2]);
+});
+test('Reorder: AI field anchor label or registry ID is translated into exact sibling field ID',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const d=structuredClone(baseline);
+ d.screens[1].elements[0].fields=[
+ {id:'full',label:'Full Name',type:'text'},
+ {id:'email',label:'Email Address',type:'email'},
+ {id:'mobile',label:'Mobile Number',type:'text'}
+ ];
+ const target=t('screen','register'),r=buildRegistry(d,target);
+ const edit={action:'move-field',targetId:'field:register:form:mobile',beforeFieldId:'Email Address'};
+ const ops=resolveChangeSet(r,target,[edit]);
+ assert.equal(ops[0].afterFieldId,'full');
+ assert.deepEqual(applyOperations(d,target,ops,'mobile').definition.screens[1].elements[0].fields.map(f=>f.id),['full','mobile','email']);
+ const ops2=resolveChangeSet(r,target,[{action:'move-field',targetId:'field:register:form:mobile',afterFieldId:'field:register:form:email'}]);
+ assert.equal(ops2[0].afterFieldId,'email');
+ assert.throws(()=>resolveChangeSet(r,target,[{action:'move-field',targetId:'field:register:form:mobile',afterFieldId:'Invented ID'}]),/does not match/);
+});
