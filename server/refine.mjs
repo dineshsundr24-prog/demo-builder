@@ -74,7 +74,7 @@ export function validateStrictDemo(d,channel){
    if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date','checkbox'].includes(f.type))))return false;
    if(e.kind==='composed'&&!validComposed(e,d.screens.map(x=>x.id)))return false;
    if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
-   if(!['hero','stats','notice','actions','form','table'].includes(e.kind))return false;
+   if(!['hero','stats','notice','actions','form','table','composed'].includes(e.kind))return false;
   }
  }
  for(const s of d.screens)for(const e of s.elements){
