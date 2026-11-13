@@ -1,5 +1,6 @@
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
+import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -80,17 +81,45 @@ async function generate(body){
  return{definition:parsed,summary:`Generated ${parsed.screens.length} interactive screens for ${parsed.name}.`,usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
 }
 
+
+const refineInstructions=`You are a constrained UI screen refinement engine. You will receive JSON with an existing screen, all screen IDs and titles, project style and an edit request. Output ONLY a valid JSON object for THE ONE target screen, in the exact schema of the provided screen. Keep its "id" EXACTLY unchanged. Preserve every element, field, label, action, link and behavior that the user did not explicitly ask you to modify. Apply the requested change precisely and minimally. Use ONLY these supported element kinds: hero, stats, notice, actions, form, table. Do not invent CSS, HTML, custom components or backends. Supported fields for a form: id,label,type (text,email,password,number,select),placeholder,required,options. A form's nextScreen must point to one of the allowed screen IDs. An actions element's buttons have id,label,variant,nextScreen. Avoid changing nextScreen unless requested. Return a screen object with id,title,subtitle,elements. The word JSON is required. Never output instructions or explanatory text. This is a simulated interactive demo, not real banking software.`;
+async function refine(body){
+ const demo=body?.definition;
+ if(!validateStrictDemo(demo,body?.project?.channel))throw Object.assign(new Error('Saved demo definition failed validation. Export a backup or generate again.'),{status:400});
+ const instruction=String(body?.instruction||'').trim();
+ if(instruction.length<8||instruction.length>5000)throw Object.assign(new Error('Enter an edit instruction between 8 and 5,000 characters.'),{status:400});
+ const target=locateScreen(demo,body.screenId,instruction);
+ const prompt=JSON.stringify({instruction,selectedScreenId:target.id,originalScreen:target,availableScreens:demo.screens.map(s=>({id:s.id,title:s.title})),project:{name:String(body.project?.name||'').slice(0,100),company:String(body.project?.company||'').slice(0,100),guidelines:String(body.project?.guidelines||'').slice(0,1000)},responseFormat:'JSON screen object only'});
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
+ let raw;
+ try{
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:refineInstructions,input:'Return ONLY JSON for the selected screen. Context: '+prompt,text:{format:{type:'json_object'}},max_output_tokens:5000,store:false})});
+  raw=await response.json();
+  if(!response.ok){
+   const detail=String(raw?.error?.message||'').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,250);
+   console.error('Refinement OpenAI error',{status:response.status,type:raw?.error?.type,param:raw?.error?.param,message:detail});
+   throw Object.assign(new Error('AI refinement request failed (HTTP '+response.status+'). Check the server logs.'),{status:502});
+  }
+ }finally{clearTimeout(timeout);}
+ const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
+ let edited;
+ try{edited=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned invalid JSON. Original screen was preserved.'),{status:422});}
+ let merged;
+ try{merged=applyScreenPatch(demo,target.id,edited,validateStrictDemo);}catch(err){throw Object.assign(new Error(err.message+' Original demo was preserved.'),{status:422});}
+ return{definition:merged,changedScreenId:target.id,changedScreenTitle:target.title,preservedScreens:demo.screens.length-1,summary:'Updated '+target.title+' only. Verified '+(demo.screens.length-1)+' other screens unchanged.',usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+}
+
 const server=http.createServer(async(req,res)=>{
  const origin=req.headers.origin||'';
  if(origin&&origin!==frontendOrigin){respond(res,403,{error:'Origin not allowed.'},frontendOrigin);return;}
  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':frontendOrigin,'Access-Control-Allow-Headers':'content-type,x-builder-access','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin'});res.end();return;}
  if(req.url==='/health'&&req.method==='GET'){respond(res,200,{status:'ok'});return;}
  if(req.url==='/api/status'&&req.method==='GET'){respond(res,200,{ready:Boolean(process.env.OPENAI_API_KEY&&process.env.DEMO_ACCESS_TOKEN),model,requiresAccessToken:true});return;}
- if(req.url!=='/api/generate'||req.method!=='POST'){respond(res,404,{error:'Not found.'});return;}
+ if(!['/api/generate','/api/refine'].includes(req.url)||req.method!=='POST'){respond(res,404,{error:'Not found.'});return;}
  if(!process.env.OPENAI_API_KEY||!process.env.DEMO_ACCESS_TOKEN){respond(res,503,{error:'AI backend is not configured. Set OPENAI_API_KEY and DEMO_ACCESS_TOKEN in the Render service environment.'});return;}
  if(!authorized(req.headers['x-builder-access'],process.env.DEMO_ACCESS_TOKEN)){respond(res,401,{error:'Invalid Demo Builder access token.'});return;}
  const client=req.socket.remoteAddress||'unknown';if(rateLimited(client)){respond(res,429,{error:'Generation limit reached (6 requests/minute).'});return;}
- try{const result=await generate(await readBody(req));respond(res,200,result);}
+ try{const body=await readBody(req);const result=req.url==='/api/refine'?await refine(body):await generate(body);respond(res,200,result);}
  catch(err){console.error('Generation error:',err?.message||'unknown');respond(res,err?.status||500,{error:err?.status?err.message:'Unable to generate the demo. Please try again.'});}
 });
 server.listen(port,'0.0.0.0',()=>console.log(`Demo Builder API listening on ${port}`));
