@@ -1,6 +1,8 @@
 import React,{useState} from 'react';
 import {ArrowLeft,ArrowRight,CheckCircle2,ChevronRight,Info,Minus,Plus,Search,ShieldCheck,Wallet} from 'lucide-react';
 import {DemoDefinition,Element,validateDemo} from './demo';
+// @ts-ignore Shared pure JS rendering contract.
+import {resolveScreenChrome} from './screenChrome.mjs';
 import './styles.css';
 import './workspace.css';
 import './viewer.css';
@@ -10,9 +12,10 @@ export default function PublishedViewer({snapshot}:{snapshot:PublishedSnapshot|n
  if(!snapshot||!validateDemo(snapshot.demo))return <div className="viewer-error"><h1>Published link cannot be opened</h1><p>This share link is damaged, unsupported or contains an invalid demo definition.</p></div>;
  const demo=snapshot.demo;
  const screen=demo.screens.find(s=>s.id===screenId)||demo.screens[0];
- const brand=demo.chrome?.brandName||snapshot.company||(demo.name.match(/^(.+?\bBank)\b/i)?.[1])||snapshot.projectName;
- const showIcon=demo.chrome?.showBrandIcon!==false;
- const showBack=demo.chrome?.showBackButton!==false;
+ const effective=resolveScreenChrome(demo,screen,snapshot.company,snapshot.projectName);
+ const brand=effective.brandName;
+ const showIcon=effective.showBrandIcon;
+ const showBack=effective.showBackButton;
  const isMobile=demo.channel==='mobile';
  function go(id?:string){if(id&&demo.screens.some(s=>s.id===id)){setScreenId(id);setFormValues({});setErrors({});setSearch('');setNotice('');}}
  function submit(el:Extract<Element,{kind:'form'}>){
