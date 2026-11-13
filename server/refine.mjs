@@ -60,6 +60,7 @@ export function validateStrictDemo(d,channel){
  const ids=new Set();
  for(const s of d.screens){
   if(!s||typeof s.id!=='string'||!s.id||typeof s.title!=='string'||!s.title||!Array.isArray(s.elements)||s.elements.length>15||ids.has(s.id))return false;
+  if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
   ids.add(s.id);
   const elIds=new Set();
   for(const e of s.elements){
