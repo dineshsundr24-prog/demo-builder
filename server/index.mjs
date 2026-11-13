@@ -188,7 +188,12 @@ async function planEdit(body){
    body:JSON.stringify({model,instructions,input:JSON.stringify(scopeContext),
     text:{format:{type:'json_object'}},max_output_tokens:3000,store:false})});
   raw=await response.json();
-  if(!response.ok){console.error('Grounded planner model error',{status:response.status,type:raw?.error?.type});throw Object.assign(new Error('AI planning failed. Original demo remains unchanged.'),{status:502});}
+  if(!response.ok){
+   const code=String(raw?.error?.code||'unknown');const type=String(raw?.error?.type||'unknown');
+   console.error('Grounded planner model error',{httpStatus:response.status,type,code});
+   const reason=response.status===429?'AI request limit or quota reached. Try again after checking API limits.':response.status===401?'Backend OpenAI credentials are invalid.':code==='model_not_found'?'Configured model is not available.':'AI planning request failed (HTTP '+response.status+').';
+   throw Object.assign(new Error(reason+' Original demo remains unchanged.'),{status:502});
+  }
  }finally{clearTimeout(timeout);}
  if(raw?.status!=='completed'||raw?.incomplete_details)throw Object.assign(new Error('AI plan was incomplete or truncated. No changes were made.'),{status:422});
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
