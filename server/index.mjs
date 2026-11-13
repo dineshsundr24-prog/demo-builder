@@ -3,7 +3,7 @@ import {timingSafeEqual} from 'node:crypto';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
-const model=process.env.OPENAI_MODEL||'gpt-6.1-sol';
+const model=process.env.OPENAI_MODEL||'gpt-4.1-mini';
 const usage=new Map();
 const buckets=new Map();
 
@@ -60,7 +60,18 @@ async function generate(body){
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:system,input:context,text:{format:{type:'json_object'}},max_output_tokens:7500,store:false})});
   raw=await response.json();
-  if(!response.ok){console.error('OpenAI request failed',response.status,raw?.error?.type||'unknown');throw Object.assign(new Error(response.status===429?'Model rate limit or account quota reached.':'OpenAI request failed. Check model access and API billing.'),{status:502});}
+  if(!response.ok){
+   const code=String(raw?.error?.code||'unknown');
+   const type=String(raw?.error?.type||'unknown');
+   const param=String(raw?.error?.param||'none');
+   const detail=String(raw?.error?.message||'').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,400);
+   console.error('OpenAI API rejected generation',{httpStatus:response.status,type,code,param,message:detail});
+   const isModel=code==='model_not_found'||/model.*(not exist|access|available|unsupported)/i.test(detail);
+   const isQuota=code==='insufficient_quota'||response.status===429;
+   const isKey=response.status===401||code==='invalid_api_key';
+   const message=isModel?'The configured AI model is unavailable to this API project. Contact the administrator.':isQuota?'OpenAI API quota or rate limit reached. Check project billing and limits.':isKey?'The OpenAI API key is invalid or lacks access. Check the Render OPENAI_API_KEY setting.':response.status===400?'OpenAI rejected a request setting ('+param+'). The server log contains the exact reason.':'OpenAI request failed (HTTP '+response.status+').';
+   throw Object.assign(new Error(message),{status:502});
+  }
  }finally{clearTimeout(timeout);}
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
  let parsed;
