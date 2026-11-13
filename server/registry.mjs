@@ -59,6 +59,10 @@ export function resolveChangeSet(registry,selection,changes){
    if(!change.field||typeof change.field!=='object')throw new Error('Add field requires a field definition.');
    return {op:'add-field',target,field:change.field,afterFieldId:change.afterFieldId};
   }
+  if(kind==='add-component'){
+   if(!change.component||typeof change.component!=='object')throw new Error('AI must supply a composed component definition.');
+   return {op:'add-component',target,component:change.component};
+  }
   if(kind==='move-field'){
    if(typeof change.afterFieldId!=='string')throw new Error('Move field requires an existing anchor field ID or the special value "__start__".');
    return {op:'move-field',target,afterFieldId:change.afterFieldId};
