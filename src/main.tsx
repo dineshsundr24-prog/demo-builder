@@ -27,7 +27,7 @@ function App(){
  const project=state.projects.find(p=>p.id===state.activeId)||state.projects[0];
  const demo=project.demo;
  const screen=demo?.screens.find(s=>s.id===screenId)||demo?.screens[0];
- const bankFromName=(demo?.name||project.name).match(/^(.+?\\bBank)\\b/i)?.[1];
+ const bankFromName=(demo?.name||project.name).match(/^(.+?\bBank)\b/i)?.[1];
  const brandName=demo?.chrome?.brandName||project.company||bankFromName||project.name||'Demo application';
  const showBrandIcon=demo?.chrome?.showBrandIcon!==false;
  const showBackButton=demo?.chrome?.showBackButton!==false;
