@@ -146,10 +146,13 @@ export function applyOperations(original,target,operations,channel){
   }
  }
  const checks=['Valid Demo Definition and navigation','All operations stayed inside selected scope','Requested property/structure changes present','Unselected screens and global chrome preserved'];
- if(target.level==='header'){
-  const a=resolveScreenChrome(original,original.screens[oldIndex]);
-  const b=resolveScreenChrome(candidate,candidate.screens[oldIndex]);
-  if(same(a,b))fail('Rendered header state did not change.');
+ if(operations.some(op=>op.op==='set'&&(op.target||target).level==='header')){
+  const previous=resolveScreenChrome(original,original.screens[oldIndex]);
+  const resulting=resolveScreenChrome(candidate,candidate.screens[oldIndex]);
+  if(same(previous,resulting))fail('Rendered header state did not change.');
+  for(const op of operations){
+   if(op.op==='set'&&(op.target||target).level==='header'&&!same(resulting[op.property],op.value))fail('Effective rendered header did not match the requested setting.');
+  }
   checks.push('Effective screen header configuration changed');
  }
  return {definition:candidate,changed,checks,preservedScreens:original.screens.length-1};
