@@ -85,3 +85,20 @@ Hosted publication IDs with revocation, access control, view analytics, durable 
 The standalone and embedded contract is documented in [docs/MEYON-INTEGRATION.md](docs/MEYON-INTEGRATION.md). MEYON remains unchanged and not connected. The portable viewer does not accept MEYON project data through query parameters or iframe messages.
 
 Do not imply that the product does anything not connected and verified.
+
+## Scoped visual refinement and preview acceptance (November 2026)
+
+The existing editor now has a **Select** toggle in the preview toolbar. It preserves the chat/preview split and full-size mobile phone.
+
+- Turn **Select** on, click an entire screen/background, the shared header, a rendered section, a form field or an action button.
+- A blue selection highlight and a small comment box identify the target. Enter an instruction and select **Preview change**.
+- Chat remains available without selection and defaults to the current screen. Explicit all-screen shared-header instructions use the existing deterministic global-header capability.
+- The `POST /api/plan` API returns a **proposal**, not a committed edit. A zero-AI fast path handles simple header-icon changes and target renames. Other changes use a single OpenAI call to propose up to eight constrained JSON operations.
+- The backend rejects operations that escape the selected target, unknown IDs, arbitrary code/style properties, invalid navigation, duplicate fields, broken schema or no-ops. It verifies requested definition-level changes and checks that untouched screens/global settings are preserved.
+- The editor shows the proposed result and its verification checks **without saving**. **Apply change** saves a revision and enables Undo. **Discard** leaves the old draft intact.
+- Publishing/exporting/restoring versions is blocked while a proposed edit is pending; pending previews are ephemeral and are lost on browser reload.
+- Only the supported operation vocabulary is enabled: property edits to screen, header, form fields, actions, basic content components; removal of an existing element; adding a field to an existing form. Novel components, layout/CSS edits, and complex business-rule generation must be added to the renderer/schema before AI can safely apply them.
+- The current gate verifies **definition-level** outcomes and effective header settings. It does **not** perform real-browser screenshot diffs, complete workflow E2E testing, or user-level visual acceptance; the human Preview → Apply step remains required.
+- The previous `/api/refine` endpoint is retained for backward compatibility, but the current editor chat uses the staged `/api/plan` route.
+
+No MEYON project or database has been changed. The current shared access token and browser-local drafts remain NONPROD-only.
