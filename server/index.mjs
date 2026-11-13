@@ -3,6 +3,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
+import {applyOperations,deriveFastOperations,locateNode,targetLabel} from './operations.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -131,17 +132,58 @@ async function refine(body){
  return{definition:merged,scope:'screen',changedScreenId:target.id,changedScreenTitle:target.title,preservedScreens:demo.screens.length-1,summary:'Updated '+target.title+' only. Verified '+(demo.screens.length-1)+' other screens unchanged.',usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
 }
 
+
+// New staged plan endpoint. It NEVER writes to a workspace and never returns a success
+// if a candidate fails operation, scope, schema, or preservation verification.
+async function planEdit(body){
+ const demo=body?.definition;
+ const project=body?.project||{};
+ if(!validateStrictDemo(demo,project.channel))throw Object.assign(new Error('Saved demo definition failed validation.'),{status:400});
+ const instruction=String(body?.instruction||'').trim();
+ if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
+ const target=body?.target;
+ try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
+ if(isGlobalRequest(instruction))throw Object.assign(new Error('Application-wide edits are not yet supported in scoped preview mode. Use the existing AI chat global-header change route.'),{status:422});
+ let operations=deriveFastOperations(demo,target,instruction);
+ let usedModel=false,raw;
+ if(!operations){
+  const node=locateNode(demo,target);
+  const scopeContext={instruction,target,selectedScreen:{id:node.screen.id,title:node.screen.title,subtitle:node.screen.subtitle},selectedNode:node.node,
+   selectedParent:node.element&&node.element!==node.node?node.element:null,
+   availableScreens:demo.screens.map(x=>({id:x.id,title:x.title})),
+   project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
+  const instructions='You are a precise JSON patch operation planner for a constrained banking demo. Return ONLY a JSON object with an operations array. Max 8 operations. Operations: {"op":"set","target":{level,screenId,elementId?,childId?},"property":"...","value":...}; {"op":"remove-element","target":{level:"element",screenId,elementId}}; {"op":"add-field","target":{level:"element",screenId,elementId},"field":{id,label,type,required?,placeholder?,options?},"afterFieldId":"optional"}. Supported element kinds: hero,notice,form,table,stats,actions. set properties: screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; form field label/placeholder/required/type/options; action button label/variant/nextScreen. NO CSS, no custom component, no executable code. Only reference stable existing IDs. For field insertion, choose a unique id and an existing form. For header changes target the header. Do not edit anything beyond selected scope. If request cannot be achieved, return {"operations":[],"unsupported":"short reason"}. No other text. JSON only.';
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
+  try{
+   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Return a valid JSON operations object for the following selected demo context: '+JSON.stringify(scopeContext),text:{format:{type:'json_object'}},max_output_tokens:2000,store:false})});
+   raw=await response.json();
+   if(!response.ok){console.error('Patch planning OpenAI error',{status:response.status,type:raw?.error?.type});throw Object.assign(new Error('AI could not propose the change. No modification was made.'),{status:502});}
+  }finally{clearTimeout(timeout);}
+  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
+  let result;
+  try{result=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned an invalid patch plan. No modification was made.'),{status:422});}
+  if(!Array.isArray(result?.operations)||!result.operations.length)throw Object.assign(new Error('Unsupported change: '+String(result?.unsupported||'No valid operations proposed.').slice(0,250)),{status:422});
+  operations=result.operations;usedModel=true;
+ }
+ let verification;
+ try{verification=applyOperations(demo,target,operations,project.channel);}
+ catch(e){throw Object.assign(new Error('Patch blocked: '+e.message+'. Original demo remains unchanged.'),{status:422});}
+ return{scope:'planned',target,label:targetLabel(demo,target),operations,definition:verification.definition,checks:verification.checks,
+   preservedScreens:verification.preservedScreens,summary:'Proposed '+operations.length+' scoped operation(s) for '+targetLabel(demo,target)+'. Review before applying.',
+   usage:{model:usedModel?(raw?.model||model):'deterministic',inputTokens:raw?.usage?.input_tokens||0,outputTokens:raw?.usage?.output_tokens||0}};
+}
+
 const server=http.createServer(async(req,res)=>{
  const origin=req.headers.origin||'';
  if(origin&&origin!==frontendOrigin){respond(res,403,{error:'Origin not allowed.'},frontendOrigin);return;}
  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':frontendOrigin,'Access-Control-Allow-Headers':'content-type,x-builder-access','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Vary':'Origin'});res.end();return;}
  if(req.url==='/health'&&req.method==='GET'){respond(res,200,{status:'ok'});return;}
  if(req.url==='/api/status'&&req.method==='GET'){respond(res,200,{ready:Boolean(process.env.OPENAI_API_KEY&&process.env.DEMO_ACCESS_TOKEN),model,requiresAccessToken:true});return;}
- if(!['/api/generate','/api/refine'].includes(req.url)||req.method!=='POST'){respond(res,404,{error:'Not found.'});return;}
+ if(!['/api/generate','/api/refine','/api/plan'].includes(req.url)||req.method!=='POST'){respond(res,404,{error:'Not found.'});return;}
  if(!process.env.OPENAI_API_KEY||!process.env.DEMO_ACCESS_TOKEN){respond(res,503,{error:'AI backend is not configured. Set OPENAI_API_KEY and DEMO_ACCESS_TOKEN in the Render service environment.'});return;}
  if(!authorized(req.headers['x-builder-access'],process.env.DEMO_ACCESS_TOKEN)){respond(res,401,{error:'Invalid Demo Builder access token.'});return;}
  const client=req.socket.remoteAddress||'unknown';if(rateLimited(client)){respond(res,429,{error:'Generation limit reached (6 requests/minute).'});return;}
- try{const body=await readBody(req);const result=req.url==='/api/refine'?await refine(body):await generate(body);respond(res,200,result);}
+ try{const body=await readBody(req);const result=req.url==='/api/plan'?await planEdit(body):req.url==='/api/refine'?await refine(body):await generate(body);respond(res,200,result);}
  catch(err){console.error('Generation error:',err?.message||'unknown');respond(res,err?.status||500,{error:err?.status?err.message:'Unable to generate the demo. Please try again.'});}
 });
 server.listen(port,'0.0.0.0',()=>console.log(`Demo Builder API listening on ${port}`));
