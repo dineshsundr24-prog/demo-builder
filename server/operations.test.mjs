@@ -64,7 +64,7 @@ test('Reject wrong data types, bad routes and duplicate fields',()=>{
  const target=t('button','welcome','action','start');
  assert.throws(()=>applyOperations(baseline,target,[{op:'set',target,property:'nextScreen',value:'missing'}],'mobile'),/does not exist/);
  const form=t('element','register','form');
- assert.throws(()=>applyOperations(baseline,form,[{op:'add-field',target:form,field:{id:'mobile',label:'Duplicate',type:'text'}}],'mobile'),/duplicate/);
+ assert.throws(()=>applyOperations(baseline,form,[{op:'add-field',target:form,field:{id:'mobile',label:'Duplicate',type:'text'}}],'mobile'),/already exists/);
 });
 test('No-ops are refused; original draft is unchanged',()=>{
  const target=t('screen','welcome');
