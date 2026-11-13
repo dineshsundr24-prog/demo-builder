@@ -1,6 +1,6 @@
 // Piece 3: target, patch, verify. No model-generated code is executed.
 function normalize(value){
- return String(value||'').toLowerCase().replace(/\\b(registration|register|sign\\s?up|signup|create account|account creation)\\b/g,' register ').replace(/\\b(verification|verify|identity verification|ekyc|e-kyc)\\b/g,' verify ').replace(/\\b(terms and conditions|consents|consent)\\b/g,' consent ').replace(/\\b(completion|confirmation|success)\\b/g,' complete ').replace(/[^a-z0-9]+/g,' ').trim().replace(/\\s+/g,' ');
+ return String(value||'').toLowerCase().replace(/\b(registration|register|sign\s?up|signup|create account|account creation)\b/g,' register ').replace(/\b(verification|verify|identity verification|ekyc|e-kyc)\b/g,' verify ').replace(/\b(terms and conditions|consents|consent)\b/g,' consent ').replace(/\b(completion|confirmation|success)\b/g,' complete ').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
 }
 const intents=['register','verify','consent','complete','welcome','income','profile','dashboard','application','payment','review','loan','document','account'];
 export function locateScreen(demo, requestedId, instruction=''){
@@ -18,7 +18,7 @@ export function locateScreen(demo, requestedId, instruction=''){
  if(explicit.length===1)return explicit[0];
  if(explicit.length>1)throw Error('Multiple screen names were referenced. Please name exactly one screen to edit.');
  // Support natural phrasing: "On the Registration screen" even if tab is "Register Your Account".
- const phrase=text.match(/\\b(?:on|in|update|change|edit|modify|refine)\\s+(?:the\\s+)?([a-z][a-z0-9\\s&/-]{1,65}?)\\s+screen\\b/i);
+ const phrase=text.match(/\b(?:on|in|update|change|edit|modify|refine)\s+(?:the\s+)?([a-z][a-z0-9\s&/-]{1,65}?)\s+screen\b/i);
  if(phrase){
   const target=normalize(phrase[1]);
   const wanted=intents.filter(word=>target.split(' ').includes(word));
@@ -33,7 +33,7 @@ export function locateScreen(demo, requestedId, instruction=''){
   }
  }
  // If the instruction has a unique specific workflow keyword in the same sentence as "screen", resolve it.
- const firstSentence=normalize(text.split(/[.!?\\n]/)[0]);
+ const firstSentence=normalize(text.split(/[.!?\n]/)[0]);
  const keywords=intents.filter(word=>firstSentence.split(' ').includes(word));
  if(keywords.length===1){
   const found=demo.screens.filter(s=>(normalize(s.title)+' '+normalize(s.id)).split(' ').includes(keywords[0]));
