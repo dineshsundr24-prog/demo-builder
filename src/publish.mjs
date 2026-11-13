@@ -1,3 +1,4 @@
+import {validComposed} from './composed.mjs';
 import {validScreenChrome} from './screenChrome.mjs';
 // Portable, immutable viewer snapshots. No credentials, messages or private project context.
 // The public URL contains the demo data; only publish information suitable for sharing.
@@ -38,6 +39,7 @@ export function isValidShareDemo(d){
    if(!el||typeof el.id!=='string'||!el.id||elements.has(el.id))return false;
    elements.add(el.id);
    switch(el.kind){
+    case 'composed':if(!validComposed(el,d.screens.map(s=>s.id)))return false;break;
     case 'hero':if(typeof el.title!=='string'||typeof el.description!=='string')return false;break;
     case 'notice':if(!['info','success'].includes(el.tone)||typeof el.title!=='string'||typeof el.body!=='string')return false;break;
     case 'stats':if(!Array.isArray(el.items)||el.items.length>10||el.items.some(i=>!i||typeof i.id!=='string'||typeof i.label!=='string'||typeof i.value!=='string'))return false;break;
