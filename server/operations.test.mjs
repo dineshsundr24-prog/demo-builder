@@ -219,3 +219,31 @@ test('Form selection allows editing its descendant field but forbids escaping it
  assert.equal(applyOperations(baseline,selected,operations,'mobile').definition.screens[1].elements[0].fields[0].label,'Phone');
  assert.throws(()=>resolveChangeSet(r,selected,[{action:'set',targetId:'screen:register',property:'title',value:'Unsafe'}]),/outside the selected component/);
 });
+
+
+test('AI can add a safe clickable composed component atomically to a selected screen',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const {validComposed}=await import('../src/composed.mjs');
+ const selected=t('screen','register'),r=buildRegistry(baseline,selected);
+ const component={title:'Consent and status',items:[
+  {id:'agreement',kind:'checkbox',label:'I agree to the terms',required:true},
+  {id:'progress',kind:'progress',label:'Progress',value:50},
+  {id:'continue',kind:'button',label:'Continue',nextScreen:'done'}
+ ]};
+ const operations=resolveChangeSet(r,selected,[{action:'add-component',targetId:'screen:register',component}]);
+ const result=applyOperations(baseline,selected,operations,'mobile');
+ const newElement=result.definition.screens[1].elements.at(-1);
+ assert.equal(newElement.kind,'composed');
+ assert.ok(validComposed(newElement,result.definition.screens.map(x=>x.id)));
+ assert.deepEqual(result.definition.screens[0],baseline.screens[0]);
+ assert.deepEqual(result.definition.screens[2],baseline.screens[2]);
+ assert.deepEqual(baseline.screens[1].elements.some(e=>e.kind==='composed'),false);
+});
+test('AI composed component validation rejects unsafe kinds, invalid links and duplicate IDs',async()=>{
+ const {validComposed}=await import('../src/composed.mjs');
+ const base={kind:'composed',id:'offer',title:'Offers',items:[{id:'ok',kind:'button',label:'Continue',nextScreen:'done'}]};
+ assert.equal(validComposed(base,['done']),true);
+ assert.equal(validComposed({...base,items:[{id:'ok',kind:'script',label:'Unsafe'}]},['done']),false);
+ assert.equal(validComposed({...base,items:[{id:'ok',kind:'button',label:'Continue',nextScreen:'invented'}]},['done']),false);
+ assert.equal(validComposed({...base,items:[base.items[0],base.items[0]]},['done']),false);
+});
