@@ -43,7 +43,7 @@ export function isValidShareDemo(d){
     case 'stats':if(!Array.isArray(el.items)||el.items.length>10||el.items.some(i=>!i||typeof i.id!=='string'||typeof i.label!=='string'||typeof i.value!=='string'))return false;break;
     case 'actions':if(!Array.isArray(el.buttons)||el.buttons.length>12||el.buttons.some(b=>!b||typeof b.id!=='string'||typeof b.label!=='string'||b.nextScreen&&typeof b.nextScreen!=='string'))return false;break;
     case 'table':if(typeof el.title!=='string'||!Array.isArray(el.columns)||el.columns.length>12||el.columns.some(c=>!c||typeof c.id!=='string'||typeof c.label!=='string')||!Array.isArray(el.rows)||el.rows.length>100||el.rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)||Object.values(row).some(v=>typeof v!=='string')))return false;break;
-    case 'form':if(typeof el.title!=='string'||typeof el.actionLabel!=='string'||!Array.isArray(el.fields)||!el.fields.length||el.fields.length>20||el.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select'].includes(f.type)||f.options&&(!Array.isArray(f.options)||f.options.some(o=>typeof o!=='string'))))return false;break;
+    case 'form':if(typeof el.title!=='string'||typeof el.actionLabel!=='string'||!Array.isArray(el.fields)||!el.fields.length||el.fields.length>20||el.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date'].includes(f.type)||f.options&&(!Array.isArray(f.options)||f.options.some(o=>typeof o!=='string'))))return false;break;
     default:return false;
    }
   }
