@@ -52,9 +52,20 @@ OPENAI_MODEL=gpt-6.1-sol
 
 **Storage limits:** Projects are saved in browser localStorage only. Files currently save filenames but do not upload, extract or send document contents to AI. Screenshot ingestion, asynchronous generation jobs, persistent server projects, custom code extensions, and precise edit preservation are not yet implemented.
 
-## Next pieces
+## Piece 3 — Controlled single-screen chat refinement
 
-**Piece 3**: Locate → Patch → Verify, per-component targeted edits, preservation regression tests, undo/version history, screenshot-aware refinement.
+- **Open the screen to change** in the preview screen tabs, then type the change in the same AI chat (e.g. "Add a mandatory Confirm Mobile Number field; preserve everything else").
+- If a demo already exists, the chat calls `POST /api/refine` instead of triggering full regeneration.
+- The server passes just the selected screen and the list of allowed navigation destinations to the model, never asking it to regenerate other screens.
+- Server merges *only* the selected screen back into a copy of the original demo, validates supported components and screen links, and asserts that every other screen is byte-for-byte JSON-equivalent. Invalid patches are rejected; original demo remains unchanged.
+- Client verifies unrelated screens again before accepting the new definition.
+- Every successful change records an in-browser snapshot; click **Undo edit** to restore the last snapshot, up to 8 levels. No undo data is uploaded to a server.
+- **Generate demo** remains an explicit full-regeneration action based on the original project brief (it clears refinement undo history). The initial project brief is not appended with refinement instructions.
+- Run `npm test` for deterministic preservation, navigation and invalid-change regression tests. Production build also executes these tests.
+
+**Current limitations:** Each chat refinement targets the selected screen only. Cross-screen workflow refactors require multiple edits or full regeneration; custom React/code extensions, screenshots and document content are not consumed. Browser-local history is not a server-backed audit log. Semantic confirmation that every requested business rule was fully implemented still requires user testing.
+
+## Next pieces
 
 **Piece 4**: Secure publishing, sandboxed custom extensions, real user auth, persistent storage, cross-browser/visual tests, and MEYON embed readiness.
 
