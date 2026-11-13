@@ -41,6 +41,54 @@ export function chooseRegistryTarget(registry,id,selection){
  }
  return entry;
 }
+// Resolve field placement using the canonical registry, not AI-invented IDs.
+// Accept canonical registry ID, actual field ID, or an unambiguous label.
+function resolveFieldReference(registry,moving,reference){
+ if(reference==='__start__')return '__start__';
+ if(typeof reference!=='string'||!reference.trim())throw new Error('Field position reference is missing.');
+ const siblings=registry.filter(e=>e.target.level==='field'&&e.target.screenId===moving.target.screenId&&e.target.elementId===moving.target.elementId);
+ const normalized=normalizeName(reference);
+ const matches=siblings.filter(e=>e.id===reference||e.target.childId===reference||normalizeName(e.label)===normalized||normalizeName(e.target.childId)===normalized);
+ if(matches.length!==1)throw new Error('Field position "'+reference+'" does not match a unique existing field in the same form.');
+ return matches[0].target.childId;
+}
+function moveAnchor(registry,moving,change){
+ const siblings=registry.filter(e=>e.target.level==='field'&&e.target.screenId===moving.target.screenId&&e.target.elementId===moving.target.elementId);
+ if(change.beforeFieldId!==undefined){
+  const reference=resolveFieldReference(registry,moving,change.beforeFieldId);
+  if(reference==='__start__')throw new Error('Use afterFieldId="__start__" to move to the first position.');
+  if(reference===moving.target.childId)throw new Error('Cannot position field relative to itself.');
+  const withoutMoving=siblings.filter(e=>e.target.childId!==moving.target.childId);
+  const index=withoutMoving.findIndex(e=>e.target.childId===reference);
+  if(index<0)throw new Error('Before-field anchor missing.');
+  return index===0?'__start__':withoutMoving[index-1].target.childId;
+ }
+ if(change.afterFieldId!==undefined)return resolveFieldReference(registry,moving,change.afterFieldId);
+ throw new Error('Move field requires beforeFieldId or afterFieldId.');
+}
+// Strict fast path for a *single* reorder instruction with two existing, uniquely named fields.
+// Multi-change requests continue through the AI planner.
+export function resolveSimpleFieldReorder(registry,selection,instruction){
+ const text=String(instruction||'').trim();
+ if(!/^(?:please\s+)?(?:move|place|position|reorder)\b/i.test(text))return null;
+ if(/\b(?:also|and then|add|remove|delete|rename|change|update|create)\b/i.test(text))return null;
+ const direction=/\b(above|before|below|after)\b/i.exec(text);
+ if(!direction)return null;
+ const fields=registry.filter(e=>e.target.level==='field'&&e.target.screenId===selection.screenId);
+ const first=text.slice(0,direction.index);
+ const second=text.slice(direction.index+direction[0].length).replace(/\b(?:without changing|without modifying|without affecting|and keep|keep|please keep)\b[\s\S]*$/i,'').trim();
+ const normalizePhrase=v=>normalizeName(String(v).replace(/^(?:please\s+)?(?:move|place|position|reorder)\s+(?:the\s+)?/i,'').replace(/\s+(?:field|input|control)\s*$/i,'').replace(/[.!?]+$/,''));
+ const source=normalizePhrase(first),destination=normalizePhrase(second);
+ const find=(phrase)=>fields.filter(e=>normalizeName(e.label)===phrase||normalizeName(e.target.childId)===phrase);
+ const from=find(source),to=find(destination);
+ if(from.length!==1||to.length!==1||from[0].id===to[0].id)return null;
+ if(from[0].target.elementId!==to[0].target.elementId)return null;
+ const chosen=chooseRegistryTarget(registry,from[0].id,selection);
+ const change={action:'move-field',targetId:chosen.id};
+ if(['above','before'].includes(direction[1].toLowerCase()))change.beforeFieldId=to[0].id;
+ else change.afterFieldId=to[0].id;
+ return resolveChangeSet(registry,selection,[change]);
+}
 export function resolveChangeSet(registry,selection,changes){
  if(!Array.isArray(changes)||changes.length<1||changes.length>8)throw new Error('Provide one to eight intended changes.');
  return changes.map((change,index)=>{
@@ -64,8 +112,7 @@ export function resolveChangeSet(registry,selection,changes){
    return {op:'add-component',target,component:change.component};
   }
   if(kind==='move-field'){
-   if(typeof change.afterFieldId!=='string')throw new Error('Move field requires an existing anchor field ID or the special value "__start__".');
-   return {op:'move-field',target,afterFieldId:change.afterFieldId};
+   return {op:'move-field',target,afterFieldId:moveAnchor(registry,entry,change)};
   }
   throw new Error('Unsupported operation '+String(kind));
  });
