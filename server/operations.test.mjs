@@ -71,3 +71,35 @@ test('No-ops are refused; original draft is unchanged',()=>{
  assert.throws(()=>applyOperations(baseline,target,[{op:'set',target,property:'title',value:'Welcome'}],'mobile'),/did not produce a change/);
  assert.equal(baseline.screens[0].title,'Welcome');
 });
+
+test('Screenshot RCA: default screen scope routes Remove wallet icon from header without AI path mismatch',()=>{
+ const target=t('screen','welcome');
+ const operations=deriveFastOperations(baseline,target,'Remove the wallet icon from the header');
+ assert.deepEqual(operations,[{op:'set',target:{level:'header',screenId:'welcome'},property:'showBrandIcon',value:false}]);
+ const r=applyOperations(baseline,target,operations,'mobile');
+ assert.equal(r.definition.screens[0].chrome.showBrandIcon,false);
+ assert.equal(r.definition.chrome.showBrandIcon,true);
+ assert.equal(r.definition.screens[1].chrome,undefined);
+ assert.ok(r.checks.includes('Effective screen header configuration changed'));
+});
+test('Screen-scoped AI path header.showBrandIcon normalizes to existing renderer metadata safely',()=>{
+ const target=t('screen','welcome');
+ const operations=[{op:'set',target,property:'header.showBrandIcon',value:false}];
+ const r=applyOperations(baseline,target,operations,'mobile');
+ assert.equal(r.definition.screens[0].chrome.showBrandIcon,false);
+ assert.deepEqual(r.definition.screens[1],baseline.screens[1]);
+});
+test('Header path normalization respects selection boundaries and refuses other screen edits',()=>{
+ const target=t('screen','welcome');
+ assert.throws(()=>applyOperations(baseline,target,[{op:'set',target:{level:'screen',screenId:'register'},property:'header.showBrandIcon',value:false}],'mobile'),/another screen|not supported/);
+ assert.throws(()=>applyOperations(baseline,t('element','welcome','hero'),[{op:'set',target:t('element','welcome','hero'),property:'header.showBrandIcon',value:false}],'mobile'),/not supported/);
+});
+test('Header request on selected form field does not escape selected field scope',()=>{
+ const target=t('field','register','form','mobile');
+ assert.equal(deriveFastOperations(baseline,target,'Remove wallet icon from the header'),null);
+});
+test('No change after wallet already removed returns a no-op rather than success',()=>{
+ const target=t('screen','welcome');
+ const once=applyOperations(baseline,target,deriveFastOperations(baseline,target,'Remove the wallet icon from the header'),'mobile').definition;
+ assert.throws(()=>applyOperations(once,target,deriveFastOperations(once,target,'Remove the wallet icon from the header'),'mobile'),/did not produce a change/);
+});
