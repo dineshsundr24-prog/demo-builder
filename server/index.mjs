@@ -2,6 +2,7 @@ import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
+import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -101,6 +102,15 @@ async function refine(body){
   return{definition:result.definition,scope:'global',changedScreenId:null,changedScreenTitle:'Application header',preservedScreens:demo.screens.length,summary,usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
  }
  const target=locateScreen(demo,body.screenId,instruction);
+ const screenChromePlan=classifyScreenChromeEdit(instruction);
+ if(screenChromePlan){
+  if(!screenChromePlan.supported)throw Object.assign(new Error(screenChromePlan.reason),{status:422});
+  let patch;
+  try{patch=applyScreenChromeEdit(demo,target.id,screenChromePlan,body?.project?.company,body?.project?.name);}catch(err){throw Object.assign(new Error(err.message),{status:422});}
+  if(!validateStrictDemo(patch.definition,demo.channel))throw Object.assign(new Error('Targeted header change failed schema validation. Original demo preserved.'),{status:422});
+  console.log('Scoped header change verified',{screenId:target.id,preservedScreens:patch.preservedScreens});
+  return{...patch,scope:'screen-chrome',summary:'Updated header icon on '+target.title+' only. Verified '+patch.preservedScreens+' other screens and their headers unchanged.',usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+ }
  const prompt=JSON.stringify({instruction,selectedScreenId:target.id,originalScreen:target,availableScreens:demo.screens.map(s=>({id:s.id,title:s.title})),project:{name:String(body.project?.name||'').slice(0,100),company:String(body.project?.company||'').slice(0,100),guidelines:String(body.project?.guidelines||'').slice(0,1000)},responseFormat:'JSON screen object only'});
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
  let raw;
