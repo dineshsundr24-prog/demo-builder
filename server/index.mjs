@@ -17,7 +17,7 @@ function authorized(given,expected){if(!expected||typeof given!=='string')return
 function rateLimited(key){const now=Date.now();const hit=buckets.get(key)||{time:now,count:0};if(now-hit.time>60000){hit.time=now;hit.count=0;}hit.count++;buckets.set(key,hit);if(buckets.size>2000){for(const [k,v] of buckets){if(now-v.time>120000)buckets.delete(k);}}return hit.count>6;}
 async function readBody(req){let text='';for await(const chunk of req){text+=chunk.toString();if(text.length>60000)throw new Error('Request too large.');}return JSON.parse(text);}
 const kindSet=new Set(['hero','stats','form','table','notice','actions']);
-const fieldTypes=new Set(['text','email','password','number','select','date']);
+const fieldTypes=new Set(['text','email','password','number','select','date','checkbox']);
 const str=(v,max=140)=>typeof v==='string'&&v.length>0&&v.length<=max;
 function validDemo(d,channel){
  if(!d||d.schemaVersion!==1||!str(d.id)||!str(d.name)||!str(d.description,500)||d.channel!==channel||!['navy','teal'].includes(d.theme)||!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>9)return false;
@@ -49,7 +49,7 @@ function validDemo(d,channel){
 const system=`You are the Demo Builder requirement interpreter. Generate a COMPLETE, polished, realistic, interactive business application demo in STRICT JSON only, based on user story and project context. Never write markdown, commentary or code. Do not claim live external integrations. Supply coherent realistic sample data, clear visual hierarchy, properly linked nextScreen, and unambiguous required form fields. Match the company and guidelines and cover all key steps. Output EXACTLY the following contract with schemaVersion:1,id,name,description,channel ('mobile' or 'portal'),theme ('navy' or 'teal'),screens array containing 3-7 screens (2-9 allowed). Each screen {id,title,subtitle,elements:[...]}. Unique stable ASCII IDs. Elements may be:
 {kind:'hero',id,eyebrow,title,description}
 {kind:'stats',id,items:[{id,label,value,delta?}]}
-{kind:'form',id,title,description?,fields:[{id,label,type:'text'|'email'|'password'|'number'|'select',placeholder?,required?,options?}],actionLabel,nextScreen?}
+{kind:'form',id,title,description?,fields:[{id,label,type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox',placeholder?,required?,options?}],actionLabel,nextScreen?}
 {kind:'table',id,title,subtitle?,columns:[{id,label}],rows:[{columnId:'value'}],detailScreen?}
 {kind:'notice',id,tone:'info'|'success',title,body}
 {kind:'actions',id,buttons:[{id,label,variant:'primary'|'secondary',nextScreen?}]}
@@ -166,9 +166,9 @@ async function planEdit(body){
   candidates,project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
  const instructions=[
   'You are the grounded intent interpreter for a structured interactive application demo.',
-  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
+  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
   'Make one change per user intent, maximum eight. Never silently skip a requested change. Use only candidate registry IDs, which include real type, parent and allowed capabilities. Never fabricate target IDs, invent fields to remove or refer to other screens.',
-  'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
+  'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. A mandatory consent checkbox is one existing field changed using two set actions: type=checkbox and required=true. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
   'Only plan capabilities explicitly advertised for a registry object. If the request asks for unsupported layouts, rules or operations, return unsupported instead of a partial change. When a name matches multiple targets and the selection does not disambiguate, return ambiguous.',
   'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
   'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
