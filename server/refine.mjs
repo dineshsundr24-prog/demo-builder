@@ -56,6 +56,7 @@ export function applyScreenPatch(demo,screenId,updated,validateDemo){
 }
 export function validateStrictDemo(d,channel){
  if(!d||d.schemaVersion!==1||typeof d.id!=='string'||!d.id||typeof d.name!=='string'||!d.name||d.channel!==channel||!['navy','teal'].includes(d.theme)||!Array.isArray(d.screens)||!d.screens.length||d.screens.length>12)return false;
+ if(d.chrome&&(!d.chrome.brandName||typeof d.chrome.brandName!=='string'||d.chrome.brandName.length>100||typeof d.chrome.showBrandIcon!=='boolean'||typeof d.chrome.showBackButton!=='boolean'))return false;
  const ids=new Set();
  for(const s of d.screens){
   if(!s||typeof s.id!=='string'||!s.id||typeof s.title!=='string'||!s.title||!Array.isArray(s.elements)||s.elements.length>15||ids.has(s.id))return false;
