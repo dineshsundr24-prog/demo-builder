@@ -18,7 +18,7 @@ const allowedElement={
 const allowedField=new Set(['label','placeholder','required','type','options']);
 const allowedButton=new Set(['label','variant','nextScreen']);
 const allowedChrome=new Set(['brandName','showBrandIcon','showBackButton']);
-const fieldTypes=new Set(['text','email','password','number','select','date']);
+const fieldTypes=new Set(['text','email','password','number','select','date','checkbox']);
 const normalizeLabel=(value)=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const fieldIdFromLabel=(label)=>normalizeLabel(label).replace(/\s+/g,'-').slice(0,60);
 function findNamedField(screen,label,elementId){
