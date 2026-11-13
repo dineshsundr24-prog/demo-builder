@@ -70,7 +70,9 @@ function moveAnchor(registry,moving,change){
 // Multi-change requests continue through the AI planner.
 export function resolveSimpleFieldReorder(registry,selection,instruction){
  const text=String(instruction||'').trim();
- const command=/\b(?:move|place|position|reorder)\b/i.exec(text);\n if(!command)return null;\n const moveText=text.slice(command.index);
+ const command=/\b(?:move|place|position|reorder)\b/i.exec(text);
+ if(!command)return null;
+ const moveText=text.slice(command.index);
  if(/\b(?:also|and then|add|remove|delete|rename|change|update|create)\b/i.test(text))return null;
  const direction=/\b(above|before|below|after)\b/i.exec(moveText);
  if(!direction)return null;
