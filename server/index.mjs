@@ -16,7 +16,7 @@ function authorized(given,expected){if(!expected||typeof given!=='string')return
 function rateLimited(key){const now=Date.now();const hit=buckets.get(key)||{time:now,count:0};if(now-hit.time>60000){hit.time=now;hit.count=0;}hit.count++;buckets.set(key,hit);if(buckets.size>2000){for(const [k,v] of buckets){if(now-v.time>120000)buckets.delete(k);}}return hit.count>6;}
 async function readBody(req){let text='';for await(const chunk of req){text+=chunk.toString();if(text.length>60000)throw new Error('Request too large.');}return JSON.parse(text);}
 const kindSet=new Set(['hero','stats','form','table','notice','actions']);
-const fieldTypes=new Set(['text','email','password','number','select']);
+const fieldTypes=new Set(['text','email','password','number','select','date']);
 const str=(v,max=140)=>typeof v==='string'&&v.length>0&&v.length<=max;
 function validDemo(d,channel){
  if(!d||d.schemaVersion!==1||!str(d.id)||!str(d.name)||!str(d.description,500)||d.channel!==channel||!['navy','teal'].includes(d.theme)||!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>9)return false;
