@@ -1,3 +1,4 @@
+import {validComposed} from '../src/composed.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -28,6 +29,7 @@ function validDemo(d,channel){
   for(const e of s.elements){total++;
    if(!str(e.id)||elementIds.has(e.id)||!kindSet.has(e.kind))return false;elementIds.add(e.id);
    switch(e.kind){
+    case 'composed':if(!validComposed(e,d.screens.map(s=>s.id)))return false;break;
     case 'hero':if(!str(e.title)||!str(e.description,600))return false;break;
     case 'stats':if(!Array.isArray(e.items)||e.items.length<1||e.items.length>6||e.items.some(x=>!str(x.id)||!str(x.label)||!str(x.value)))return false;break;
     case 'notice':if(!['info','success'].includes(e.tone)||!str(e.title)||!str(e.body,600))return false;break;
@@ -47,6 +49,7 @@ function validDemo(d,channel){
 }
 
 const system=`You are the Demo Builder requirement interpreter. Generate a COMPLETE, polished, realistic, interactive business application demo in STRICT JSON only, based on user story and project context. Never write markdown, commentary or code. Do not claim live external integrations. Supply coherent realistic sample data, clear visual hierarchy, properly linked nextScreen, and unambiguous required form fields. Match the company and guidelines and cover all key steps. Output EXACTLY the following contract with schemaVersion:1,id,name,description,channel ('mobile' or 'portal'),theme ('navy' or 'teal'),screens array containing 3-7 screens (2-9 allowed). Each screen {id,title,subtitle,elements:[...]}. Unique stable ASCII IDs. Elements may be:
+{kind:'composed',id,title,items:[{id,kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress',label,text?,required?,options?,nextScreen?,inputType?,value?}]} (use to assemble missing UI patterns with clickable controls; max 16 items)
 {kind:'hero',id,eyebrow,title,description}
 {kind:'stats',id,items:[{id,label,value,delta?}]}
 {kind:'form',id,title,description?,fields:[{id,label,type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox',placeholder?,required?,options?}],actionLabel,nextScreen?}
