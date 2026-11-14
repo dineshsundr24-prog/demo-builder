@@ -26,10 +26,10 @@ export function semanticSpecFromRequirement(instruction){
 }
 function safeFields(candidate,instruction){
  const proposed=Array.isArray(candidate?.fields)?candidate.fields:[];
- const fields=proposed.map(f=>typeof f==='string'?f:f&&typeof f==='object'?f.label||f.name||f.title:'').map(clean).filter(meaningful).slice(0,8);
- // Explicitly listed user requirements cannot be silently dropped by a model summary.
- for(const label of extractRequestedFields(instruction))if(!fields.some(f=>slug(f)===slug(label)))fields.push(label);
- return [...new Map(fields.map(f=>[slug(f),titleCase(f)])).values()].slice(0,9);
+ const fields=proposed.map(f=>typeof f==='string'?f:f&&typeof f==='object'?f.label||f.name||f.title:'').map(clean).filter(meaningful).slice(0,12);
+ // User-specified attributes take priority over optional model suggestions.
+ const explicit=extractRequestedFields(instruction);
+ return [...new Map([...explicit,...fields].map(f=>[slug(f),titleCase(f)])).values()].slice(0,9);
 }
 function valueFor(label,row){
  const key=String(label).toLowerCase();
