@@ -80,3 +80,16 @@ test('POC no duplicate activity component on repeated execution',()=>{
  const again=addActivitySection(initial);
  assert.equal(again.demo.screens[0].elements.filter(e=>e.kind==='composed').length,1);
 });
+
+test('POC confirmation-screen decision does not approve until explicit confirmation',()=>{
+ const initial=workspaceFromDemo(demo);
+ const pending=requestApproval(initial);
+ const choice=pending.awaiting.options.find(x=>x.includes('confirmation screen'));
+ const ready=answerApproval(pending,choice);
+ const unconfirmed=executeApproval(ready,false);
+ assert.equal(unconfirmed.approval.lastAction,'confirmation-screen');
+ assert.equal(unconfirmed.approval.status,'Pending');
+ const confirmed=executeApproval(ready,true);
+ assert.equal(confirmed.approval.status,'Approved');
+ assert.deepEqual(confirmed.demo,initial.demo);
+});
