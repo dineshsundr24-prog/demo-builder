@@ -13,6 +13,7 @@ import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
 import {completeComponents,technicalFailure,issueCategory,repeatsClarification,normalizeComponent,componentValidationIssues} from './editRecovery.mjs';
 import {externalDataGuard,externalDataDecision} from './integrationPreflight.mjs';
+import {interactiveCreationIntent,createInteractiveSection,safeCreationDiagnostic} from './interactiveCreation.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -244,7 +245,22 @@ async function planEdit(body){
    summary:'Proposed a shared header update across '+demo.screens.length+' screens. Review before applying.',
    usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
  }
- // One grounded model call: target IDs may only come from this registry.
+ if(interactiveCreationIntent(instruction,target)){
+  const scope={instruction,clarifications:priorClarifications,
+   selectedScreen:demo.screens.find(sc=>sc.id===target.screenId)?.title,
+   dataSourceMode:integrationDecision?.mode||'demo',
+   screenIds:demo.screens.map(sc=>sc.id)};
+  try{
+   const result=await createInteractiveSection({demo,target,instruction,scope,generate:synthesizeInteractiveComponent});
+   console.info('Interactive section created',{phase:'atomic-component',selectedScreenId:target.screenId,componentCount:1});
+   return result;
+  }catch(e){
+   const diagnostic=safeCreationDiagnostic(e);
+   console.warn('Interactive section generation failed',{phase:'atomic-component',selectedScreenId:target.screenId,category:diagnostic.category,issuePaths:diagnostic.issuePaths});
+   return technicalFailure(e?.message||'Component generation failed','atomic-component');
+  }
+ }
+  // One grounded model call: target IDs may only come from this registry.
  const registry=buildRegistry(demo,target);
  // Deterministic single-field reorder bypasses AI-generated position IDs.
  const fastReorder=resolveSimpleFieldReorder(registry,target,instruction);
