@@ -40,7 +40,7 @@ function App(){
  const[pending,setPending]=useState<PendingEdit|null>(null);
  const[ambiguity,setAmbiguity]=useState<AmbiguousTarget|null>(null);
  const[generationQuestion,setGenerationQuestion]=useState<{projectId:string;question:string;reason:string;suggestions:string[]}|null>(null);
- const[refinementQuestion,setRefinementQuestion]=useState<{projectId:string;instruction:string;target:Target;question:string;reason:string;options:string[]}|null>(null);
+ const[refinementQuestion,setRefinementQuestion]=useState<{projectId:string;instruction:string;target:Target;question:string;reason:string;options:string[];clarifications:{question:string;answer:string}[]}|null>(null);
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[rememberAI,setRememberAI]=useState(()=>{try{return localStorage.getItem('meyon-demo-ai-remember')==='yes';}catch{return false;}});const[accessToken,setAccessToken]=useState(()=>{try{return sessionStorage.getItem('meyon-demo-ai-access')||(localStorage.getItem('meyon-demo-ai-remember')==='yes'?localStorage.getItem('meyon-demo-ai-saved')||'':'');}catch{return '';}});const[accessDraft,setAccessDraft]=useState('');
  const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
@@ -107,7 +107,7 @@ function App(){
   }catch(err){const message=err instanceof Error?err.message:'Unable to connect to AI service.';setToast(message);}
   finally{setAiBusy(false);}
  }
- async function refineFor(projectSnapshot:Project,instruction:string,targetScreenId:string,override?:Target){
+ async function refineFor(projectSnapshot:Project,instruction:string,targetScreenId:string,override?:Target,clarifications:{question:string;answer:string}[]=[]){
   if(aiBusy||!projectSnapshot.demo)return;
   if(pending){setToast('Apply or discard the pending preview before requesting another change.');return;}
   if(!aiReady){setToast('AI backend is not ready. Original demo unchanged.');return;}
@@ -118,11 +118,14 @@ function App(){
   setAiBusy(true);
   try{
    const response=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},
-    body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,target,instruction})});
+    body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,target,instruction,clarifications})});
    const result=await response.json();
    if(response.ok&&result.needsClarification&&typeof result.question==='string'){
     const choices=Array.isArray(result.options)?result.options.filter((x:unknown):x is string=>typeof x==='string').slice(0,4):[];
-    setRefinementQuestion({projectId:projectSnapshot.id,instruction,target,question:result.question,reason:String(result.reason||''),options:choices});
+    if(clarifications.some(q=>q.question.trim().toLowerCase()===result.question.trim().toLowerCase())){
+     throw Error('MEYON could not implement the previously clarified interaction. Your original demo is preserved; please review the chosen capability rather than answering the same question again.');
+    }
+    setRefinementQuestion({projectId:projectSnapshot.id,instruction,target,question:result.question,reason:String(result.reason||''),options:choices,clarifications});
     setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===projectSnapshot.id?{...p,messages:[...p.messages,{id:makeId(),role:'system',text:result.question,date:new Date().toISOString()}]}:p)}));
     setToast('MEYON needs one clarification. No existing screens were changed.');
     return;
@@ -192,11 +195,12 @@ function App(){
  function answerRefinementQuestion(answer:string){
   const pendingQuestion=refinementQuestion;
   if(!pendingQuestion||pendingQuestion.projectId!==project.id||!answer.trim()||aiBusy||pending)return;
-  const combined=pendingQuestion.instruction+'\n\nUser clarification: '+answer.trim()+'. Preserve the original request, use available interactive demo actions, and do not modify unrelated screens.';
+  const combined=pendingQuestion.instruction;
+  const clarifications=[...pendingQuestion.clarifications,{question:pendingQuestion.question,answer:answer.trim()}];
   const msg:Message={id:makeId(),role:'user',text:answer.trim(),date:new Date().toISOString()};
   setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===pendingQuestion.projectId?{...p,messages:[...p.messages,msg]}:p)}));
   setRefinementQuestion(null);
-  void refineFor(project,combined,pendingQuestion.target.screenId,pendingQuestion.target);
+  void refineFor(project,combined,pendingQuestion.target.screenId,pendingQuestion.target,clarifications);
  }
  function send(){
   const text=composer.trim();
