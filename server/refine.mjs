@@ -77,7 +77,9 @@ export function validateStrictDemo(d,channel){
    if(!['hero','stats','notice','actions','form','table','composed'].includes(e.kind))return false;
   }
  }
- for(const s of d.screens)for(const e of s.elements){
+ if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
+ if(d.screens.some(s=>s.parentScreenId&&(typeof s.parentScreenId!=='string'||!ids.has(s.parentScreenId)||s.id===s.parentScreenId||d.screens.find(p=>p.id===s.parentScreenId)?.parentScreenId)))return false;
+  for(const s of d.screens)for(const e of s.elements){
   const links=e.kind==='actions'?e.buttons.map(b=>b.nextScreen):e.kind==='form'?[e.nextScreen]:e.kind==='table'?[e.detailScreen]:[];
   if(links.some(id=>id&&!ids.has(id)))return false;
  }
