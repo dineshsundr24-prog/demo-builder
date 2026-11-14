@@ -8,6 +8,7 @@ import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs
 import {applyOperations,locateNode,targetLabel} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
+import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
 import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
@@ -204,6 +205,21 @@ async function planEdit(body){
  if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
+ const menuLink=planPortalMenuLink(demo,instruction,target.screenId);
+ if(menuLink){
+  if(menuLink.alreadyExists)return technicalFailure('Requested menu option already exists on this portal','navigation');
+  const selected={level:'screen',screenId:menuLink.screenId};
+  const operations=[{op:'add-menu-link',target:selected,label:menuLink.label,screenId:menuLink.screenId}];
+  try{
+   const result=applyOperations(demo,selected,operations,project.channel);
+   return{scope:'planned',target:selected,label:menuLink.label+' · Left navigation',definition:result.definition,operations,
+    checks:[...result.checks,'New menu label and target verified','Existing screens retained unchanged'],
+    preservedScreens:demo.screens.length,summary:'Added '+menuLink.label+' as a standalone left navigation option linking to '+demo.screens.find(sc=>sc.id===menuLink.screenId)?.title+'. Review before applying.',
+    usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+  }catch(e){
+   return technicalFailure('Navigation option could not be applied: '+String(e.message||'invalid navigation'),'navigation');
+  }
+ }
  const priorClarifications=Array.isArray(body?.clarifications)?body.clarifications.slice(0,5):[];
  const integrationGuard=externalDataGuard(instruction,priorClarifications);
  if(integrationGuard)return integrationGuard;
