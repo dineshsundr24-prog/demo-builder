@@ -60,7 +60,7 @@ export function executeDynamicActions(element,button,values,visible={}){
  const errors={},updates={...values},visibility={...visible},events=[];
  // 'required' applies only to relevant form controls, never to unrelated hidden controls.
  const actionable=element.items.filter(x=>['input','select','checkbox'].includes(x.kind)&&x.required&&visibility[x.id]!==false&&(!x.visibleWhen||String(values[x.visibleWhen.field]||'')===x.visibleWhen.equals));
- if(button.actions?.some(a=>a.type==='navigate')||button.nextScreen)for(const x of actionable){
+ if(button.actions?.some(a=>a.type==='navigate'||a.type==='notice'||a.type==='download-csv')||button.nextScreen)for(const x of actionable){
   if(x.kind==='checkbox'?values[x.id]!=='true':!String(values[x.id]||'').trim())errors[x.id]=x.kind==='checkbox'?'Please check this box':'Required field';
  }
  if(Object.keys(errors).length)return{values:updates,visibility,errors,events};
