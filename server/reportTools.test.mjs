@@ -63,7 +63,7 @@ test('Reports: filter and search compose and only displayed rows are exported',(
 test('Reports: CSV formulas cannot execute when spreadsheet opens exported file',()=>{
  const csv=reportCsv([{id:'name',label:'Name'}],[{name:'=HYPERLINK("https://x","click")'},{name:'-1+2'}]);
  assert.match(csv,/"'=HYPERLINK/);
- assert.match(csv,/"' -1/); // placeholder assertion updated below
+ assert.ok(csv.includes("\"'-1+2\""));
 });
 test('Reports: filterColumn must point to a real table column',()=>{
  const table=configure().screens[2].elements.find(e=>e.kind==='table');
