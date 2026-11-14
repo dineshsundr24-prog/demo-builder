@@ -11,10 +11,10 @@ export function normalizeGeneratedDemo(input){
  const d=structuredClone(input);
  if(!Array.isArray(d.screens))return d;
  // Missing presentational descriptions and scalar values are harmless JSON drift.
- if(d.description===undefined)d.description='';
+ if(d.description===undefined||d.description==='')d.description='Interactive demo of '+String(d.name||'application').slice(0,100);
  for(const s of d.screens){
   if(!object(s))continue;
-  if(s.subtitle===undefined)s.subtitle='';
+  if(s.subtitle===undefined||s.subtitle==='')s.subtitle='Explore '+String(s.title||'this screen').slice(0,100);
   if(!Array.isArray(s.elements))continue;
   for(const e of s.elements){
    if(!object(e))continue;
