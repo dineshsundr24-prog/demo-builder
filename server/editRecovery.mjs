@@ -17,6 +17,54 @@ export function normalizeComponent(candidate){
  }
  return result;
 }
+// Diagnostic paths identify invalid structure without logging customer-facing text or row values.
+export function componentValidationIssues(candidate,screenIds=[]){
+ const x=normalizeComponent(candidate),issues=[];
+ const add=(path,problem)=>{if(issues.length<12)issues.push(path+': '+problem);};
+ const id=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v);
+ if(!x)return['component: missing object'];
+ if(!id(x.id))add('component.id','invalid ID');
+ if(typeof x.title!=='string'||!x.title.trim())add('component.title','missing title');
+ if(!Array.isArray(x.items)||!x.items.length||x.items.length>24)return[...issues,'component.items: expected 1–24 items'];
+ const kinds=new Set(['text','card','input','checkbox','select','button','progress','table','badge','divider']);
+ const ids=new Set(x.items.map(z=>z?.id));
+ const seen=new Set();
+ x.items.forEach((item,i)=>{
+  const p='items['+i+']';
+  if(!item||typeof item!=='object'){add(p,'missing item');return;}
+  if(!id(item.id)||seen.has(item.id))add(p+'.id','missing, duplicate or invalid ID');
+  seen.add(item.id);
+  if(!kinds.has(item.kind))add(p+'.kind','unsupported kind');
+  if(typeof item.label!=='string')add(p+'.label','missing label');
+  if(item.kind==='select'&&(!Array.isArray(item.options)||!item.options.length||item.options.some(v=>typeof v!=='string')))add(p+'.options','expected nonempty string options');
+  if(item.kind==='progress'&&(!Number.isFinite(item.value)||item.value<0||item.value>100))add(p+'.value','expected percentage 0–100');
+  if(item.kind==='table'){
+   if(!Array.isArray(item.columns)||!item.columns.length)add(p+'.columns','missing table columns');
+   if(!Array.isArray(item.rows))add(p+'.rows','missing table rows');
+   if(Array.isArray(item.rows)&&item.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string')))add(p+'.rows','table cells must be strings');
+   if(item.filterField&&!ids.has(item.filterField))add(p+'.filterField','unknown filter field');
+   if(item.filterColumn&&Array.isArray(item.columns)&&!item.columns.some(c=>c.id===item.filterColumn))add(p+'.filterColumn','unknown table column');
+  }
+  if(item.visibleWhen&&!ids.has(item.visibleWhen.field))add(p+'.visibleWhen','unknown visibility field');
+  if(item.kind==='input'&&item.inputType&&!['text','email','number','date','password'].includes(item.inputType))add(p+'.inputType','unsupported input type');
+  if(item.kind==='button'){
+   if(item.nextScreen&&!screenIds.includes(item.nextScreen))add(p+'.nextScreen','unknown screen');
+   if(item.actions!==undefined&&!Array.isArray(item.actions))add(p+'.actions','not an array');
+   for(const [j,a] of (Array.isArray(item.actions)?item.actions:[]).entries()){
+    const ap=p+'.actions['+j+']';
+    if(!a||!['navigate','set','toggle','increment','reset','show','hide','download-csv','notice'].includes(a.type)){add(ap+'.type','unsupported action');continue;}
+    if(a.type==='navigate'&&!screenIds.includes(a.screen))add(ap+'.screen','unknown screen');
+    if(['set','toggle','increment','show','hide'].includes(a.type)&&!ids.has(a.target))add(ap+'.target','unknown component item');
+    if(a.type==='download-csv'&&!x.items.some(z=>z.id===a.target&&z.kind==='table'))add(ap+'.target','download target must be table');
+    if(a.type==='set'&&typeof a.value!=='string')add(ap+'.value','expected string');
+    if(a.type==='notice'&&typeof a.message!=='string')add(ap+'.message','expected string');
+   }
+  }else if(item.actions||item.nextScreen)add(p+'.actions','only buttons can have actions');
+ });
+ if(!issues.length&&!validComposed(x,screenIds))issues.push('component: other schema constraint failed');
+ return issues;
+}
+
 export function componentNeedsSynthesis(change,screenIds){
  if(change?.action!=='add-component')return false;
  const component=normalizeComponent(change.component);
@@ -33,7 +81,12 @@ export async function completeComponents(changes,screenIds,generate){
    const output=await generate(change,component);
    component=normalizeComponent(output);
   }
-  if(!component||!validComposed(component,screenIds))throw new Error('Component schema invalid after synthesis');
+  if(!component||!validComposed(component,screenIds)){
+   const issues=componentValidationIssues(component,screenIds);
+   const error=new Error('Component schema invalid after synthesis');
+   error.validationIssues=issues;
+   throw error;
+  }
   resolved.push({...change,component});
  }
  return resolved;
