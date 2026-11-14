@@ -198,3 +198,21 @@
 .studio .visual-selected{background-color:rgba(67,139,235,.035)}
 .studio .select-on .demo-main.visual-selected{outline:3px solid #3678d0!important;outline-offset:-4px}
 @media(max-width:850px){.studio .visual-comment-entry{flex-wrap:wrap}.studio .visual-comment-entry input{flex-basis:100%}}
+
+/* Presentation: uninterrupted full-viewport preview, with compact context controls. */
+.studio-heading-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.shot-entry{display:inline-flex;align-items:center;gap:7px;background:#1a4a96;color:white;border:1px solid #1a4a96;border-radius:9px;padding:10px 14px;font-size:12px;font-weight:750}
+.shot-entry:hover{background:#113c80}
+.preview-pane.fullscreen-preview{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:140!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff}
+.fullscreen-preview .pane-heading{height:44px;padding:0 22px}
+.fullscreen-preview .preview-toolbar{min-height:48px;padding:5px 18px;background:#fff}
+.fullscreen-preview .preview-viewport{padding:10px 22px;background:#eaf0f7;overflow:auto}
+.fullscreen-preview .preview-viewport .screen-strip{top:-10px;background:#eaf0f7;justify-content:center;padding:7px 0 12px;position:sticky}
+.fullscreen-preview .preview-canvas{width:100%;max-width:1500px;margin:0 auto}
+.fullscreen-preview .preview-canvas .portal-frame{width:100%;max-width:none!important}
+.fullscreen-preview .preview-canvas .mobile-frame{max-width:390px!important;width:390px!important}
+.fullscreen-preview .preview-bottom{padding:6px 12px}
+.fullscreen-preview .preview-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.preview-toolbar .preview-fullscreen-btn{width:auto!important;min-width:85px!important;display:inline-flex!important;gap:7px;padding:0 12px;font-weight:700;color:#235bb0;background:#eef4ff}
+.fullscreen-preview .preview-toolbar .preview-fullscreen-btn{background:#173f8d;color:white}
+@media(max-width:800px){.fullscreen-preview .preview-viewport{padding:8px}.fullscreen-preview .preview-canvas .mobile-frame{width:min(390px,100%)!important}.fullscreen-preview .screen-strip{justify-content:flex-start!important}.studio-heading-actions{justify-content:flex-start}}
