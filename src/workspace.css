@@ -258,3 +258,27 @@
  .studio-workarea .chat-pane{height:44dvh}
  .studio-workarea .preview-pane{height:78dvh}
 }
+
+/* Preview action bar: one line, grouped actions, overflow menu.
+   Hide rarely used actions instead of wrapping and stealing canvas height. */
+.studio .preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;min-height:43px;height:43px;flex:none;position:relative;z-index:8;overflow:visible}
+.studio .preview-toolbar-primary,.studio .preview-toolbar-secondary{display:flex;align-items:center;gap:5px;min-width:0;flex:none}
+.studio .preview-toolbar-primary{flex:1;overflow:hidden}
+.studio .preview-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:5px;width:auto;height:30px;min-height:30px;padding:0 9px;white-space:nowrap;font-size:11px;line-height:1}
+.studio .preview-toolbar .visual-toggle,.studio .preview-toolbar .publish-action{min-width:0;max-width:100%}
+.studio .preview-toolbar .preview-fullscreen-btn{min-width:0!important;width:auto!important;padding:0 9px}
+.studio .preview-toolbar .zoom-controls{display:inline-flex;align-items:center;gap:0;flex:none;height:30px;min-height:30px;overflow:hidden;border:1px solid #dbe5f1;border-radius:7px}
+.studio .preview-toolbar .zoom-controls button{width:29px;height:28px;min-height:28px;padding:0;border:0;border-radius:0;background:transparent}
+.studio .preview-toolbar .zoom-controls .zoom-value{width:44px;font-weight:700;font-size:12px;background:#f4f7fc}
+.studio .preview-more-menu{position:relative;flex:none}
+.studio .preview-more-menu summary{display:flex;align-items:center;justify-content:center;width:33px;height:30px;border-radius:7px;border:1px solid #dbe5f1;background:#fff;color:#4c6387;cursor:pointer;list-style:none}
+.studio .preview-more-menu summary::-webkit-details-marker{display:none}
+.studio .preview-more-menu[open] summary{background:#eaf2ff;color:#255bb1}
+.studio .preview-more-panel{position:absolute;right:0;top:calc(100% + 7px);width:186px;display:flex;flex-direction:column;gap:3px;background:white;padding:6px;border:1px solid #dbe4ee;border-radius:10px;box-shadow:0 12px 32px #15284a2b;z-index:40}
+.studio .preview-more-panel button{display:flex;justify-content:flex-start;gap:9px;width:100%;height:34px;font-size:11px;border:0;border-radius:6px;padding:0 9px;background:transparent;color:#395475;text-align:left}
+.studio .preview-more-panel button:hover{background:#edf3fd}
+.studio .preview-more-panel button:disabled{opacity:.4}
+.studio .preview-viewport{position:relative;z-index:1}
+@media(max-width:1040px){.studio .preview-toolbar button{padding:0 7px}.studio .preview-toolbar-primary,.studio .preview-toolbar-secondary{gap:3px}}
+@media(max-width:900px){.studio .preview-toolbar .visual-toggle span,.studio .preview-toolbar .publish-action span{display:none}.studio .preview-toolbar .visual-toggle,.studio .preview-toolbar .publish-action{width:32px}}
+@media(max-width:540px){.studio .preview-toolbar .preview-fullscreen-btn span{display:none}.studio .preview-toolbar .preview-fullscreen-btn{width:32px!important;padding:0}}
