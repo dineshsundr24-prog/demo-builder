@@ -1,6 +1,8 @@
 // Versioned, declarative demo contract. No eval, Function constructor, or arbitrary code.
 // @ts-ignore Reused browser/node component schema validator.
 import {validComposed} from './composed.mjs';
+// @ts-ignore Shared JS report table schema.
+import {validReportTools} from '../server/reportTools.mjs';
 export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox';placeholder?:string;required?:boolean;options?:string[]};
 export type Element =
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
@@ -58,6 +60,6 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
-  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox'].includes(f.type)))?false:true));
+  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:true));
 }
 export function cloneDemo(d:DemoDefinition):DemoDefinition{return JSON.parse(JSON.stringify(d)) as DemoDefinition;}
