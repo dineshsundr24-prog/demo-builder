@@ -27,16 +27,16 @@ test('Existing demo-only requirement without data-source request does not trigge
 });
 test('Component validation returns exact paths and not sensitive cell data',()=>{
  const candidate={id:'activity',title:'User Activity',items:[
-  {id:'history',kind:'table',label:'Login History',columns:[{id:'login',label:'Login'}],rows:[{login:12345}]},
+  {id:'history',kind:'table',label:'Login History',columns:[{id:'login',label:'Login'}],rows:[{login:12345}],filterColumn:'missing'},
   {id:'download',kind:'button',label:'Download CSV',actions:[{type:'download-csv',target:'missing-table'}]}
  ]};
  const errors=componentValidationIssues(candidate,['dashboard']);
- assert.ok(errors.some(e=>e.startsWith('items[0].rows:')));
+ assert.ok(errors.some(e=>e.startsWith('items[0].filterColumn:')));
  assert.ok(errors.some(e=>e.startsWith('items[1].actions[0].target:')));
  assert.equal(JSON.stringify(errors).includes('12345'),false);
 });
 test('Validator-guided retry can recover a generated data dashboard',async()=>{
- const incomplete={id:'activity',title:'User Activity',items:[{id:'table',kind:'table',label:'Login History',columns:[{id:'name',label:'Name'}],rows:[{name:123}]}]};
+ const incomplete={id:'activity',title:'User Activity',items:[{id:'table',kind:'table',label:'Login History',columns:[{id:'name',label:'Name'}],rows:[{name:123}],filterField:'unknown-input'}]};
  const good={id:'activity',title:'User Activity',items:[
  {id:'search',kind:'input',label:'Search login history'},
  {id:'table',kind:'table',label:'Login History',columns:[{id:'user',label:'User'},{id:'lastActivity',label:'Last Activity'},{id:'failedAttempts',label:'Failed Attempts'}],rows:[{user:'USR-1',lastActivity:'2026-11-14 10:20',failedAttempts:'2'}],filterField:'search'}
