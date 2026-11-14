@@ -12,11 +12,12 @@ export function buildRegistry(demo,selected){
    parentId:parent||null,screenTitle:screen.title,capabilities});
  }
  for(const screen of demo.screens){
-  add('screen',screen,null,screen,null,['set','add-component']);
+  add('screen',screen,null,screen,null,demo.channel==='portal'?['set','add-component','configure-report']:['set','add-component']);
   add('header',screen,null,{label:'Header'},nodeId('screen',screen.id),['set']);
   for(const element of screen.elements){
    const caps=['hero','notice','form','table'].includes(element.kind)?['set','remove-element']:['remove-element'];
    if(element.kind==='form')caps.push('add-field');
+   if(demo.channel==='portal'&&element.kind==='table')caps.push('configure-report');
    add('element',screen,element,element,nodeId('screen',screen.id),caps);
    if(element.kind==='form')for(const field of element.fields){
     add('field',screen,element,field,nodeId('element',screen.id,element.id),['set','remove-field','move-field'],field.id);
@@ -108,6 +109,11 @@ export function resolveChangeSet(registry,selection,changes){
   if(kind==='add-field'){
    if(!change.field||typeof change.field!=='object')throw new Error('Add field requires a field definition.');
    return {op:'add-field',target,field:change.field,afterFieldId:change.afterFieldId};
+  }
+  if(kind==='configure-report'){
+   const tools=change.tools||{};
+   if(!tools||typeof tools!=='object'||Array.isArray(tools))throw new Error('Report tools must be a configuration object.');
+   return{op:'configure-report',target,tools};
   }
   if(kind==='add-component'){
    if(!change.component||typeof change.component!=='object')throw new Error('AI must supply a composed component definition.');
