@@ -96,14 +96,20 @@ async function generate(body){
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
  let parsed;
  try{parsed=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned an incomplete or invalid definition. Please retry.'),{status:502});}
- const normalized=normalizeGeneratedDemo(parsed);
+ let normalized=normalizeGeneratedDemo(parsed);
+ let repaired=false,extra={inputTokens:0,outputTokens:0};
  if(!validDemo(normalized,channel)){
   const reasons=explainGeneratedDemo(normalized,channel);
-  // Log paths, not customer content, to preserve confidential sample data.
-  console.error('AI generation schema mismatch',{channel,screenCount:Array.isArray(normalized?.screens)?normalized.screens.length:null,problems:reasons.slice(0,8)});
-  throw Object.assign(new Error('Generated portal structure was rejected: '+(reasons[0]||'schema mismatch')+'. No demo was overwritten. Please retry.'),{status:422});
+  console.warn('Generated draft needs structural repair',{channel,problems:reasons.slice(0,7)});
+  const result=await repairGeneratedDefinition(normalized,reasons,channel);
+  if(result&&validDemo(result.definition,channel)){normalized=result.definition;extra=result.usage;repaired=true;}
+  else{
+   const unresolved=result?explainGeneratedDemo(result.definition,channel):reasons;
+   const clarification=generationClarification(unresolved.length?unresolved:reasons,channel);
+   return{needsClarification:true,question:clarification.question,suggestions:clarification.suggestions,reason:clarification.reason,summary:'Your brief is saved. Please clarify this one choice to continue.',usage:{model:raw.model||model,inputTokens:(raw.usage?.input_tokens||0)+(result?.usage?.inputTokens||0),outputTokens:(raw.usage?.output_tokens||0)+(result?.usage?.outputTokens||0)}};
+  }
  }
- return{definition:normalized,summary:`Generated ${normalized.screens.length} interactive screens for ${normalized.name}.`,usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+ return{definition:normalized,summary:`Generated ${normalized.screens.length} interactive screens for ${normalized.name}.${repaired?' MEYON repaired the draft automatically.':''}`,usage:{model:raw.model||model,inputTokens:(raw.usage?.input_tokens||0)+extra.inputTokens,outputTokens:(raw.usage?.output_tokens||0)+extra.outputTokens}};
 }
 
 
