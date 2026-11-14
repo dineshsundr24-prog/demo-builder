@@ -282,3 +282,38 @@
 @media(max-width:1040px){.studio .preview-toolbar button{padding:0 7px}.studio .preview-toolbar-primary,.studio .preview-toolbar-secondary{gap:3px}}
 @media(max-width:900px){.studio .preview-toolbar .visual-toggle span,.studio .preview-toolbar .publish-action span{display:none}.studio .preview-toolbar .visual-toggle,.studio .preview-toolbar .publish-action{width:32px}}
 @media(max-width:540px){.studio .preview-toolbar .preview-fullscreen-btn span{display:none}.studio .preview-toolbar .preview-fullscreen-btn{width:32px!important;padding:0}}
+
+/* Screen-focused presentation: only the active screen name occupies the top strip.
+   Actions live in a narrow rail beside the phone instead of above the canvas. */
+.studio .active-screen-title{min-height:37px;display:flex;align-items:center;justify-content:center;padding:3px 8px 9px;color:#284d83;font-size:12px;font-weight:700;line-height:1.35}
+.studio .active-screen-title strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.studio .preview-viewport{padding:9px 9px 14px}
+.studio .preview-stage-layout{display:flex;align-items:flex-start;justify-content:center;gap:10px;max-width:100%;margin:0 auto;min-width:0}
+.studio .preview-stage-canvas{display:flex;justify-content:center;min-width:0;flex:1 1 auto}
+.studio .preview-stage-canvas .preview-canvas{width:100%;min-width:0;justify-content:center}
+.studio .preview-side-tools{width:43px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;position:sticky;top:6px;z-index:12;overflow:visible}
+.studio .preview-side-tools .preview-toolbar{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:43px;min-width:43px;height:auto;min-height:0;padding:0;background:transparent;border:0;position:static;overflow:visible}
+.studio .preview-side-tools .preview-toolbar-primary,.studio .preview-side-tools .preview-toolbar-secondary{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;flex:none;gap:6px;overflow:visible;width:100%}
+.studio .preview-side-tools .preview-toolbar button,.studio .preview-side-tools .preview-toolbar .visual-toggle,.studio .preview-side-tools .preview-toolbar .publish-action,.studio .preview-side-tools .preview-toolbar .preview-fullscreen-btn{display:flex!important;align-items:center;justify-content:center;flex:none;width:38px!important;min-width:38px!important;max-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border:1px solid #dce5f2;border-radius:9px;background:#fff;color:#3d6499}
+.studio .preview-side-tools .preview-toolbar .preview-fullscreen-btn{background:#eaf2ff;color:#255bb1}
+.studio .preview-side-tools .preview-toolbar button svg{width:17px;height:17px;flex:none}
+.studio .preview-side-tools .zoom-controls{display:flex!important;flex-direction:column!important;align-items:center;gap:0!important;width:38px!important;height:auto!important;min-height:0!important;overflow:hidden;border:1px solid #dae5f3;border-radius:9px;background:white}
+.studio .preview-side-tools .zoom-controls button,.studio .preview-side-tools .zoom-controls .zoom-value{width:36px!important;min-width:36px!important;max-width:36px!important;height:31px!important;min-height:31px!important;border:0!important;border-radius:0!important;padding:0!important;background:#fff}
+.studio .preview-side-tools .zoom-controls .zoom-value{font-size:10px!important;font-weight:700;color:#244e8c;background:#f0f5ff}
+.studio .preview-side-tools .preview-more-menu{width:38px}
+.studio .preview-side-tools .preview-more-menu summary{width:38px;height:38px;border-radius:9px}
+.studio .preview-side-tools .preview-more-panel{right:calc(100% + 7px);top:0;z-index:90}
+.studio .preview-side-tools .preview-more-panel button{max-width:none!important;width:100%!important;min-width:0!important;height:34px!important;min-height:34px!important;justify-content:flex-start!important;padding:0 9px!important;border:0!important;background:transparent}
+.studio .preview-side-tools .preview-more-panel button:hover{background:#eaf2ff}
+.studio .preview-side-tools .side-screen-nav,.studio .preview-side-tools .preview-screen-picker summary{width:38px;height:38px;border:1px solid #dce5f2;border-radius:9px;background:white;color:#3d6499;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.studio .preview-side-tools .side-screen-nav:disabled{opacity:.35;cursor:default}
+.studio .preview-screen-picker{position:relative;width:38px;flex:none}
+.studio .preview-screen-picker summary{list-style:none}
+.studio .preview-screen-picker summary::-webkit-details-marker{display:none}
+.studio .preview-screen-picker-panel{position:absolute;right:calc(100% + 7px);top:0;z-index:90;width:min(255px,65vw);max-height:55vh;overflow:auto;display:flex;flex-direction:column;gap:3px;background:#fff;border:1px solid #dce5f2;border-radius:10px;padding:6px;box-shadow:0 13px 35px #15284a2d}
+.studio .preview-screen-picker-panel button{display:block;width:100%;text-align:left;border:0;border-radius:6px;padding:10px 9px;font-size:11px;background:white;color:#365275;cursor:pointer}
+.studio .preview-screen-picker-panel button.active,.studio .preview-screen-picker-panel button:hover{background:#eaf2ff;color:#225cb6;font-weight:700}
+.studio .preview-side-tools .preview-toolbar .visual-toggle span,.studio .preview-side-tools .preview-toolbar .publish-action span,.studio .preview-side-tools .preview-toolbar .preview-fullscreen-btn span{display:none!important}
+.studio .fullscreen-preview .preview-viewport{padding:10px 20px}
+.studio .fullscreen-preview .preview-stage-layout{max-width:1480px}
+@media(max-width:650px){.studio .preview-stage-layout{gap:5px}.studio .preview-side-tools{width:38px}.studio .preview-side-tools .preview-toolbar{width:38px;min-width:38px}.studio .preview-viewport{padding:6px 4px}.studio .active-screen-title{font-size:11px}}
