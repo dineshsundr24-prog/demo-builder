@@ -11,7 +11,8 @@ import {planPortalSubsection} from './portalNavigation.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
 import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
-import {completeComponents,technicalFailure,issueCategory,repeatsClarification} from './editRecovery.mjs';
+import {completeComponents,technicalFailure,issueCategory,repeatsClarification,normalizeComponent,componentValidationIssues} from './editRecovery.mjs';
+import {externalDataGuard,externalDataDecision} from './integrationPreflight.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -169,7 +170,7 @@ async function refine(body){
 // New staged plan endpoint. It NEVER writes to a workspace and never returns a success
 // if a candidate fails operation, scope, schema, or preservation verification.
 // Component-specific AI synthesis: produce a COMPLETE declarative component, not a new ungrounded edit plan.
-async function synthesizeInteractiveComponent(change,partial,scope){
+async function synthesizeInteractiveComponent(change,partial,scope,repairIssues=[]){
  const instructions=[
   'You are a component-definition generator for a safe banking prototype. Output one JSON object containing a complete component: {id,title,items:[...]}. Do not output operations, status, explanations, HTML, React, or code.',
   'Each item must have a unique ASCII id, a kind, and a string label. Allowed kinds: text,card,input,checkbox,select,button,progress,table,badge,divider. Maximum 24 items.',
@@ -177,12 +178,13 @@ async function synthesizeInteractiveComponent(change,partial,scope){
   'Button actions: {type:navigate,screen:an EXISTING screen id}; {type:set,target:an item id,value:a string}; {type:toggle,target:item id}; {type:increment,target:item id,amount:integer}; {type:reset}; {type:show|hide,target:item id}; {type:notice,message:short string}; {type:download-csv,target:table item id}. Use action references that exist in this component.',
   'Conditional visibility: visibleWhen:{field:existing item id,equals:string}. Table search: filterField=existing input item id, optional filterColumn=existing column id.',
   'Use fictional example data only. Include actual working simulated interactions requested by the user. When the user has already clarified behavior, implement that choice rather than asking again.',
-  'Never include executable scripts, external requests, real payment or messaging claims.'
+  'Never include executable scripts, external requests, real payment or messaging claims.',
+  'If validationIssues are provided, address every listed schema issue. Keep all intended controls and actions. For data dashboard examples include login history, last activity and failed attempts when explicitly requested.'
  ].join(' ');
  const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),65000);
  try{
   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},
-   body:JSON.stringify({model,instructions,input:JSON.stringify({request:scope.instruction,clarifications:scope.clarifications,selectedScreen:scope.selectedScreen,existingScreenIds:scope.screenIds,partialComponent:partial,changeType:change.action}),
+   body:JSON.stringify({model,instructions,input:JSON.stringify({request:scope.instruction,clarifications:scope.clarifications,selectedScreen:scope.selectedScreen,existingScreenIds:scope.screenIds,partialComponent:partial,validationIssues:repairIssues,dataSourceMode:scope.dataSourceMode,changeType:change.action}),
     text:{format:{type:'json_object'}},max_output_tokens:4500,store:false})});
   if(!response.ok)throw Error('Component synthesis model request failed');
   const raw=await response.json();
@@ -200,7 +202,11 @@ async function planEdit(body){
  if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
- const reportTools=reportToolsIntent(instruction);
+ const priorClarifications=Array.isArray(body?.clarifications)?body.clarifications.slice(0,5):[];
+ const integrationGuard=externalDataGuard(instruction,priorClarifications);
+ if(integrationGuard)return integrationGuard;
+ const integrationDecision=externalDataDecision(instruction,priorClarifications);
+  const reportTools=reportToolsIntent(instruction);
  if(reportTools&&project.channel==='portal'&&['screen','element'].includes(target.level)){
   const picked=target.level==='element'&&demo.screens.find(x=>x.id===target.screenId)?.elements.find(e=>e.id===target.elementId)?.kind!=='table'?{level:'screen',screenId:target.screenId}:target;
   const operations=[{op:'configure-report',target:picked,tools:reportTools}];
@@ -252,11 +258,11 @@ async function planEdit(body){
  }
  const candidates=compactRegistry(registry,target);
  const selected=registry.find(e=>e.exactSelection);
- const priorClarifications=Array.isArray(body?.clarifications)?body.clarifications.slice(0,5):[];
- const scopeContext={...plannerContext(instruction,priorClarifications),selection:selected?.id||null,
+ const scopeContext={...plannerContext(instruction,priorClarifications),dataSourceMode:integrationDecision?.mode||'not-specified',selection:selected?.id||null,
   selectedScreen:demo.screens.find(x=>x.id===target.screenId)?.title,
   candidates,project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
  const instructions=[
+  'If dataSourceMode is demo, generate realistic but clearly fictional local data. If dataSourceMode is placeholder, provide a visible integration placeholder and NO live-data claim. Never assert any connection to external banking systems.',
   'Treat clarifications in the context as explicit resolved decisions from the user. DO NOT ask those same questions again. Produce a valid resolved change plan after the user has chosen a workable alternative. Ask only for genuinely new missing requirements, not JSON schema details or action implementation.',
   'You are the grounded intent interpreter for a structured interactive application demo.',
   'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"clarify","question":"one specific question about the requested behavior","options":["choice 1","choice 2"]}.',
@@ -317,14 +323,20 @@ async function planEdit(body){
  if(plan?.status!=='resolved')return technicalFailure('Planner did not produce a resolved edit','contract');
  let operations,verification;
  let issue='';
- const componentScope={instruction,clarifications:priorClarifications,selectedScreen:scopeContext.selectedScreen,screenIds:demo.screens.map(sc=>sc.id)};
+ const componentScope={instruction,clarifications:priorClarifications,dataSourceMode:integrationDecision?.mode||'not-specified',selectedScreen:scopeContext.selectedScreen,screenIds:demo.screens.map(sc=>sc.id)};
  try{
-  const readyChanges=await completeComponents(plan.changes,componentScope.screenIds,(change,partial)=>synthesizeInteractiveComponent(change,partial,componentScope));
+  const readyChanges=await completeComponents(plan.changes,componentScope.screenIds,async(change,partial)=>{
+   const first=normalizeComponent(await synthesizeInteractiveComponent(change,partial,componentScope));
+   const issues=componentValidationIssues(first,componentScope.screenIds);
+   if(!issues.length)return first;
+   console.warn('Component synthesis validation',{phase:'synthesis',issuePaths:issues.map(x=>x.split(':')[0]),selectedScreenId:target.screenId});
+   return synthesizeInteractiveComponent(change,first,componentScope,issues);
+  });
   operations=resolveChangeSet(registry,target,readyChanges);
   verification=applyOperations(demo,target,operations,project.channel);
  }catch(e){
   issue=String(e?.message||'Invalid component definition');
-  console.warn('AI edit validation failed',{phase:'initial',category:issueCategory(issue),selectedScreenId:target.screenId,actionCount:Array.isArray(plan.changes)?plan.changes.length:0});
+  console.warn('AI edit validation failed',{phase:'initial',category:issueCategory(issue),selectedScreenId:target.screenId,actionCount:Array.isArray(plan.changes)?plan.changes.length:0,issuePaths:Array.isArray(e?.validationIssues)?e.validationIssues.map(x=>x.split(':')[0]):[]});
  }
  if(issue){
   // Repair a structurally invalid component plan once rather than asking the BA to debug JSON.
@@ -340,7 +352,13 @@ async function planEdit(body){
      return clarificationResponse(instruction,repaired,issue);
     }
     if(repaired?.status==='resolved'){
-     const ready=await completeComponents(repaired.changes,componentScope.screenIds,(change,partial)=>synthesizeInteractiveComponent(change,partial,componentScope));
+     const ready=await completeComponents(repaired.changes,componentScope.screenIds,async(change,partial)=>{
+   const first=normalizeComponent(await synthesizeInteractiveComponent(change,partial,componentScope));
+   const issues=componentValidationIssues(first,componentScope.screenIds);
+   if(!issues.length)return first;
+   console.warn('Component synthesis validation',{phase:'synthesis',issuePaths:issues.map(x=>x.split(':')[0]),selectedScreenId:target.screenId});
+   return synthesizeInteractiveComponent(change,first,componentScope,issues);
+  });
      operations=resolveChangeSet(registry,target,ready);
      verification=applyOperations(demo,target,operations,project.channel);
      issue='';
@@ -349,7 +367,7 @@ async function planEdit(body){
   }catch(e){
    const cause=String(e?.message||'Unknown repair failure');
    issue=cause;
-   console.warn('AI edit auto-repair failed',{phase:'repair',category:issueCategory(cause),selectedScreenId:target.screenId});
+   console.warn('AI edit auto-repair failed',{phase:'repair',category:issueCategory(cause),selectedScreenId:target.screenId,issuePaths:Array.isArray(e?.validationIssues)?e.validationIssues.map(x=>x.split(':')[0]):[]});
   }
   finally{clearTimeout(deadline);}
  }
