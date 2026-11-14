@@ -1,4 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
+import {validReportTools} from './reportTools.mjs';
 // Piece 3: target, patch, verify. No model-generated code is executed.
 function normalize(value){
  return String(value||'').toLowerCase().replace(/\b(registration|register|sign\s?up|signup|create account|account creation)\b/g,' register ').replace(/\b(verification|verify|identity verification|ekyc|e-kyc)\b/g,' verify ').replace(/\b(terms and conditions|consents|consent)\b/g,' consent ').replace(/\b(completion|confirmation|success)\b/g,' complete ').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
@@ -73,7 +74,7 @@ export function validateStrictDemo(d,channel){
    if(e.kind==='actions'&&(!Array.isArray(e.buttons)||e.buttons.some(b=>!b||typeof b.id!=='string'||typeof b.label!=='string'||b.nextScreen&&typeof b.nextScreen!=='string')))return false;
    if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date','checkbox'].includes(f.type))))return false;
    if(e.kind==='composed'&&!validComposed(e,d.screens.map(x=>x.id)))return false;
-   if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
+   if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||!validReportTools(e.tools,e.columns)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
    if(!['hero','stats','notice','actions','form','table','composed'].includes(e.kind))return false;
   }
  }
