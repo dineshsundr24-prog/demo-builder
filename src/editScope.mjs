@@ -17,6 +17,14 @@ export function verifyEditScope(before,next,target,scope,operations=[]){
  }
  const created=next.screens.filter(sc=>!originalIds.has(sc.id));
  if(created.length!==additions.length)throw Error('Unexpected screen was created.');
+ const menuOps=operations.filter(op=>op.op==='add-menu-link');
+ const previousLinks=before.navLinks||[],nextLinks=next.navLinks||[];
+ if(menuOps.length){
+  if(nextLinks.length!==previousLinks.length+menuOps.length)throw Error('Requested navigation entry was not added.');
+  for(const prior of previousLinks)if(!nextLinks.some(link=>identical(link,prior)))throw Error('An existing navigation link was modified.');
+  for(const op of menuOps)if(!nextLinks.some(link=>link.label===op.label&&link.screenId===op.screenId&&!previousLinks.some(p=>p.id===link.id)))throw Error('Navigation link destination or label did not match requested edit.');
+ }else if(!identical(previousLinks,nextLinks))throw Error('An unrelated navigation item was changed.');
+
  for(const child of created){
   if(!additions.some(op=>(op.target||target)?.screenId===child.parentScreenId))throw Error('A child screen has an unexpected parent.');
  }
