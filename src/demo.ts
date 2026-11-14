@@ -8,7 +8,15 @@ export type Element =
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
   | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string}
-  | {id:string;kind:'composed';title:string;items:{id:string;kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress';label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;inputType?:'text'|'email'|'number'|'date';value?:number}[]}
+  | {id:string;kind:'composed';title:string;items:{
+    id:string;kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress'|'table'|'badge'|'divider';
+    label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;
+    inputType?:'text'|'email'|'number'|'date'|'password';value?:number;
+    visibleWhen?:{field:string;equals:string};
+    columns?:{id:string;label:string}[];rows?:Record<string,string>[];
+    filterField?:string;filterColumn?:string;
+    actions?:{type:'navigate'|'set'|'toggle'|'increment'|'reset'|'show'|'hide'|'download-csv'|'notice';target?:string;value?:string;amount?:number;screen?:string;message?:string}[];
+  }[]}
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string}[]};
