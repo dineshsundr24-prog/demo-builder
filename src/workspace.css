@@ -317,3 +317,13 @@
 .studio .fullscreen-preview .preview-viewport{padding:10px 20px}
 .studio .fullscreen-preview .preview-stage-layout{max-width:1480px}
 @media(max-width:650px){.studio .preview-stage-layout{gap:5px}.studio .preview-side-tools{width:38px}.studio .preview-side-tools .preview-toolbar{width:38px;min-width:38px}.studio .preview-viewport{padding:6px 4px}.studio .active-screen-title{font-size:11px}}
+
+/* Guided generation: business clarification in the existing chat, not a dead-end toast. */
+.generation-question{border:1px solid #b8d0f5;background:#f1f6ff;border-radius:11px;padding:13px 14px;margin:12px 0;display:flex;flex-direction:column;gap:9px;color:#25416d}
+.generation-question-heading{display:flex;align-items:center;gap:8px;font-size:12px}
+.generation-question p{font-size:12px;line-height:1.55;color:#27486e;margin:0}
+.generation-question small{font-size:10px;line-height:1.5;color:#6f849f}
+.generation-question-choices{display:flex;flex-direction:column;gap:6px}
+.generation-question-choices button{border:1px solid #c2d4ed;background:#fff;color:#2455a4;border-radius:7px;padding:10px 11px;text-align:left;font-size:11px;font-weight:700;cursor:pointer}
+.generation-question-choices button:hover{background:#e7f0ff;border-color:#8caee1}
+.generation-question-choices button:disabled{opacity:.5;cursor:default}
