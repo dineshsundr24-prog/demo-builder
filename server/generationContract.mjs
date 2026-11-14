@@ -92,3 +92,28 @@ export function explainGeneratedDemo(d,channel){
  for(const [path,target] of allLinks)if(!screenIds.has(target))bad(path,'unknown destination '+target);
  return errors;
 }
+
+/** Business-facing clarification; never expose internal schema paths to BAs. */
+export function generationClarification(issues,channel){
+ const first=Array.isArray(issues)?issues[0]||'':String(issues||'');
+ if(/form|fields|action/i.test(first))return{
+  question:'For the application review screen, should MEYON use a standard staff review form with customer details, a decision dropdown, and review comments?',
+  suggestions:['Yes, use the standard review form','Use a read-only details screen with review buttons instead'],
+  reason:'MEYON needs one choice to complete the form layout without inventing your workflow.'
+ };
+ if(/table|columns|rows/i.test(first))return{
+  question:'Should the portal use a standard searchable applications table with sample records and a link to the application details screen?',
+  suggestions:['Yes, use the standard applications table','Use summary cards with a View Applications button'],
+  reason:'MEYON needs to choose an alternative presentation for the application list.'
+ };
+ if(/destination|nextScreen|detailScreen|navigation/i.test(first))return{
+  question:'Which screen should the main action open after the user completes the current step?',
+  suggestions:['Open the next screen in the journey','Return to the Dashboard'],
+  reason:'The destination could not be confirmed from the generated flow.'
+ };
+ return{
+  question:channel==='portal'?'Can MEYON use standard banking-portal components for any unsupported visual patterns while retaining your requested screens and workflow?':'Can MEYON use standard mobile components where the requested visual pattern is unavailable?',
+  suggestions:['Yes, use the closest supported components','Keep the screens simple and prioritize clickable navigation'],
+  reason:'MEYON needs your preference before choosing an alternative.'
+ };
+}
