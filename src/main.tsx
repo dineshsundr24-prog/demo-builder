@@ -1,3 +1,5 @@
+// @ts-ignore Shared UI and backend proposal verification.
+import {verifyEditScope} from './editScope.mjs';
 import ReportTable from './ReportTable';
 import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
@@ -129,14 +131,7 @@ function App(){
    const addedSubsections=Array.isArray(result.operations)?result.operations.filter((o:{op?:string})=>o.op==='add-subsection').length:0;
    if(!validateDemo(next)||next.channel!==before.channel||next.screens.length!==before.screens.length+addedSubsections)throw Error('Plan failed schema validation.');
    const isGlobal=result.scope==='global';
-   if(isGlobal){
-    if(JSON.stringify(before.screens)!==JSON.stringify(next.screens))throw Error('Global plan unexpectedly changed screen content.');
-    if(JSON.stringify(next.chrome)===JSON.stringify(before.chrome))throw Error('Global header settings were not changed.');
-   }else{
-    if(JSON.stringify(next.chrome)!==JSON.stringify(before.chrome))throw Error('Plan changed application-wide header unexpectedly.');
-    if(before.screens.some(sc=>{if(sc.id===target.screenId)return false;const preserved=next.screens.find(n=>n.id===sc.id);return !preserved||JSON.stringify(sc)!==JSON.stringify(preserved);}))throw Error('Plan changed an unrelated screen unexpectedly.');
-   }
-   if(JSON.stringify(next)===JSON.stringify(before))throw Error('No changes proposed.');
+   verifyEditScope(before,next,target,isGlobal?'global':'screen',result.operations||[]);
    const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target,scope:isGlobal?'global':'screen',before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
    setPending(draft);setScreenId(typeof result.createdScreenId==='string'?result.createdScreenId:target.screenId);setSelectMode(false);setTab('preview');setFormValues({});setErrors({});
    setToast('Change proposed. Review the preview and choose Apply or Discard.');
