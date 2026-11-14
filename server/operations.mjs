@@ -111,7 +111,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -121,7 +121,24 @@ export function applyOperations(original,target,operations,channel){
    const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
    if(!same&&!formChild)fail('Operation escaped the selected component.');
   }
-  if(op.op==='set'){
+  if(op.op==='add-subsection'){
+   if(channel!=='portal'||at.level!=='screen')fail('Subsections can only be added under an existing portal screen.');
+   const parent=candidate.screens.find(sc=>sc.id===at.screenId);
+   if(!parent||parent.parentScreenId)fail('Nested subsections are not supported.');
+   if(candidate.screens.length>=12)fail('The portal already contains the maximum 12 screens.');
+   const title=String(op.title||'').trim();
+   if(!title||title.length>85)fail('Give the subsection a name of 1–85 characters.');
+   if(candidate.screens.some(sc=>sc.parentScreenId===parent.id&&normalizeLabel(sc.title)===normalizeLabel(title)))fail('This subsection already exists under '+parent.title+'.');
+   const base=(normalizeLabel(title).replace(/\s+/g,'-').slice(0,38)||'subsection');
+   let id=parent.id+'-'+base;let suffix=2;
+   while(candidate.screens.some(sc=>sc.id===id)){id=parent.id+'-'+base+'-'+suffix++;if(suffix>50)fail('Unable to assign subsection ID.');}
+   const subsection={id,title,subtitle:String(op.subtitle||'View '+title).slice(0,200),parentScreenId:parent.id,
+    elements:[{id:id+'-intro',kind:'notice',tone:'info',title,body:'This is the '+title+' demo section. Use Ask Meyon to add its fields, tables and actions.'}]};
+   const siblings=candidate.screens.filter(sc=>sc.id===parent.id||sc.parentScreenId===parent.id);
+   const lastIndex=candidate.screens.findIndex(sc=>sc.id===siblings.at(-1).id);
+   candidate.screens.splice(lastIndex+1,0,subsection);
+   changed.push({target:at,operation:'add-subsection',screenId:id,parentScreenId:parent.id});
+  }else if(op.op==='set'){
    if(typeof op.property!=='string')fail('Missing property.');
    propertySet(candidate,at,op.property,op.value);
    changed.push({target:at,operation:'set',property:op.property});
@@ -197,11 +214,18 @@ export function applyOperations(original,target,operations,channel){
  if(same(before,JSON.stringify(candidate)))fail('Proposed operations did not produce a change.');
  if(!validateStrictDemo(candidate,channel))fail('Result failed complete schema and navigation validation.');
  const oldIndex=original.screens.findIndex(s=>s.id===target.screenId);
- for(let i=0;i<original.screens.length;i++)if(i!==oldIndex&&!same(candidate.screens[i],original.screens[i]))fail('Preservation failure: unrelated screen changed.');
+ for(const previous of original.screens){
+  const preserved=candidate.screens.find(sc=>sc.id===previous.id);
+  if(!preserved||!same(preserved,previous))fail('Preservation failure: existing screen changed.');
+ }
+ if(candidate.screens.length!==original.screens.length+operations.filter(op=>op.op==='add-subsection').length)fail('Unexpected number of screens after patch.');
  if(!same(candidate.chrome,original.chrome))fail('Preservation failure: application-wide header changed.');
  // Explicitly check requested mutations against resulting data.
  for(const op of operations){
-  if(op.op==='set'){
+  if(op.op==='add-subsection'){
+   const sub=candidate.screens.find(sc=>sc.parentScreenId===(op.target||target).screenId&&normalizeLabel(sc.title)===normalizeLabel(op.title));
+   if(!sub)fail('Subsection was not added under the requested menu.');
+  }else if(op.op==='set'){
    const at=op.target||target;
    const n=locateNode(candidate,at);
    const v=at.level==='header'?n.screen.chrome?.[op.property]:n.node[op.property];
