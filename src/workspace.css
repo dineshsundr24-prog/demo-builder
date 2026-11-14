@@ -327,3 +327,17 @@
 .generation-question-choices button{border:1px solid #c2d4ed;background:#fff;color:#2455a4;border-radius:7px;padding:10px 11px;text-align:left;font-size:11px;font-weight:700;cursor:pointer}
 .generation-question-choices button:hover{background:#e7f0ff;border-color:#8caee1}
 .generation-question-choices button:disabled{opacity:.5;cursor:default}
+
+/* Portal navigation: real one-level submenus, shared by editor and published player. */
+.demo-nav .portal-menu-group{display:flex;flex-direction:column;gap:2px;width:100%;min-width:0}
+.demo-nav .portal-menu-parent{display:flex;align-items:center;gap:2px;min-width:0;width:100%}
+.demo-nav .portal-menu-parent>button:first-child{flex:1 1 auto;width:auto;min-width:0;display:flex;align-items:center;gap:7px;text-align:left}
+.demo-nav .portal-menu-parent>button:first-child span{min-width:0;overflow-wrap:anywhere}
+.demo-nav .portal-menu-toggle{flex:0 0 24px!important;width:24px!important;min-width:24px!important;display:flex!important;align-items:center;justify-content:center;padding:6px 2px!important;background:transparent!important;border:0!important;color:#8295b2}
+.demo-nav .portal-menu-toggle svg{transition:transform .18s ease}
+.demo-nav .portal-menu-toggle .expanded{transform:rotate(180deg)}
+.demo-nav .portal-submenu{display:flex;flex-direction:column;gap:2px;margin:1px 0 6px 10px;padding-left:8px;border-left:1px solid #d3dff0;min-width:0}
+.demo-nav .portal-submenu button{display:flex;align-items:flex-start;gap:5px;text-align:left;min-width:0;width:100%;padding:8px 5px;font-size:11px;line-height:1.4}
+.demo-nav .portal-submenu button span{overflow-wrap:anywhere;min-width:0;flex:1}
+.demo-nav .portal-submenu button svg{flex:none;margin-top:1px}
+.demo-nav .portal-submenu button.on{background:#eaf2ff;color:#245ab0;font-weight:700}
