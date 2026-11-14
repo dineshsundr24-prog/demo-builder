@@ -1,5 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
-import {normalizeGeneratedDemo,explainGeneratedDemo} from './generationContract.mjs';
+import {normalizeGeneratedDemo,explainGeneratedDemo,generationClarification} from './generationContract.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -59,6 +59,17 @@ const system=`You are the Demo Builder requirement interpreter. Generate a COMPL
 {kind:'actions',id,buttons:[{id,label,variant:'primary'|'secondary',nextScreen?}]}
 Choose screen patterns intelligently: mobile flows (welcome, registration, verification, consent, confirmation); portals (dashboard, list, review, decision). The first screen must offer a way to navigate forward; at least one screen must contain a form or table. Last screen should provide a completion notice or useful summary. Do not mention features unsupported by this component schema in generated screen text. STRICT OUTPUT RULES: Every screen MUST have a nonempty string subtitle and 1–6 elements; total elements across all screens <=35. Generate 3–6 screens unless explicitly requested more. Every table row value MUST be a string (even numbers, dates, booleans and AED amounts). Every stats item value MUST be a string. Every table column ID MUST match a corresponding row key. Every form must include a nonempty title, actionLabel and 1–16 valid typed fields. Each action's nextScreen and each table's detailScreen MUST exactly match an id in the screens array. Every element has a unique nonempty id per screen. Never include an unsupported element kind (no chart, badge, grid or sidebar element); use only the listed kinds. Never add empty description or subtitle; screen subtitle is required. Avoid 'composed' unless necessary, and follow its item constraints exactly. Restrict text lengths and rows (max 8 rows). Include sensible UAE locality and AED amounts where relevant. Do not generate executable JS, HTML, or CSS.`;
 
+async function repairGeneratedDefinition(candidate,issues,channel){
+ const instructions='Repair the candidate Demo Definition JSON while preserving all requested screens, sample data, and valid navigation. Fix these validation errors: '+issues.slice(0,8).join('; ')+'. Return ONLY the complete valid JSON object, with allowed element kinds hero,stats,form,table,notice,actions,composed. Forms require title, actionLabel and fields with id,label,type. Allowed types text,email,password,number,select,date,checkbox. Every screen requires subtitle. All table row and KPI values must be strings. All nextScreen and detailScreen IDs must exist. Use existing screens rather than inventing routes.';
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),70000);
+ try{
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Correct this '+channel+' Demo Definition JSON object: '+JSON.stringify(candidate),text:{format:{type:'json_object'}},max_output_tokens:8500,store:false})});
+  if(!response.ok){console.warn('Generated draft repair unavailable',{status:response.status});return null;}
+  const raw=await response.json();const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
+  return{definition:normalizeGeneratedDemo(JSON.parse(output)),usage:{inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+ }catch(e){console.warn('Generated draft repair could not complete');return null;}
+ finally{clearTimeout(timeout);}
+}
 async function generate(body){
  const project=body?.project||{};
  const channel=project.channel;
