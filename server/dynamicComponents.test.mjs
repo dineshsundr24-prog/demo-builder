@@ -74,3 +74,17 @@ test('Model may ask user one specific question and two suggestions',()=>{
  assert.match(a.question,/popup/);
  assert.deepEqual(a.options,['Popup','New screen']);
 });
+
+test('Simulated submit requires mandatory data before showing a confirmation notice',()=>{
+ const c=structuredClone(component);
+ c.items[0].required=true;
+ const submit={id:'submit',kind:'button',label:'Submit',actions:[{type:'notice',message:'Submitted for demo'}]};
+ c.items.push(submit);
+ assert.equal(validDynamicComponent(c,['dashboard','reports']),true);
+ const blocked=executeDynamicActions(c,submit,{});
+ assert.equal(blocked.errors.query,'Required field');
+ assert.equal(blocked.events.length,0);
+ const approved=executeDynamicActions(c,submit,{query:'Ready'});
+ assert.equal(approved.errors.query,undefined);
+ assert.deepEqual(approved.events,[{type:'notice',message:'Submitted for demo'}]);
+});
