@@ -120,6 +120,14 @@ function App(){
    const response=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},
     body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},definition:before,target,instruction,clarifications})});
    const result=await response.json();
+   if(response.ok&&result.planningFailed){
+    const code=typeof result.errorCode==='string'?result.errorCode:'PLAN_EXECUTION';
+    const message=String(result.reason||'MEYON could not safely complete this edit.');
+    setRefinementQuestion(null);
+    setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===projectSnapshot.id?{...p,messages:[...p.messages,{id:makeId(),role:'system',text:'No changes applied ('+code+'): '+message+' The existing demo is preserved.',date:new Date().toISOString()}]}:p)}));
+    setToast(message);
+    return;
+   }
    if(response.ok&&result.needsClarification&&typeof result.question==='string'){
     const choices=Array.isArray(result.options)?result.options.filter((x:unknown):x is string=>typeof x==='string').slice(0,4):[];
     if(clarifications.some(q=>q.question.trim().toLowerCase()===result.question.trim().toLowerCase())){
