@@ -49,3 +49,17 @@ test('Validator-guided retry can recover a generated data dashboard',async()=>{
  assert.equal(validComposed(changes[0].component,['dashboard']),true);
  assert.equal(changes[0].component.items[1].rows[0].failedAttempts,'2');
 });
+
+test('Dashboard counts and numeric action values are normalized without changing actions or screen targets',()=>{
+ const input={id:'activity',title:'User Activity',items:[
+  {id:'history',kind:'table',label:'Login History',columns:[{id:'user',label:'User'},{id:'failed',label:'Failed Attempts'}],rows:[{user:'TEST-1',failed:3}]},
+  {id:'counter',kind:'input',label:'Counter'},
+  {id:'reset',kind:'button',label:'Reset',actions:[{type:'set',target:'counter',value:0}]}
+ ]};
+ const output=normalizeComponent(input);
+ assert.equal(output.items[0].rows[0].failed,'3');
+ assert.equal(output.items[2].actions[0].value,'0');
+ assert.equal(output.items[2].actions[0].target,'counter');
+ assert.equal(input.items[0].rows[0].failed,3);
+ assert.equal(validComposed(output,['dashboard']),true);
+});
