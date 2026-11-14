@@ -74,7 +74,7 @@ export function answerApproval(state,choice){
 }
 export function executeApproval(state,confirmed){
  if(!state.approval)throw Error('Approval interaction has not been configured.');
- if(state.approval.mode.includes('confirmation before')&&!confirmed)return {...state,approval:{...state.approval,lastAction:'confirmation-required'}};
+ if((state.approval.mode.includes('confirmation before')||state.approval.mode.includes('confirmation screen'))&&!confirmed)return {...state,approval:{...state.approval,lastAction:state.approval.mode.includes('confirmation screen')?'confirmation-screen':'confirmation-required'}};
  const next=clone(state);next.approval.status='Approved';next.approval.lastAction='Approved locally; no banking action executed';
  return next;
 }
