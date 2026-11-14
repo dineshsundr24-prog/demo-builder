@@ -14,6 +14,7 @@ import {canonicalPlan,plannerContext} from './plannerContract.mjs';
 import {completeComponents,technicalFailure,issueCategory,repeatsClarification,normalizeComponent,componentValidationIssues} from './editRecovery.mjs';
 import {externalDataGuard,externalDataDecision} from './integrationPreflight.mjs';
 import {interactiveCreationIntent,createInteractiveSection,safeCreationDiagnostic} from './interactiveCreation.mjs';
+import {generateCompiledComponent} from './semanticGenerator.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -251,7 +252,7 @@ async function planEdit(body){
    dataSourceMode:integrationDecision?.mode||'demo',
    screenIds:demo.screens.map(sc=>sc.id)};
   try{
-   const result=await createInteractiveSection({demo,target,instruction,scope,generate:synthesizeInteractiveComponent});
+   const result=await createInteractiveSection({demo,target,instruction,scope,generate:async()=>generateCompiledComponent({instruction,scope,model,apiKey:process.env.OPENAI_API_KEY})});
    console.info('Interactive section created',{phase:'atomic-component',selectedScreenId:target.screenId,componentCount:1});
    return result;
   }catch(e){
