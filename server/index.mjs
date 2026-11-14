@@ -8,6 +8,7 @@ import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs
 import {applyOperations,locateNode,targetLabel} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
+import {reportToolsIntent} from './reportTools.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -172,7 +173,18 @@ async function planEdit(body){
  if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
- const subsection=planPortalSubsection(demo,instruction);
+ const reportTools=reportToolsIntent(instruction);
+ if(reportTools&&project.channel==='portal'&&['screen','element'].includes(target.level)){
+  const operations=[{op:'configure-report',target,tools:reportTools}];
+  let result;
+  try{result=applyOperations(demo,target,operations,project.channel);}
+  catch(e){throw Object.assign(new Error('Could not configure report controls: '+e.message+'. Original demo unchanged.'),{status:422});}
+  return{scope:'planned',target,label:targetLabel(demo,target),definition:result.definition,operations,
+   checks:result.checks, preservedScreens:result.preservedScreens,
+   summary:'Added the requested report controls. Search, filtering and CSV download work on sample records. Review before applying.',
+   usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
+ }
+  const subsection=planPortalSubsection(demo,instruction);
  if(subsection){
   const menuTarget={level:'screen',screenId:subsection.parentScreenId};
   const operations=[{op:'add-subsection',target:menuTarget,title:subsection.title}];
