@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeGeneratedDemo,explainGeneratedDemo} from './generationContract.mjs';
+import {normalizeGeneratedDemo,explainGeneratedDemo,generationClarification} from './generationContract.mjs';
 const generated={schemaVersion:1,id:'kapiko-portal',name:'Kapiko Bank Staff Portal',description:'Banking staff workflow',channel:'portal',theme:'navy',screens:[
 {id:'dashboard',title:'Dashboard',subtitle:'Operations dashboard',elements:[
 {id:'stats',kind:'stats',items:[{id:'total',label:'Total Applications',value:128}]},
@@ -46,4 +46,21 @@ test('Portal generation does not silently remove unsupported data, controls or s
  const fixed=normalizeGeneratedDemo(broken);
  assert.equal(fixed.screens[1].elements[0].fields[0].type,'custom-lookup');
  assert.ok(explainGeneratedDemo(fixed,'portal').some(e=>e.includes('invalid form')));
+});
+
+test('Unresolved review form issues become actionable business clarification rather than schema jargon',()=>{
+ const help=generationClarification(['screens[1].elements[0]: invalid form title, action or fields'],'portal');
+ assert.match(help.question,/review form/i);
+ assert.ok(help.suggestions.some(x=>/standard review form/i.test(x)));
+ assert.doesNotMatch(help.question,/screens\[|elements\[|actionLabel/);
+});
+test('Ambiguous routes ask which screen to open, not to restart the entire master brief',()=>{
+ const help=generationClarification(['screens[2].elements[0].nextScreen: unknown destination'],'portal');
+ assert.match(help.question,/which screen/i);
+ assert.ok(help.suggestions.length>=2);
+});
+test('Unsupported component visual pattern has standard portal alternative',()=>{
+ const help=generationClarification(['screens[0].elements[1].kind: unsupported component chart'],'portal');
+ assert.match(help.question,/standard banking-portal components/i);
+ assert.match(help.suggestions.join(' '),/supported components/i);
 });
