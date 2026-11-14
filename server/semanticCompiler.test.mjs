@@ -99,3 +99,11 @@ test('Disconnected placeholder is clearly labeled and never pretends to retrieve
  assert.match(notice.text,/not been configured/);
  assert.equal(validComposed(component,scope.screenIds),true);
 });
+
+test('Explicit requirement fields outrank unrelated AI suggestions at the column limit',()=>{
+ const excessive={...validModel,fields:['Department','Region','Country','Zone','Office','Role','Team','Manager','Last Activity']};
+ const component=compileSemanticComponent(excessive,instruction,scope.screenIds);
+ const columns=component.items.find(x=>x.kind==='table').columns.map(c=>c.label);
+ assert.ok(['Login History','Last Activity','Failed Login Attempts'].every(f=>columns.includes(f)));
+ assert.ok(columns.length<=10);
+});
