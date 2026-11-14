@@ -9,6 +9,7 @@ import {applyOperations,locateNode,targetLabel} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
+import {clarificationResponse} from './refinementAssistance.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -230,14 +231,14 @@ async function planEdit(body){
   candidates,project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
  const instructions=[
   'You are the grounded intent interpreter for a structured interactive application demo.',
-  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
+  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"clarify","question":"one specific question about the requested behavior","options":["choice 1","choice 2"]}.',
   'Make one change per user intent, maximum eight. Never silently skip a requested change. Use only candidate registry IDs, which include real type, parent and allowed capabilities. Never fabricate target IDs, invent fields to remove or refer to other screens.',
   'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. A mandatory consent checkbox is one existing field changed using two set actions: type=checkbox and required=true. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
-  'Only plan capabilities explicitly advertised for a registry object. If the request asks for unsupported layouts, rules or operations, return unsupported instead of a partial change. When a name matches multiple targets and the selection does not disambiguate, return ambiguous.',
+  'Only plan capabilities explicitly advertised for a registry object. For missing visual components, ALWAYS use add-component and supply the full component definition with its state actions. If required behavior is genuinely ambiguous, return clarify with one precise question and two working alternatives. Do not invent API access or external transactions. When a name matches multiple targets return ambiguous.',
   'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
   'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
   'For move-field, use beforeFieldId or afterFieldId. Use a real field ID, full field registry ID, or unique existing field label from the same form. For above/before use beforeFieldId, for below/after use afterFieldId. Use afterFieldId=__start__ for first position. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
-  'For a requested visual UI component missing from the existing element kinds, use add-component targeting screen:<selected screen id> and include component:{id,title,items:[{id,kind,label,text?,required?,options?,nextScreen?,inputType?,value?}]}. Supported item kinds: text,card,input,checkbox,select,button,progress. Use unique ASCII IDs and no more than 16 items. Compose a realistic clickable demo component; do not ask to write React, CSS or JavaScript.',
+  'For missing UI use add-component with targetId=screen:<selected screen id>, and a COMPLETE component:{id,title,items:[...]}. Every item requires id,kind,label. Supported kinds: text,card,input,checkbox,select,button,progress,table,badge,divider (maximum 24). Table items require columns:[{id,label}] and rows:[{columnId:stringValue}], with optional filterField (ID of an input or select) and filterColumn (existing column ID). Button items may have actions:[{type:"navigate",screen:"existing screen id"},{type:"set",target:"existing item id",value:"string"},{type:"toggle",target:"id"},{type:"increment",target:"id",amount:1},{type:"show|hide",target:"id"},{type:"reset"},{type:"notice",message:"text"},{type:"download-csv",target:"table item id"}]. Items can have visibleWhen:{field:"existing item id",equals:"string"}. Form controls use required, options, inputType. Every action target MUST be one of the component item IDs, except navigate uses a real existing screen ID. Always create working locally simulated demo behavior using these actions; no executable code. Supply entire component, never only targetId.',
   'For add-component do not reject simply because the request names a widget absent from the current catalogue: approximate it using the available item kinds. Only return unsupported when a faithful useful clickable approximation cannot be made. User-specified business logic is not required unless explicitly requested.',
   'Portal report tools are a built-in capability: use configure-report targeting the selected screen or existing table with tools:{search:true,filter:true,download:true,filterColumn?:a real table column ID}. Do not create composed buttons for search, filtering or export. The engine will render and operate these native controls. For a new report screen with no table, use the screen target and the engine creates a sample table.',
   'Do not emit executable code, CSS, markdown, commentary or arbitrary JSON paths.'
@@ -262,20 +263,34 @@ async function planEdit(body){
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
  let plan;
  try{plan=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned malformed JSON. No changes were made.'),{status:422});}
- if(plan?.status==='unsupported')throw Object.assign(new Error('Unsupported change: '+String(plan.reason||'The requested capability is not available.').slice(0,250)),{status:422});
+ if(plan?.status==='unsupported'||plan?.status==='clarify')return clarificationResponse(instruction,plan,'Capability or behavior requires clarification.');
  if(plan?.status==='ambiguous'){
   const valid=Array.isArray(plan.candidateIds)?plan.candidateIds.filter(id=>candidates.some(e=>e.id===id)).slice(0,6):[];
-  if(valid.length<2)throw Object.assign(new Error('Target is unclear. Click the component in the preview and retry.'),{status:422});
+  if(valid.length<2)return clarificationResponse(instruction,plan,'Target is unclear.');
   const choices=valid.map(id=>{const item=registry.find(e=>e.id===id);return {id,label:item.label,screen:item.screenTitle,type:item.type,target:item.target};});
   throw Object.assign(new Error(String(plan.question||'Which component do you mean?').slice(0,220)),{status:409,code:'AMBIGUOUS_TARGET',choices});
  }
  if(plan?.status!=='resolved')throw Object.assign(new Error('AI returned an unrecognized plan status. No changes were made.'),{status:422});
- let operations;
- try{operations=resolveChangeSet(registry,target,plan.changes);}
- catch(e){throw Object.assign(new Error('Target/capability validation blocked the change: '+e.message+'. Original demo unchanged.'),{status:422});}
- let verification;
- try{verification=applyOperations(demo,target,operations,project.channel);}
- catch(e){throw Object.assign(new Error('Patch blocked: '+e.message+'. Original demo remains unchanged.'),{status:422});}
+ let operations,verification;
+ let issue='';
+ try{operations=resolveChangeSet(registry,target,plan.changes);verification=applyOperations(demo,target,operations,project.channel);}
+ catch(e){issue=String(e?.message||'Invalid component definition');}
+ if(issue){
+  // Repair a structurally invalid component plan once rather than asking the BA to debug JSON.
+  const repairInstructions='Repair a structured demo edit plan. Output JSON only: {"status":"resolved","changes":[...]}, or {"status":"clarify","question":"one specific question","options":["choice A","choice B"]}. Preserve intent and target IDs from the supplied registry. Fix the stated validation problem. For add-component ALWAYS supply the complete safe component with id,title,items. Item kinds: text,card,input,checkbox,select,button,progress,table,badge,divider. Buttons have optional actions using navigate/set/toggle/increment/reset/show/hide/notice/download-csv. Tables have columns and string-valued rows. Refer only to existing item IDs, real screen IDs, and registry target IDs. Do not generate HTML or code.';
+  const ctrl=new AbortController(),deadline=setTimeout(()=>ctrl.abort(),60000);
+  try{
+   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:repairInstructions,input:'Return valid JSON. Repair issue: '+issue+'; request context: '+JSON.stringify(scopeContext)+'; failed plan: '+JSON.stringify(plan),text:{format:{type:'json_object'}},max_output_tokens:3800,store:false})});
+   if(response.ok){
+    const fix=await response.json();const output=(fix.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
+    const repaired=JSON.parse(output);
+    if(repaired?.status==='clarify')return clarificationResponse(instruction,repaired,issue);
+    if(repaired?.status==='resolved'){operations=resolveChangeSet(registry,target,repaired.changes);verification=applyOperations(demo,target,operations,project.channel);issue='';}
+   }
+  }catch(e){console.warn('AI edit auto-repair failed; preserving original demo',{reason:'invalid planned component'});}
+  finally{clearTimeout(deadline);}
+ }
+ if(issue||!verification)return clarificationResponse(instruction,plan,issue);
  return{scope:'planned',target,label:targetLabel(demo,target),operations,definition:verification.definition,checks:verification.checks,
    preservedScreens:verification.preservedScreens,summary:'Proposed '+operations.length+' scoped operation(s) for '+targetLabel(demo,target)+'. Review before applying.',
    usage:{model:raw?.model||model,inputTokens:raw?.usage?.input_tokens||0,outputTokens:raw?.usage?.output_tokens||0}};
