@@ -1,4 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
+import {makeExampleReportTable,validReportTools} from './reportTools.mjs';
 // Constrained operation-based Demo Definition edits.
 // Only existing stable screen/element/field/button IDs are used as targets.
 // No executable code, CSS or arbitrary object path operations.
@@ -111,7 +112,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -121,7 +122,23 @@ export function applyOperations(original,target,operations,channel){
    const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
    if(!same&&!formChild)fail('Operation escaped the selected component.');
   }
-  if(op.op==='add-subsection'){
+  if(op.op==='configure-report'){
+   if(channel!=='portal'||!['screen','element'].includes(at.level))fail('Report controls require a portal screen or table selection.');
+   const sc=candidate.screens.find(x=>x.id===at.screenId);
+   const tables=at.level==='element'?sc.elements.filter(x=>x.id===at.elementId&&x.kind==='table'):sc.elements.filter(x=>x.kind==='table');
+   if(at.level==='element'&&!tables.length)fail('Selected component is not a table; select the entire report screen.');
+   let table=tables.find(x=>/report|user/i.test(x.title))||tables[0];
+   if(!table){
+    if(sc.elements.length>=15)fail('Report screen is full.');
+    table=makeExampleReportTable(sc);
+    if(sc.elements.some(x=>x.id===table.id))fail('Report table ID already exists.');
+    sc.elements.push(table);
+   }
+   const next={...(table.tools||{}),...op.tools};
+   if(!validReportTools(next,table.columns)||!Object.values(next).some(Boolean))fail('Invalid report controls.');
+   table.tools=next;
+   changed.push({target:at,operation:'configure-report',elementId:table.id});
+  }else if(op.op==='add-subsection'){
    if(channel!=='portal'||at.level!=='screen')fail('Subsections can only be added under an existing portal screen.');
    const parent=candidate.screens.find(sc=>sc.id===at.screenId);
    if(!parent||parent.parentScreenId)fail('Nested subsections are not supported.');
@@ -223,7 +240,11 @@ export function applyOperations(original,target,operations,channel){
  if(!same(candidate.chrome,original.chrome))fail('Preservation failure: application-wide header changed.');
  // Explicitly check requested mutations against resulting data.
  for(const op of operations){
-  if(op.op==='add-subsection'){
+  if(op.op==='configure-report'){
+   const sc=candidate.screens.find(x=>x.id===(op.target||target).screenId);
+   const tables=sc.elements.filter(x=>x.kind==='table');
+   if(!tables.some(table=>Object.entries(op.tools||{}).every(([k,v])=>table.tools?.[k]===v)))fail('Report toolbar outcome verification failed.');
+  }else if(op.op==='add-subsection'){
    const sub=candidate.screens.find(sc=>sc.parentScreenId===(op.target||target).screenId&&normalizeLabel(sc.title)===normalizeLabel(op.title));
    if(!sub)fail('Subsection was not added under the requested menu.');
   }else if(op.op==='set'){
