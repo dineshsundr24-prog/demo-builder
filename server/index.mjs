@@ -11,6 +11,7 @@ import {planPortalSubsection} from './portalNavigation.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
 import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
+import {completeComponents,technicalFailure,issueCategory,repeatsClarification} from './editRecovery.mjs';
 
 const port=Number(process.env.PORT||10000);
 const frontendOrigin=process.env.FRONTEND_ORIGIN||'https://demo-builder-nonprod.onrender.com';
@@ -167,6 +168,30 @@ async function refine(body){
 
 // New staged plan endpoint. It NEVER writes to a workspace and never returns a success
 // if a candidate fails operation, scope, schema, or preservation verification.
+// Component-specific AI synthesis: produce a COMPLETE declarative component, not a new ungrounded edit plan.
+async function synthesizeInteractiveComponent(change,partial,scope){
+ const instructions=[
+  'You are a component-definition generator for a safe banking prototype. Output one JSON object containing a complete component: {id,title,items:[...]}. Do not output operations, status, explanations, HTML, React, or code.',
+  'Each item must have a unique ASCII id, a kind, and a string label. Allowed kinds: text,card,input,checkbox,select,button,progress,table,badge,divider. Maximum 24 items.',
+  'Input supports inputType=text|email|number|date|password. Select requires options array of strings. Progress needs value 0..100. Table requires columns [{id,label}] and rows with ONLY string-valued cells, at most 50 rows.',
+  'Button actions: {type:navigate,screen:an EXISTING screen id}; {type:set,target:an item id,value:a string}; {type:toggle,target:item id}; {type:increment,target:item id,amount:integer}; {type:reset}; {type:show|hide,target:item id}; {type:notice,message:short string}; {type:download-csv,target:table item id}. Use action references that exist in this component.',
+  'Conditional visibility: visibleWhen:{field:existing item id,equals:string}. Table search: filterField=existing input item id, optional filterColumn=existing column id.',
+  'Use fictional example data only. Include actual working simulated interactions requested by the user. When the user has already clarified behavior, implement that choice rather than asking again.',
+  'Never include executable scripts, external requests, real payment or messaging claims.'
+ ].join(' ');
+ const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),65000);
+ try{
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},
+   body:JSON.stringify({model,instructions,input:JSON.stringify({request:scope.instruction,clarifications:scope.clarifications,selectedScreen:scope.selectedScreen,existingScreenIds:scope.screenIds,partialComponent:partial,changeType:change.action}),
+    text:{format:{type:'json_object'}},max_output_tokens:4500,store:false})});
+  if(!response.ok)throw Error('Component synthesis model request failed');
+  const raw=await response.json();
+  if(raw?.status!=='completed'||raw?.incomplete_details)throw Error('Component synthesis incomplete');
+  const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
+  return JSON.parse(output);
+ }finally{clearTimeout(timeout);}
+}
+
 async function planEdit(body){
  const demo=body?.definition;
  const project=body?.project||{};
@@ -266,23 +291,41 @@ async function planEdit(body){
  if(raw?.status!=='completed'||raw?.incomplete_details)throw Object.assign(new Error('AI plan was incomplete or truncated. No changes were made.'),{status:422});
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
  let plan;
- try{plan=canonicalPlan(JSON.parse(output));}catch{return clarificationResponse(instruction,{status:'invalid'},'Planner returned invalid JSON; existing demo untouched.');}
+ try{plan=canonicalPlan(JSON.parse(output));}catch(e){
+  console.warn('AI planning failure',{phase:'parse',category:'MODEL_OUTPUT'});
+  return technicalFailure('AI response was not valid JSON','parse');
+ }
  if(plan.status==='invalid'){
   console.warn('AI returned unknown plan status',{returnedStatus:plan.returnedStatus||'none',hasChanges:Array.isArray(plan.changes)});
-  return clarificationResponse(instruction,plan,'Planner could not interpret the action; original demo preserved.');
+  return technicalFailure('Unrecognized model planning response','contract');
  }
- if(plan?.status==='unsupported'||plan?.status==='clarify')return clarificationResponse(instruction,plan,'Capability or behavior requires clarification.');
+ if(plan?.status==='unsupported'){
+  if(priorClarifications.length)return technicalFailure('The AI could not implement the chosen interaction with available components','capability');
+  return clarificationResponse(instruction,plan,'Capability or behavior requires clarification.');
+ }
+ if(plan?.status==='clarify'){
+  if(repeatsClarification(plan.question,priorClarifications))return technicalFailure('Repeated question after explicit clarification','clarification');
+  if(priorClarifications.length>=3)return technicalFailure('Clarification limit reached','clarification');
+  return clarificationResponse(instruction,plan,'A new business decision is needed.');
+ }
  if(plan?.status==='ambiguous'){
   const valid=Array.isArray(plan.candidateIds)?plan.candidateIds.filter(id=>candidates.some(e=>e.id===id)).slice(0,6):[];
   if(valid.length<2)return clarificationResponse(instruction,plan,'Target is unclear.');
   const choices=valid.map(id=>{const item=registry.find(e=>e.id===id);return {id,label:item.label,screen:item.screenTitle,type:item.type,target:item.target};});
   throw Object.assign(new Error(String(plan.question||'Which component do you mean?').slice(0,220)),{status:409,code:'AMBIGUOUS_TARGET',choices});
  }
- if(plan?.status!=='resolved')return clarificationResponse(instruction,plan,'Planner response did not contain a validated change.');
+ if(plan?.status!=='resolved')return technicalFailure('Planner did not produce a resolved edit','contract');
  let operations,verification;
  let issue='';
- try{operations=resolveChangeSet(registry,target,plan.changes);verification=applyOperations(demo,target,operations,project.channel);}
- catch(e){issue=String(e?.message||'Invalid component definition');}
+ const componentScope={instruction,clarifications:priorClarifications,selectedScreen:scopeContext.selectedScreen,screenIds:demo.screens.map(sc=>sc.id)};
+ try{
+  const readyChanges=await completeComponents(plan.changes,componentScope.screenIds,(change,partial)=>synthesizeInteractiveComponent(change,partial,componentScope));
+  operations=resolveChangeSet(registry,target,readyChanges);
+  verification=applyOperations(demo,target,operations,project.channel);
+ }catch(e){
+  issue=String(e?.message||'Invalid component definition');
+  console.warn('AI edit validation failed',{phase:'initial',category:issueCategory(issue),selectedScreenId:target.screenId,actionCount:Array.isArray(plan.changes)?plan.changes.length:0});
+ }
  if(issue){
   // Repair a structurally invalid component plan once rather than asking the BA to debug JSON.
   const repairInstructions='Repair a structured demo edit plan. Output JSON only: {"status":"resolved","changes":[...]}, or {"status":"clarify","question":"one specific question","options":["choice A","choice B"]}. Preserve intent and target IDs from the supplied registry. Fix the stated validation problem. For add-component ALWAYS supply the complete safe component with id,title,items. Item kinds: text,card,input,checkbox,select,button,progress,table,badge,divider. Buttons have optional actions using navigate/set/toggle/increment/reset/show/hide/notice/download-csv. Tables have columns and string-valued rows. Refer only to existing item IDs, real screen IDs, and registry target IDs. Do not generate HTML or code.';
@@ -292,13 +335,25 @@ async function planEdit(body){
    if(response.ok){
     const fix=await response.json();const output=(fix.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
     const repaired=canonicalPlan(JSON.parse(output));
-    if(repaired?.status==='clarify')return clarificationResponse(instruction,repaired,issue);
-    if(repaired?.status==='resolved'){operations=resolveChangeSet(registry,target,repaired.changes);verification=applyOperations(demo,target,operations,project.channel);issue='';}
+    if(repaired?.status==='clarify'){
+     if(priorClarifications.length&&repeatsClarification(repaired.question,priorClarifications))return technicalFailure('Repeated clarification after recovery','repair');
+     return clarificationResponse(instruction,repaired,issue);
+    }
+    if(repaired?.status==='resolved'){
+     const ready=await completeComponents(repaired.changes,componentScope.screenIds,(change,partial)=>synthesizeInteractiveComponent(change,partial,componentScope));
+     operations=resolveChangeSet(registry,target,ready);
+     verification=applyOperations(demo,target,operations,project.channel);
+     issue='';
+    }
    }
-  }catch(e){console.warn('AI edit auto-repair failed; preserving original demo',{reason:'invalid planned component'});}
+  }catch(e){
+   const cause=String(e?.message||'Unknown repair failure');
+   issue=cause;
+   console.warn('AI edit auto-repair failed',{phase:'repair',category:issueCategory(cause),selectedScreenId:target.screenId});
+  }
   finally{clearTimeout(deadline);}
  }
- if(issue||!verification)return clarificationResponse(instruction,plan,issue);
+ if(issue||!verification)return technicalFailure(issue||'No valid changes after recovery','repair');
  return{scope:'planned',target,label:targetLabel(demo,target),operations,definition:verification.definition,checks:verification.checks,
    preservedScreens:verification.preservedScreens,summary:'Proposed '+operations.length+' scoped operation(s) for '+targetLabel(demo,target)+'. Review before applying.',
    usage:{model:raw?.model||model,inputTokens:raw?.usage?.input_tokens||0,outputTokens:raw?.usage?.output_tokens||0}};
