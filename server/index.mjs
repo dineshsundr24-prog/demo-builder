@@ -175,11 +175,12 @@ async function planEdit(body){
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
  const reportTools=reportToolsIntent(instruction);
  if(reportTools&&project.channel==='portal'&&['screen','element'].includes(target.level)){
-  const operations=[{op:'configure-report',target,tools:reportTools}];
+  const picked=target.level==='element'&&demo.screens.find(x=>x.id===target.screenId)?.elements.find(e=>e.id===target.elementId)?.kind!=='table'?{level:'screen',screenId:target.screenId}:target;
+  const operations=[{op:'configure-report',target:picked,tools:reportTools}];
   let result;
-  try{result=applyOperations(demo,target,operations,project.channel);}
+  try{result=applyOperations(demo,picked,operations,project.channel);}
   catch(e){throw Object.assign(new Error('Could not configure report controls: '+e.message+'. Original demo unchanged.'),{status:422});}
-  return{scope:'planned',target,label:targetLabel(demo,target),definition:result.definition,operations,
+  return{scope:'planned',target:picked,label:targetLabel(demo,picked),definition:result.definition,operations,
    checks:result.checks, preservedScreens:result.preservedScreens,
    summary:'Added the requested report controls. Search, filtering and CSV download work on sample records. Review before applying.',
    usage:{model:'deterministic',inputTokens:0,outputTokens:0}};
@@ -229,7 +230,7 @@ async function planEdit(body){
   candidates,project:{name:String(project.name||'').slice(0,100),guidelines:String(project.guidelines||'').slice(0,600)}};
  const instructions=[
   'You are the grounded intent interpreter for a structured interactive application demo.',
-  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field|add-component","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
+  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"unsupported","reason":"short explanation"}.',
   'Make one change per user intent, maximum eight. Never silently skip a requested change. Use only candidate registry IDs, which include real type, parent and allowed capabilities. Never fabricate target IDs, invent fields to remove or refer to other screens.',
   'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. A mandatory consent checkbox is one existing field changed using two set actions: type=checkbox and required=true. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
   'Only plan capabilities explicitly advertised for a registry object. If the request asks for unsupported layouts, rules or operations, return unsupported instead of a partial change. When a name matches multiple targets and the selection does not disambiguate, return ambiguous.',
@@ -238,6 +239,7 @@ async function planEdit(body){
   'For move-field, use beforeFieldId or afterFieldId. Use a real field ID, full field registry ID, or unique existing field label from the same form. For above/before use beforeFieldId, for below/after use afterFieldId. Use afterFieldId=__start__ for first position. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
   'For a requested visual UI component missing from the existing element kinds, use add-component targeting screen:<selected screen id> and include component:{id,title,items:[{id,kind,label,text?,required?,options?,nextScreen?,inputType?,value?}]}. Supported item kinds: text,card,input,checkbox,select,button,progress. Use unique ASCII IDs and no more than 16 items. Compose a realistic clickable demo component; do not ask to write React, CSS or JavaScript.',
   'For add-component do not reject simply because the request names a widget absent from the current catalogue: approximate it using the available item kinds. Only return unsupported when a faithful useful clickable approximation cannot be made. User-specified business logic is not required unless explicitly requested.',
+  'Portal report tools are a built-in capability: use configure-report targeting the selected screen or existing table with tools:{search:true,filter:true,download:true,filterColumn?:a real table column ID}. Do not create composed buttons for search, filtering or export. The engine will render and operate these native controls. For a new report screen with no table, use the screen target and the engine creates a sample table.',
   'Do not emit executable code, CSS, markdown, commentary or arbitrary JSON paths.'
  ].join(' ');
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),90000);
