@@ -21,7 +21,7 @@ test('Planner never silently treats unrecognized status as a valid patch',()=>{
  assert.equal(canonicalPlan('bad data').status,'invalid');
 });
 test('Clarification context remains explicit and is bounded',()=>{
- assert.deepEqual(plannerContext('Add approval',{length:0}),{instruction:'Add approval',clarifications:[]});
+ assert.deepEqual(plannerContext('Add approval',[]),{instruction:'Add approval',clarifications:[]});
  const context=plannerContext('Add approval',[{question:'Choose interaction',answer:'Navigation and simple input only'}]);
  assert.deepEqual(context.clarifications,[{question:'Choose interaction',answer:'Navigation and simple input only'}]);
 });
