@@ -1,4 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
+import {validNavigationLinks} from '../src/portalMenuLinks.mjs';
 import {validReportTools} from './reportTools.mjs';
 // Piece 3: target, patch, verify. No model-generated code is executed.
 function normalize(value){
@@ -78,6 +79,7 @@ export function validateStrictDemo(d,channel){
    if(!['hero','stats','notice','actions','form','table','composed'].includes(e.kind))return false;
   }
  }
+ if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(typeof s.parentScreenId!=='string'||!ids.has(s.parentScreenId)||s.id===s.parentScreenId||d.screens.find(p=>p.id===s.parentScreenId)?.parentScreenId)))return false;
   for(const s of d.screens)for(const e of s.elements){
