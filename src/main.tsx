@@ -17,7 +17,7 @@ type Target={level:'screen'|'header'|'element'|'field'|'button';screenId:string;
 type AmbiguousTarget={projectId:string;instruction:string;choices:{id:string;label:string;screen:string;type:string;target:Target}[];question:string};
 type PendingEdit={projectId:string;instruction:string;target:Target;scope:'global'|'screen';before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
-type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[];publishedVersions?:PublishedVersion[]};
+type Project={id:string;name:string;company:string;channel:'mobile'|'portal';guidelines:string;requirement:string;generationClarifications?:string[];files:string[];demo:DemoDefinition|null;messages:Message[];revisions?:DemoRevision[];publishedVersions?:PublishedVersion[]};
 type Message={id:string;role:'user'|'system';text:string;date:string};
 type WorkspaceState={projects:Project[];activeId:string};
 const KEY='demo-builder-piece1-v1';
@@ -36,6 +36,7 @@ function App(){
  const[selectMode,setSelectMode]=useState(false);const[selected,setSelected]=useState<Target|null>(null);const[visualComment,setVisualComment]=useState('');
  const[pending,setPending]=useState<PendingEdit|null>(null);
  const[ambiguity,setAmbiguity]=useState<AmbiguousTarget|null>(null);
+ const[generationQuestion,setGenerationQuestion]=useState<{projectId:string;question:string;reason:string;suggestions:string[]}|null>(null);
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[rememberAI,setRememberAI]=useState(()=>{try{return localStorage.getItem('meyon-demo-ai-remember')==='yes';}catch{return false;}});const[accessToken,setAccessToken]=useState(()=>{try{return sessionStorage.getItem('meyon-demo-ai-access')||(localStorage.getItem('meyon-demo-ai-remember')==='yes'?localStorage.getItem('meyon-demo-ai-saved')||'':'');}catch{return '';}});const[accessDraft,setAccessDraft]=useState('');
  const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
@@ -74,7 +75,7 @@ function App(){
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
  useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
  function updateProject(change:Partial<Project>){setState(s=>({...s,projects:s.projects.map(p=>p.id===s.activeId?{...p,...change}:p)}));}
- function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);setAmbiguity(null);}
+ function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);setAmbiguity(null);setGenerationQuestion(null);}
  function createProject(){const name=createName.trim();if(!name){setToast('Enter a project name.');return;}const p:Project={id:makeId(),name,company:createCompany.trim(),channel:createChannel,guidelines:'',requirement:'',files:[],demo:null,messages:[]};setState(s=>({projects:[...s.projects,p],activeId:p.id}));setScreenId('');setCreateOpen(false);setCreateName('');setCreateCompany('');setComposer('');}
  async function generateFor(projectSnapshot:Project,brief:string){
   if(aiBusy)return;
@@ -83,9 +84,17 @@ function App(){
   setAiBusy(true);
   const target=projectSnapshot.id;
   try{
-    const result=await fetch(API+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},requirement:brief})});
+    const result=await fetch(API+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},requirement:[brief,...(projectSnapshot.generationClarifications||[]).map(x=>'Clarification from product owner: '+x)].join('\n\n')})});
     const data=await result.json();
     if(!result.ok)throw Error(String(data.error||'Generation failed.'));
+    if(data.needsClarification&&typeof data.question==='string'){
+      const suggestions=Array.isArray(data.suggestions)?data.suggestions.filter((x:unknown):x is string=>typeof x==='string').slice(0,3):[];
+      setGenerationQuestion({projectId:target,question:data.question,reason:String(data.reason||''),suggestions});
+      setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,messages:[...p.messages,{id:makeId(),role:'system',text:data.question,date:new Date().toISOString()}]}:p)}));
+      setToast('MEYON needs one clarification. Your original brief is preserved.');
+      return;
+    }
+    setGenerationQuestion(null);
     if(!validateDemo(data.definition)||data.definition.channel!==projectSnapshot.channel)throw Error('Generated demo did not pass client validation.');
     const msg:Message={id:makeId(),role:'system',text:String(data.summary||'Demo generated successfully.')+'\nModel: '+String(data.usage?.model||'Configured model')+' · Input tokens: '+String(data.usage?.inputTokens||0)+' · Output tokens: '+String(data.usage?.outputTokens||0),date:new Date().toISOString()};
     setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,demo:cloneDemo(data.definition),revisions:[],messages:[...p.messages,msg]}:p)}));
@@ -165,9 +174,19 @@ function App(){
   setScreenId(last.screenId);setTab('preview');setFormValues({});setErrors({});
   setToast('Previous screen edit undone.');
  }
+ function answerGenerationQuestion(answer:string){
+  if(!generationQuestion||generationQuestion.projectId!==project.id||!answer.trim()||aiBusy)return;
+  const note='Q: '+generationQuestion.question+' A: '+answer.trim();
+  const clarified=[...(project.generationClarifications||[]),note];
+  const snapshot={...project,generationClarifications:clarified};
+  updateProject({generationClarifications:clarified,messages:[...project.messages,{id:makeId(),role:'user',text:answer.trim(),date:new Date().toISOString()}]});
+  setGenerationQuestion(null);
+  void generateFor(snapshot,project.requirement);
+ }
  function send(){
   const text=composer.trim();
   if(!text||aiBusy||pending){if(pending)setToast('Apply or discard the preview first.');return;}
+  if(generationQuestion?.projectId===project.id&&!project.demo){setComposer('');answerGenerationQuestion(text);return;}
   const snapshot=project;
   const msg:Message={id:makeId(),role:'user',text,date:new Date().toISOString()};
   setComposer('');
@@ -183,7 +202,7 @@ function App(){
     else{setAccessModal(true);setToast('Requirement saved. Connect AI to generate your demo.');}
   }
 }
- function generateBrief(){if(!project.requirement.trim()){setToast('Enter a requirement first.');return;}if(pending){setToast('Discard the pending edit before regenerating.');return;}void generateFor(project,project.requirement);}
+ function generateBrief(){if(generationQuestion?.projectId===project.id){setToast('Answer the clarification first to continue this draft.');return;}if(!project.requirement.trim()){setToast('Enter a requirement first.');return;}if(pending){setToast('Discard the pending edit before regenerating.');return;}void generateFor(project,project.requirement);}
  function loadSample(){setPending(null);setSelected(null);const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
  function applyDefinition(){try{if(pending)throw Error('Discard the proposed change before importing.');const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj),revisions:[]});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
  function resetDemo(){if(pending){setToast('Discard the proposed change first.');return;}setSelected(null);updateProject({demo:null,revisions:[]});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
@@ -238,6 +257,7 @@ function App(){
  {details&&<div className="studio-modal-overlay" onClick={()=>setDetails(false)}><section className="studio-details" onClick={e=>e.stopPropagation()}><div className="details-header"><h3>Project context</h3><button className="studio-icon" onClick={()=>setDetails(false)}><X size={16}/></button></div><div className="details-grid"><label>Company<input value={project.company} onChange={e=>updateProject({company:e.target.value})} placeholder="Company or bank"/></label><label>Design guidelines<textarea value={project.guidelines} onChange={e=>updateProject({guidelines:e.target.value})} placeholder="Brand colors, spacing, typography, style..."/></label></div><div className="details-summary"><strong>Integration-ready fields</strong><span>companyId · projectId · storyId · demoId · demoVersion · designGuidelines · approvedRequirements</span><p>MEYON integration is planned after standalone acceptance. No MEYON connection is active.</p></div></section></div>}
  <section className="studio-workarea"><div className="chat-pane"><div className="pane-heading"><div><MessageSquare size={18}/><strong>AI Demo Chat</strong></div><button className={'ai-connect '+(aiReady?'ready':'pending')} onClick={()=>setAccessModal(true)} title="AI backend connection">{aiBusy?'Generating…':!aiOnline?'AI service offline':!aiReady?'AI setup required':accessToken?'AI connected':'Connect AI'}</button></div><div className="chat-scroll">
  {project.messages.length===0?<div className="chat-welcome"><span className="chat-welcome-mark"><Sparkles size={23}/></span><h2>What are we building?</h2><p>Describe an application, paste a user story or attach reference material. Your input is saved to the project brief.</p><div className="chat-note"><Info size={17}/><span>{aiReady?'AI generation is available after connecting the access token. Enter a requirement to create real interactive screens. Once generated, chat edits only the currently selected preview screen.':'AI generation requires an OpenAI API key on the separate Render backend. Requirements are saved locally until it is configured.'}</span></div><div className="hint-title">A GOOD STARTING PROMPT</div><div className="sample-prompt">Create a mobile customer onboarding demo with registration, identity verification, consent and a final confirmation screen.</div></div>:<div className="message-list">{project.messages.map(m=><div className={'chat-message '+m.role} key={m.id}><div className="message-role">{m.role==='user'?'You':'System'}</div><p>{m.text}</p></div>)}</div>}
+ {generationQuestion?.projectId===project.id&&<div className="generation-question"><div className="generation-question-heading"><Sparkles size={17}/><strong>One clarification to continue</strong></div><p>{generationQuestion.question}</p>{generationQuestion.reason&&<small>{generationQuestion.reason}</small>}<div className="generation-question-choices">{generationQuestion.suggestions.map(option=><button key={option} disabled={aiBusy} onClick={()=>answerGenerationQuestion(option)}>{option}</button>)}</div><small>Or type your own answer below. The original project requirement will be kept.</small></div>}
  {aiBusy&&<div className="chat-progress" role="status"><Sparkles size={17}/> {demo?'Preparing scoped change operations for review…':'Interpreting requirements and generating application screens…'}</div>}<div ref={end}/></div>
  {project.requirement&&<div className="brief-status"><CheckCircle2 size={15}/><span>Project brief saved {demo?'· Refine selected screen':''}</span>{(project.revisions||[]).length>0&&<button className="undo-edit" title="Restore the demo before its most recent AI screen edit" disabled={aiBusy} onClick={undoLastEdit}>Undo edit ({project.revisions?.length})</button>}<button className="brief-generate" disabled={aiBusy} onClick={generateBrief}>{aiBusy?'Generating…':'Generate demo'}</button><button onClick={()=>setDetails(true)}>Context</button></div>}
  {project.files.length>0&&<div className="attachment-list">{project.files.map((f,i)=><span key={i}><Paperclip size={12}/>{f}</span>)}</div>}
