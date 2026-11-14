@@ -70,3 +70,18 @@ test('Reports: filterColumn must point to a real table column',()=>{
  assert.equal(validReportTools({search:true,filter:true,download:true,filterColumn:'missing'},table.columns),false);
  assert.equal(validReportTools({search:true,filter:true,download:true,filterColumn:'role'},table.columns),true);
 });
+
+test('Grounded AI registry exposes configure-report for portal screens and tables, not mobile forms',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const selected={level:'screen',screenId:'user-reports'};
+ const r=buildRegistry(configure(),selected);
+ assert.ok(r.find(e=>e.id==='screen:user-reports').capabilities.includes('configure-report'));
+ const tableId=configure().screens[2].elements.find(e=>e.kind==='table').id;
+ assert.ok(r.find(e=>e.id==='element:user-reports:'+tableId).capabilities.includes('configure-report'));
+ const operations=resolveChangeSet(r,selected,[{action:'configure-report',targetId:'screen:user-reports',tools:{search:true,filter:true,download:true}}]);
+ assert.equal(operations[0].op,'configure-report');
+ assert.deepEqual(operations[0].tools,{search:true,filter:true,download:true});
+ const mobile=structuredClone(baseline);mobile.channel='mobile';delete mobile.screens[2].parentScreenId;
+ const mobileRegistry=buildRegistry(mobile,selected);
+ assert.equal(mobileRegistry.find(e=>e.id==='screen:user-reports').capabilities.includes('configure-report'),false);
+});
