@@ -14,6 +14,18 @@ export function normalizeComponent(candidate){
   if(!item.id)item.id=slug(item.label||item.title||item.kind||'item')||'item-'+i;
   if(typeof item.label!=='string'&&typeof item.title==='string')item.label=item.title;
   if(typeof item.label!=='string'&&typeof item.text==='string')item.label=item.text.slice(0,100);
+  // Presentational coercion only: do not change routes, action types, or data sources.
+  if(item.kind==='table'&&Array.isArray(item.rows))for(const row of item.rows){
+   if(!row||typeof row!=='object'||Array.isArray(row))continue;
+   for(const [key,value] of Object.entries(row)){
+    if((typeof value==='number'&&Number.isFinite(value))||typeof value==='boolean')row[key]=String(value);
+   }
+  }
+  if(item.kind==='progress'&&typeof item.value==='string'&&item.value.trim()!==''&&Number.isFinite(Number(item.value)))item.value=Number(item.value);
+  if(item.kind==='select'&&Array.isArray(item.options))item.options=item.options.map(v=>(typeof v==='number'&&Number.isFinite(v))||typeof v==='boolean'?String(v):v);
+  if(item.kind==='button'&&Array.isArray(item.actions))for(const action of item.actions){
+   if(action?.type==='set'&&((typeof action.value==='number'&&Number.isFinite(action.value))||typeof action.value==='boolean'))action.value=String(action.value);
+  }
  }
  return result;
 }
