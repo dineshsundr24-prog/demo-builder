@@ -113,7 +113,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -123,7 +123,21 @@ export function applyOperations(original,target,operations,channel){
    const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
    if(!same&&!formChild)fail('Operation escaped the selected component.');
   }
-  if(op.op==='configure-report'){
+  if(op.op==='add-menu-link'){
+   if(channel!=='portal'||at.level!=='screen')fail('Standalone navigation links require a portal screen selection.');
+   const label=String(op.label||'').trim(),screenId=String(op.screenId||'');
+   if(!label||label.length>85||!candidate.screens.some(sc=>sc.id===screenId))fail('Menu link requires a valid label and screen destination.');
+   if(screenId!==at.screenId)fail('Menu destination must be the selected screen.');
+   const normalized=normalizeLabel(label);
+   if(candidate.screens.some(sc=>!sc.parentScreenId&&normalizeLabel(sc.title)===normalized)||(candidate.navLinks||[]).some(link=>normalizeLabel(link.label)===normalized))fail('A visible menu option named '+label+' already exists.');
+   if((candidate.navLinks||[]).length>=12)fail('Maximum standalone navigation links reached.');
+   const existingIds=new Set((candidate.navLinks||[]).map(link=>link.id));
+   let id='nav-'+(normalized.replace(/\s+/g,'-').slice(0,48)||'link'),suffix=2;
+   while(existingIds.has(id))id='nav-'+normalized.replace(/\s+/g,'-').slice(0,43)+'-'+suffix++;
+   if(!candidate.navLinks)candidate.navLinks=[];
+   candidate.navLinks.push({id,label,screenId});
+   changed.push({target:at,operation:'add-menu-link',menuId:id,screenId});
+  }else if(op.op==='configure-report'){
    if(channel!=='portal'||!['screen','element'].includes(at.level))fail('Report controls require a portal screen or table selection.');
    const sc=candidate.screens.find(x=>x.id===at.screenId);
    const tables=at.level==='element'?sc.elements.filter(x=>x.id===at.elementId&&x.kind==='table'):sc.elements.filter(x=>x.kind==='table');
@@ -235,7 +249,9 @@ export function applyOperations(original,target,operations,channel){
  const oldIndex=original.screens.findIndex(s=>s.id===target.screenId);
  // Explicitly check requested mutations against resulting data.
  for(const op of operations){
-  if(op.op==='configure-report'){
+  if(op.op==='add-menu-link'){
+   if(!candidate.navLinks?.some(link=>link.label===op.label&&link.screenId===op.screenId))fail('Outcome verification failed: menu option does not exist.');
+  }else if(op.op==='configure-report'){
    const sc=candidate.screens.find(x=>x.id===(op.target||target).screenId);
    const tables=sc.elements.filter(x=>x.kind==='table');
    if(!tables.some(table=>Object.entries(op.tools||{}).every(([k,v])=>table.tools?.[k]===v)))fail('Report toolbar outcome verification failed.');
