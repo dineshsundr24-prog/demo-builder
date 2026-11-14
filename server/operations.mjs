@@ -215,8 +215,9 @@ export function applyOperations(original,target,operations,channel){
  if(!validateStrictDemo(candidate,channel))fail('Result failed complete schema and navigation validation.');
  const oldIndex=original.screens.findIndex(s=>s.id===target.screenId);
  for(const previous of original.screens){
+  if(previous.id===target.screenId&&!operations.some(op=>op.op==='add-subsection'))continue;
   const preserved=candidate.screens.find(sc=>sc.id===previous.id);
-  if(!preserved||!same(preserved,previous))fail('Preservation failure: existing screen changed.');
+  if(!preserved||!same(preserved,previous))fail('Preservation failure: an unrelated existing screen changed.');
  }
  if(candidate.screens.length!==original.screens.length+operations.filter(op=>op.op==='add-subsection').length)fail('Unexpected number of screens after patch.');
  if(!same(candidate.chrome,original.chrome))fail('Preservation failure: application-wide header changed.');
