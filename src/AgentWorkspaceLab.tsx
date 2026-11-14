@@ -49,7 +49,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
   catch(e){setError(e instanceof Error?e.message:'Clarification failed');}
  }
  function approve(confirm:boolean){
-  try{const output=executeApproval(state,confirm) as LabState;setState(output);setConfirmation(output.approval?.lastAction==='confirmation-required');setError('');}
+  try{const output=executeApproval(state,confirm) as LabState;setState(output);setConfirmation(['confirmation-required','confirmation-screen'].includes(output.approval?.lastAction||''));setError('');}
   catch(e){setError(e instanceof Error?e.message:'Approval simulation failed');}
  }
  return <div className="agentlab-overlay" role="dialog" aria-modal="true" aria-label="Agentic Demo Workspace lab">
@@ -84,7 +84,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
         if(el.kind==='notice')return <div key={el.id} className="agentlab-notice"><strong>{el.title}</strong><p>{el.body}</p></div>;
         return <div key={el.id} className="agentlab-notice">Existing {el.kind} component preserved in copied screen</div>;
        })}
-       {state.approval&&<div className="agentlab-approval"><strong>Approval interaction · demo only</strong><p>Application status: <b>{state.approval.status}</b></p><button onClick={()=>approve(false)} disabled={state.approval.status==='Approved'}>{state.approval.mode.includes('confirmation screen')?'Continue to confirmation': 'Approve application'}</button>{confirmation&&<div className="agentlab-confirm"><p>Approve this fictional application?</p><button onClick={()=>approve(true)}>Confirm approval</button><button onClick={()=>setConfirmation(false)}>Cancel</button></div>}{state.approval.lastAction&&!confirmation&&<small>{state.approval.lastAction}</small>}</div>}
+       {state.approval&&<div className="agentlab-approval"><strong>Approval interaction · demo only</strong><p>Application status: <b>{state.approval.status}</b></p><button onClick={()=>approve(false)} disabled={state.approval.status==='Approved'}>{state.approval.mode.includes('confirmation screen')?'Continue to confirmation': 'Approve application'}</button>{confirmation&&<div className={"agentlab-confirm"+(state.approval.mode.includes("confirmation screen")?" agentlab-confirm-screen":"")}><p>{state.approval.mode.includes("confirmation screen")?"Confirmation screen — review approval of this fictional application":"Approve this fictional application?"}</p><button onClick={()=>approve(true)}>Confirm approval</button><button onClick={()=>setConfirmation(false)}>Cancel</button></div>}{state.approval.lastAction&&!confirmation&&<small>{state.approval.lastAction}</small>}</div>}
       </div>
      </div>
      <div className="agentlab-bottom"><Code2 size={16}/><span>Read-only original project · local sandbox state · verified structural operations · no real banking transactions</span></div>
