@@ -1,5 +1,6 @@
 import {validComposed} from '../src/composed.mjs';
 import {makeExampleReportTable,validReportTools} from './reportTools.mjs';
+import {verifyEditScope} from '../src/editScope.mjs';
 // Constrained operation-based Demo Definition edits.
 // Only existing stable screen/element/field/button IDs are used as targets.
 // No executable code, CSS or arbitrary object path operations.
@@ -230,14 +231,8 @@ export function applyOperations(original,target,operations,channel){
  }
  if(same(before,JSON.stringify(candidate)))fail('Proposed operations did not produce a change.');
  if(!validateStrictDemo(candidate,channel))fail('Result failed complete schema and navigation validation.');
+ verifyEditScope(original,candidate,target,'screen',operations);
  const oldIndex=original.screens.findIndex(s=>s.id===target.screenId);
- for(const previous of original.screens){
-  if(previous.id===target.screenId&&!operations.some(op=>op.op==='add-subsection'))continue;
-  const preserved=candidate.screens.find(sc=>sc.id===previous.id);
-  if(!preserved||!same(preserved,previous))fail('Preservation failure: an unrelated existing screen changed.');
- }
- if(candidate.screens.length!==original.screens.length+operations.filter(op=>op.op==='add-subsection').length)fail('Unexpected number of screens after patch.');
- if(!same(candidate.chrome,original.chrome))fail('Preservation failure: application-wide header changed.');
  // Explicitly check requested mutations against resulting data.
  for(const op of operations){
   if(op.op==='configure-report'){
