@@ -1,4 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
+import {normalizeGeneratedDemo,explainGeneratedDemo} from './generationContract.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -56,7 +57,7 @@ const system=`You are the Demo Builder requirement interpreter. Generate a COMPL
 {kind:'table',id,title,subtitle?,columns:[{id,label}],rows:[{columnId:'value'}],detailScreen?}
 {kind:'notice',id,tone:'info'|'success',title,body}
 {kind:'actions',id,buttons:[{id,label,variant:'primary'|'secondary',nextScreen?}]}
-Choose screen patterns intelligently: mobile flows (welcome, registration, verification, consent, confirmation); portals (dashboard, list, review, decision). The first screen must offer a way to navigate forward; at least one screen must contain a form or table. Last screen should provide a completion notice or useful summary. Do not mention features unsupported by this component schema in generated screen text. Restrict text lengths and rows (max 8 rows). Include sensible UAE locality and AED amounts where relevant. Do not generate executable JS, HTML, or CSS.`;
+Choose screen patterns intelligently: mobile flows (welcome, registration, verification, consent, confirmation); portals (dashboard, list, review, decision). The first screen must offer a way to navigate forward; at least one screen must contain a form or table. Last screen should provide a completion notice or useful summary. Do not mention features unsupported by this component schema in generated screen text. STRICT OUTPUT RULES: Every screen MUST have a nonempty string subtitle and 1–6 elements; total elements across all screens <=35. Generate 3–6 screens unless explicitly requested more. Every table row value MUST be a string (even numbers, dates, booleans and AED amounts). Every stats item value MUST be a string. Every table column ID MUST match a corresponding row key. Every form must include a nonempty title, actionLabel and 1–16 valid typed fields. Each action's nextScreen and each table's detailScreen MUST exactly match an id in the screens array. Every element has a unique nonempty id per screen. Never include an unsupported element kind (no chart, badge, grid or sidebar element); use only the listed kinds. Never add empty description or subtitle; screen subtitle is required. Avoid 'composed' unless necessary, and follow its item constraints exactly. Restrict text lengths and rows (max 8 rows). Include sensible UAE locality and AED amounts where relevant. Do not generate executable JS, HTML, or CSS.`;
 
 async function generate(body){
  const project=body?.project||{};
@@ -84,8 +85,14 @@ async function generate(body){
  const output=Array.isArray(raw?.output)?raw.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join(''):'';
  let parsed;
  try{parsed=JSON.parse(output);}catch{throw Object.assign(new Error('AI returned an incomplete or invalid definition. Please retry.'),{status:502});}
- if(!validDemo(parsed,channel))throw Object.assign(new Error('Generated demo did not pass validation. Please retry or simplify the requirement.'),{status:422});
- return{definition:parsed,summary:`Generated ${parsed.screens.length} interactive screens for ${parsed.name}.`,usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+ const normalized=normalizeGeneratedDemo(parsed);
+ if(!validDemo(normalized,channel)){
+  const reasons=explainGeneratedDemo(normalized,channel);
+  // Log paths, not customer content, to preserve confidential sample data.
+  console.error('AI generation schema mismatch',{channel,screenCount:Array.isArray(normalized?.screens)?normalized.screens.length:null,problems:reasons.slice(0,8)});
+  throw Object.assign(new Error('Generated portal structure was rejected: '+(reasons[0]||'schema mismatch')+'. No demo was overwritten. Please retry.'),{status:422});
+ }
+ return{definition:normalized,summary:`Generated ${normalized.screens.length} interactive screens for ${normalized.name}.`,usage:{model:raw.model||model,inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
 }
 
 
