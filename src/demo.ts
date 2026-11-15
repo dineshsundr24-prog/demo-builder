@@ -16,7 +16,7 @@ export type Element =
     inputType?:'text'|'email'|'number'|'date'|'password';value?:number;
     visibleWhen?:{field:string;equals:string};
     columns?:{id:string;label:string}[];rows?:Record<string,string>[];
-    filterField?:string;filterColumn?:string;
+    filterField?:string;filterColumn?:string;filterFields?:{field:string;column:string}[];
     actions?:{type:'navigate'|'set'|'toggle'|'increment'|'reset'|'show'|'hide'|'download-csv'|'notice';target?:string;value?:string;amount?:number;screen?:string;message?:string}[];
   }[]}
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
