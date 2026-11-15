@@ -48,7 +48,7 @@ export function dynamicRows(item,values){
  const column=item.filterColumn;
  return(item.rows||[]).filter(row=>{
   const searched=!filter||(column?[row[column]]:item.columns.map(c=>row[c.id])).some(v=>String(v||'').toLowerCase().includes(filter));
-  const filtered=(item.filterFields||[]).every(f=>!String(values[f.field]||'').trim()||String(row[f.column]||'').toLowerCase()===String(values[f.field]).toLowerCase());
+  const filtered=(item.filterFields||[]).every(f=>(!String(values[f.field]||'').trim()||String(values[f.field]).toLowerCase()==='all')||String(row[f.column]||'').toLowerCase()===String(values[f.field]).toLowerCase());
   return searched&&filtered;
  });
 }
