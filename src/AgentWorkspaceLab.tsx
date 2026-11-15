@@ -9,7 +9,8 @@ import './agentWorkspaceLab.css';
 const tasks=[
  {id:'nav',name:'Reorder navigation',instruction:'Move Service Request immediately above Reports in the left menu.'},
  {id:'component',name:'Generate interactive component',instruction:'Create a User Activity Dashboard showing login history, last activity and failed login attempts with search and CSV export.'},
- {id:'clarify',name:'Clarify and configure approval',instruction:'Add an approval action to the portal with unspecified confirmation behavior.'}
+ {id:'clarify',name:'Clarify and configure approval',instruction:'Add an approval action to the portal with unspecified confirmation behavior.'},
+ {id:'custom',name:'Create new screen from instruction',instruction:'Add a new menu called Customer Audit. Create a screen showing user, action, timestamp and status, with search and filtering. Do not modify existing screens.'}
 ];
 const sample:DemoDefinition={schemaVersion:1,id:'kapiko-lab-sample',name:'Kapiko Bank – Isolated Lab',description:'Fictional test workspace',channel:'portal',theme:'navy',
  navLinks:[{id:'nav-service-request',label:'Service Request',screenId:'applications'}],
@@ -37,13 +38,14 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
  const completed=new Set(history);
  const status=(state.lastResult?.status||'idle');
  const activityVisible=active.elements.some(el=>el.id==='generated-user-activity-dashboard');
+ const generatedScreen=active.id.startsWith('lab-');
  const selectTask=(t:typeof tasks[number])=>{setSelectedTask(t.id);setCommand(t.instruction);setError('');setState(s=>({...s,lastResult:null,awaiting:null}));};
  useEffect(()=>{
-  if(status==='passed'&&activityVisible){
+  if(status==='passed'&&(activityVisible||generatedScreen)){
    const preview=previewRef.current;
    if(preview)preview.scrollTo({top:preview.scrollHeight,behavior:'smooth'});
   }
- },[state.demo,status,activityVisible]);
+ },[state.demo,status,activityVisible,generatedScreen]);
  function reset(nextSource: 'sample'|'project'=source){
   setSource(nextSource);setState(workspaceFromDemo(nextSource==='project'&&demo?.channel==='portal'?demo:sample));
   setError('');setHistory([]);setConfirmation(false);setSelectedTask(tasks[0].id);setCommand(tasks[0].instruction);setShowInstruction(false);setShowEvidence(false);
@@ -73,7 +75,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
    </header>
    <div className="agentlab-strip">
     <ShieldCheck size={16}/>
-    <span>Controlled proof of concept · 3 supported scenarios · no AI model calls</span>
+    <span>Controlled proof of concept · new screen creation supported · no AI model calls</span>
     <div className="agentlab-switch"><button className={source==='sample'?'active':''} onClick={()=>reset('sample')}>Sample Kapiko</button><button disabled={demo?.channel!=='portal'} className={source==='project'?'active':''} onClick={()=>reset('project')}>Current portal copy</button></div>
    </div>
    <div className="agentlab-simple-content">
@@ -90,14 +92,14 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
       <strong>Clarification needed</strong>
       <p>{state.awaiting.question}</p>
       <div className="agentlab-simple-choices">{state.awaiting.options.map(o=><button key={o} onClick={()=>selectAnswer(o)}>{o}</button>)}</div>
-     </div>:state.awaiting?.kind==='target'?<div className="agentlab-simple-response" role="status"><strong>Choose a valid target</strong><p>{state.awaiting.question}</p><small>{state.awaiting.options.join(', ')}</small></div>:state.lastResult?<div className={'agentlab-simple-response '+(status==='passed'?'passed':status==='clarification'?'pending':'blocked')} role="status"><strong>{status==='passed'?'Test completed':status==='clarification'?'More information needed':'No change applied'}</strong><p>{state.lastResult.message}</p>{status==='passed'&&activityVisible&&<p>Dashboard added to the preview on the right. Try its search and CSV export.</p>}</div>:<div className="agentlab-simple-response idle"><p>Click <strong>Execute test</strong> to see the result here.</p></div>}
+     </div>:state.awaiting?.kind==='target'?<div className="agentlab-simple-response" role="status"><strong>Choose a valid target</strong><p>{state.awaiting.question}</p><small>{state.awaiting.options.join(', ')}</small></div>:state.lastResult?<div className={'agentlab-simple-response '+(status==='passed'?'passed':status==='clarification'?'pending':'blocked')} role="status"><strong>{status==='passed'?'Test completed':status==='clarification'?'More information needed':'No change applied'}</strong><p>{state.lastResult.message}</p>{status==='passed'&&(activityVisible||generatedScreen)&&<p>Generated component is shown on the right. Test the available controls.</p>}</div>:<div className="agentlab-simple-response idle"><p>Click <strong>Execute test</strong> to see the result here.</p></div>}
      {error&&<div className="agentlab-simple-response blocked" role="alert"><strong>Execution error</strong><p>{error}</p></div>}
      <button className="agentlab-text-link" onClick={()=>setShowEvidence(v=>!v)}>{showEvidence?'Hide execution details':'View execution details'}</button>
      {showEvidence&&<div className="agentlab-trace"><strong>Executed tools</strong>{state.trace.length?state.trace.map((t,i)=><div key={i}><code>{t.tool}</code><small>{t.detail}</small></div>):<p>No tools executed yet.</p>}</div>}
      <button className="agentlab-reset" onClick={()=>reset()}><RotateCcw size={15}/> Reset test workspace</button>
     </aside>
     <main className="agentlab-simple-preview" ref={previewRef}>
-     <div className="agentlab-simple-preview-heading"><div><strong>Live preview</strong><span>{state.demo.name}</span></div><span>{completed.size} of 3 tests completed</span></div>
+     <div className="agentlab-simple-preview-heading"><div><strong>Live preview</strong><span>{state.demo.name}</span></div><span>{completed.size} of {tasks.length} tests completed</span></div>
      <div className="agentlab-portal">
       <nav className="agentlab-nav"><strong>{source==='sample'?'Kapiko Bank':projectName}</strong>{state.menu.map(item=><button className={item.screenId===active.id?'active':''} key={item.id} onClick={()=>setState(s=>({...s,selectedScreenId:item.screenId}))}><span className="agentlab-menu-square"/>{item.label}</button>)}</nav>
       <div className="agentlab-screen">
