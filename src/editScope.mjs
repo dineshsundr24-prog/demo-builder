@@ -4,7 +4,7 @@ const identical=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 export function verifyEditScope(before,next,target,scope,operations=[]){
  if(!before||!next||!Array.isArray(before.screens)||!Array.isArray(next.screens))throw Error('Invalid before/after demo.');
  if(before.id!==next.id||before.channel!==next.channel||before.screens.length<1)throw Error('Project identity or channel was changed.');
- const additions=Array.isArray(operations)?operations.filter(op=>op.op==='add-subsection'):[];
+ const additions=Array.isArray(operations)?operations.filter(op=>op.op==='add-subsection'||op.op==='add-screen'):[];
  const expected=before.screens.length+additions.length;
  if(next.screens.length!==expected)throw Error('Unexpected screen count changed.');
  const originalIds=new Set(before.screens.map(sc=>sc.id));
@@ -18,6 +18,7 @@ export function verifyEditScope(before,next,target,scope,operations=[]){
  const created=next.screens.filter(sc=>!originalIds.has(sc.id));
  if(created.length!==additions.length)throw Error('Unexpected screen was created.');
  const menuOps=operations.filter(op=>op.op==='add-menu-link');
+ if(additions.some(op=>op.op==='add-screen')&&next.channel!=='portal')throw Error('Root menu screen creation requires a portal.');
  const previousLinks=before.navLinks||[],nextLinks=next.navLinks||[];
  if(menuOps.length){
   if(nextLinks.length!==previousLinks.length+menuOps.length)throw Error('Requested navigation entry was not added.');
@@ -26,7 +27,7 @@ export function verifyEditScope(before,next,target,scope,operations=[]){
  }else if(!identical(previousLinks,nextLinks))throw Error('An unrelated navigation item was changed.');
 
  for(const child of created){
-  if(!additions.some(op=>(op.target||target)?.screenId===child.parentScreenId))throw Error('A child screen has an unexpected parent.');
+  if(!additions.some(op=>op.op==='add-subsection'&&(op.target||target)?.screenId===child.parentScreenId||op.op==='add-screen'&&op.screenId===child.id&&!child.parentScreenId))throw Error('A created screen has an unexpected identity or parent.');
  }
  if(scope==='global'){
   if(additions.length||identical(before.chrome,next.chrome))throw Error('Global header change was not applied correctly.');
