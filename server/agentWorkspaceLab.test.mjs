@@ -93,3 +93,39 @@ test('POC confirmation-screen decision does not approve until explicit confirmat
  assert.equal(confirmed.approval.status,'Approved');
  assert.deepEqual(confirmed.demo,initial.demo);
 });
+
+test('POC novel Customer Audit request creates isolated navigable screen with search and status filter',()=>{
+ const original=structuredClone(demo);
+ const workspace=workspaceFromDemo(demo);
+ const instruction='Add a new menu called Customer Audit. Create a screen showing user, action, timestamp and status, with search and filtering. Do not modify existing screens.';
+ const updated=routeLabInstruction(workspace,instruction);
+ assert.equal(updated.lastResult.status,'passed');
+ assert.equal(updated.demo.screens.length,original.screens.length+1);
+ assert.deepEqual(updated.demo.screens.slice(0,original.screens.length),original.screens);
+ assert.deepEqual(demo,original);
+ const screen=updated.demo.screens.find(x=>x.title==='Customer Audit');
+ assert.ok(screen);
+ assert.equal(updated.selectedScreenId,screen.id);
+ assert.equal(updated.menu.find(x=>x.label==='Customer Audit').screenId,screen.id);
+ const component=screen.elements.find(x=>x.kind==='composed');
+ const table=component.items.find(x=>x.kind==='table');
+ assert.ok(table.columns.some(x=>x.label==='Status'));
+ assert.ok(table.filterField);
+ assert.ok(table.filterFields?.length);
+ const selected=table.rows[0][table.filterFields[0].column];
+ assert.ok(dynamicRows(table,{[table.filterFields[0].field]:selected}).every(x=>x[table.filterFields[0].column]===selected));
+ assert.equal(dynamicRows(table,{[table.filterFields[0].field]:'All'}).length,table.rows.length);
+ assert.equal(validateStrictDemo(updated.demo,'portal'),true);
+});
+test('POC new screen with unspecified fields asks clarification without mutation',()=>{
+ const initial=workspaceFromDemo(demo);
+ const updated=routeLabInstruction(initial,'Add a new menu called Customer Audit.');
+ assert.equal(updated.lastResult.status,'unsupported');
+ assert.deepEqual(updated.demo,initial.demo);
+});
+test('POC blocks unsupported live integration rather than claiming successful screen creation',()=>{
+ const initial=workspaceFromDemo(demo);
+ const updated=routeLabInstruction(initial,'Add a new menu called Risk Audit. Create a screen showing user and status with live database integration.');
+ assert.equal(updated.lastResult.status,'unsupported');
+ assert.deepEqual(updated.demo,initial.demo);
+});
