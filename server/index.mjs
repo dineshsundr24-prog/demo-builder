@@ -9,6 +9,7 @@ import {applyOperations,locateNode,targetLabel} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
+import {workspaceFromDemo,createRequestedScreen} from '../src/agentWorkspaceEngine.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
 import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
@@ -205,6 +206,33 @@ async function planEdit(body){
  if(instruction.length<5||instruction.length>5000)throw Object.assign(new Error('Enter a change instruction between 5 and 5,000 characters.'),{status:400});
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
+
+ // New root-screen creation is a single validated, reversible proposal in the real editor.
+ // It uses the proven isolated compiler, but persists nothing until the BA clicks Apply.
+ if(project.channel==='portal'&&/\b(?:add|create|build|generate)\b/i.test(instruction)&&/\b(?:new\\s+)?(?:menu|screen)\\s+(?:called|named)\b/i.test(instruction)){
+  const workspace=workspaceFromDemo(demo);
+  const created=createRequestedScreen(workspace,instruction);
+  if(created){
+   if(created.lastResult?.status==='clarification'){
+    return {needsClarification:true,question:created.awaiting?.question||'Which columns should the new screen display?',
+     reason:'The screen must have named fields before generation.',options:[]};
+   }
+   if(created.lastResult?.status!=='passed'){
+    return technicalFailure(created.lastResult?.message||'New screen cannot be created.','screen-creation');
+   }
+   if(demo.screens.length>=12)return technicalFailure('This portal already contains the maximum 12 screens.','screen-limit');
+   const screenId=created.selectedScreenId;
+   const screen=created.demo.screens.find(s=>s.id===screenId);
+   if(!screen||!validateStrictDemo(created.demo,project.channel))return technicalFailure('Generated screen failed schema validation.','screen-creation');
+   const operations=[{op:'add-screen',screenId,title:screen.title}];
+   return {scope:'planned',target:{level:'screen',screenId:target.screenId},label:screen.title+' · New navigation screen',
+    operations,definition:created.demo,createdScreenId:screenId,
+    checks:['New screen and navigation entry verified','Requested columns and controls compiled','Existing screens and navigation retained unchanged'],
+    preservedScreens:demo.screens.length,summary:'Created '+screen.title+' with interactive demo data. Review the new menu and screen before applying.',
+    usage:{model:'deterministic-screen-compiler',inputTokens:0,outputTokens:0}};
+  }
+ }
+
  const menuLink=planPortalMenuLink(demo,instruction,target.screenId);
  if(menuLink){
   if(menuLink.alreadyExists)return technicalFailure('Requested menu option already exists on this portal','navigation');
