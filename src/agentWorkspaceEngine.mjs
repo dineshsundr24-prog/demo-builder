@@ -78,8 +78,56 @@ export function executeApproval(state,confirmed){
  const next=clone(state);next.approval.status='Approved';next.approval.lastAction='Approved locally; no banking action executed';
  return next;
 }
+
+const titleCase=s=>String(s).trim().replace(/\b\w/g,c=>c.toUpperCase());
+const slug=s=>clean(s).trim().replace(/\s+/g,'-').slice(0,42);
+export function createRequestedScreen(state,instruction){
+ const prompt=String(instruction||'').trim();
+ const intent=/\b(?:add|create|build|generate)\s+(?:(?:a|an|the)\s+)?(?:new\s+)?(?:menu\s+(?:called|named)\s+|screen\s+(?:called|named)\s+)([a-z][a-z0-9 &/-]{2,60}?)(?=\.|,|\s+and\s+|\s+with\s+|$)/i.exec(prompt);
+ if(!intent)return null;
+ const label=titleCase(intent[1]);
+ if(!label||label.length>60)return{...state,lastResult:{status:'unsupported',message:'Please use a short screen or menu name (up to 60 characters).'}};
+ const wantsTable=/\b(table|list|history|actions|activity|audit|records|dashboard|showing)\b/i.test(prompt);
+ if(!wantsTable)return{...state,lastResult:{status:'unsupported',message:'This experiment can create data-table screens. Other screen types require a separate capability.'}};
+ const fieldsSegment=/\b(?:showing|displaying|containing|including)\s+(.+?)(?=\s+with\s+(?:search|filter|export)|\.|$)/i.exec(prompt);
+ if(!fieldsSegment)return{...state,lastResult:{status:'clarification',message:'Which columns should the new screen display?',allowScreenEdit:false},awaiting:{kind:'target',question:'Specify columns after “showing”, for example: showing user, action, timestamp and status.',options:[]}};
+ const fields=fieldsSegment[1].split(/,|\s+and\s+/i).map(s=>titleCase(s.replace(/^(?:the|a|an)\s+/i,'').trim())).filter(x=>x.length>1&&x.length<70);
+ const columns=[...new Set(fields.map(x=>x.toLowerCase()))].map(key=>fields.find(x=>x.toLowerCase()===key)).slice(0,9);
+ if(columns.length<2)return{...state,lastResult:{status:'clarification',message:'Please specify at least two columns.'},awaiting:{kind:'target',question:'Provide two or more column names after “showing”.',options:[]}};
+ const requested=prompt.toLowerCase(),hasSearch=/\bsearch\b/.test(requested),hasFilter=/\bfilter(?:s|ing)?\b/.test(requested);
+ const filterName=columns.find(x=>/status|state|type|category/i.test(x));
+ if(hasFilter&&!filterName)return{...state,lastResult:{status:'clarification',message:'A filter field is needed before I can add filtering.'},awaiting:{kind:'target',question:'Please include a Status, Type or Category column for filtering.',options:[]}};
+ if(/\b(?:real|live|database|api|synchroni[sz]e|backend|authentication|permission|role-based)\b/i.test(prompt))return{...state,lastResult:{status:'unsupported',message:'Live integrations, authentication and permissions are outside this isolated POC. No changes applied.'}};
+ const existing=state.menu.find(x=>clean(x.label)===clean(label));
+ if(existing)return{...state,lastResult:{status:'unsupported',message:'A menu or screen named '+label+' already exists. No duplicate was added.'}};
+ const next=clone(state),screenId='lab-'+slug(label);
+ if(next.demo.screens.some(s=>s.id===screenId))return{...state,lastResult:{status:'unsupported',message:'Screen identifier already exists. No changes applied.'}};
+ const component=compileSemanticComponent({title:label+' Records',type:'table',fields:columns,search:hasSearch,download:/\b(csv|export|download)\b/i.test(prompt),filter:false,showSummary:true},prompt,next.demo.screens.map(s=>s.id),'demo');
+ const table=component.items.find(x=>x.kind==='table');
+ if(!table||!columns.every(x=>table.columns.some(c=>clean(c.label)===clean(x))))throw Error('Generated component did not preserve all requested columns.');
+ if(hasFilter){
+  const col=table.columns.find(c=>clean(c.label)===clean(filterName));
+  if(!col)throw Error('Missing requested filter column.');
+  const options=[...new Set(table.rows.map(r=>r[col.id]))];
+  component.items.splice(component.items.findIndex(x=>x.id==='data-table'),0,{id:'filter-select',kind:'select',label:'Filter by '+filterName,options:['All',...options]});
+  table.filterFields=[{field:'filter-select',column:col.id}];
+ }
+ if(!validComposed(component,next.demo.screens.map(s=>s.id)))throw Error('Generated table failed structural verification.');
+ next.demo.screens.push({id:screenId,title:label,subtitle:'Fictional demo records · no backend connection',elements:[component]});
+ next.menu.push({id:'screen:'+screenId,label,screenId,kind:'screen'});
+ next.selectedScreenId=screenId;next.awaiting=null;
+ next.lastResult={status:'passed',message:'Created '+label+' with '+columns.length+' columns'+(hasSearch?', search':'')+(hasFilter?', status filtering':'')+'. Original screens unchanged.',allowScreenEdit:true};
+ next.trace.push({tool:'parseScreenRequest',detail:'Screen: '+label+'; fields: '+columns.join(', ')});
+ next.trace.push({tool:'compileComponent',detail:'Safe table runtime with fictional rows'});
+ next.trace.push({tool:'verifyNewScreen',detail:'New screen exists, navigation resolves, existing screens preserved'});
+ if(next.demo.screens.length!==state.demo.screens.length+1||state.demo.screens.some((s,i)=>JSON.stringify(s)!==JSON.stringify(next.demo.screens[i]))||next.menu.length!==state.menu.length+1)throw Error('Isolation verification failed; original workspace unchanged.');
+ return next;
+}
+
 export function routeLabInstruction(state,instruction){
  const q=clean(instruction);
+ const newScreen=createRequestedScreen(state,instruction);
+ if(newScreen)return newScreen;
  if((q.includes('move')||q.includes('reorder'))&&q.includes('service request')&&q.includes('report'))return moveMenuBefore(state,'service request','report');
  if((q.includes('create')||q.includes('build')||q.includes('add'))&&(q.includes('user activity')||q.includes('login history')))return addActivitySection(state);
  if((q.includes('approval')||q.includes('approve'))&&(q.includes('add')||q.includes('create')||q.includes('configure')))return requestApproval(state);
