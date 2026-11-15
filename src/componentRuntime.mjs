@@ -20,6 +20,7 @@ export function validDynamicComponent(element,screenIds=[]){
    if(!Array.isArray(x.columns)||!x.columns.length||x.columns.length>10||x.columns.some(c=>!c||!id(c.id)||!str(c.label,100)||!c.label)||!Array.isArray(x.rows)||x.rows.length>50||x.rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)||Object.values(row).some(v=>typeof v!=='string'||v.length>500)))return false;
    if(x.filterField!==undefined&&!id(x.filterField))return false;
    if(x.filterColumn!==undefined&&!x.columns.some(c=>c.id===x.filterColumn))return false;
+   if(x.filterFields!==undefined&&(!Array.isArray(x.filterFields)||x.filterFields.length>5||x.filterFields.some(f=>!f||!id(f.field)||!x.columns.some(c=>c.id===f.column))))return false;
   }
   if(x.kind==='button'){
    if(x.nextScreen!==undefined&&(!screenIds.includes(x.nextScreen)||!str(x.nextScreen)))return false;
@@ -29,6 +30,7 @@ export function validDynamicComponent(element,screenIds=[]){
  for(const x of items){
   if(x.visibleWhen&&!ids.has(x.visibleWhen.field))return false;
   if(x.kind==='table'&&x.filterField&&!ids.has(x.filterField))return false;
+  if(x.kind==='table'&&x.filterFields?.some(f=>!ids.has(f.field)||!items.some(t=>t.id===f.field&&['input','select'].includes(t.kind))))return false;
   for(const a of x.actions||[]){
    if(!a||!actionTypes.has(a.type))return false;
    if(a.type==='navigate'&&(!str(a.screen)||!screenIds.includes(a.screen)))return false;
@@ -43,9 +45,12 @@ export function validDynamicComponent(element,screenIds=[]){
 }
 export function dynamicRows(item,values){
  const filter=String(item.filterField?values[item.filterField]||'':'').trim().toLowerCase();
- if(!filter)return item.rows||[];
  const column=item.filterColumn;
- return(item.rows||[]).filter(row=>(column?[row[column]]:item.columns.map(c=>row[c.id])).some(v=>String(v||'').toLowerCase().includes(filter)));
+ return(item.rows||[]).filter(row=>{
+  const searched=!filter||(column?[row[column]]:item.columns.map(c=>row[c.id])).some(v=>String(v||'').toLowerCase().includes(filter));
+  const filtered=(item.filterFields||[]).every(f=>!String(values[f.field]||'').trim()||String(row[f.column]||'').toLowerCase()===String(values[f.field]).toLowerCase());
+  return searched&&filtered;
+ });
 }
 export function safeCsvCell(value){
  const raw=String(value??'');
