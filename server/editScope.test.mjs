@@ -30,3 +30,14 @@ test('Global chrome updates cannot change screen content',()=>{
  next.screens[2].title='Unexpected';
  assert.throws(()=>verifyEditScope(original,next,selected,'global'),/unrelated screen/);
 });
+
+test('New top-level portal screen can be added without altering existing screens',()=>{
+ const next=structuredClone(original);next.screens.push({id:'lab-customer-audit',title:'Customer Audit',elements:[]});
+ assert.equal(verifyEditScope(original,next,selected,'screen',[{op:'add-screen',screenId:'lab-customer-audit',title:'Customer Audit'}]),true);
+ next.screens[0].title='Damaged';
+ assert.throws(()=>verifyEditScope(original,next,selected,'screen',[{op:'add-screen',screenId:'lab-customer-audit'}]),/unrelated screen/);
+});
+test('Unapproved extra screens cannot piggyback on an add-screen operation',()=>{
+ const next=structuredClone(original);next.screens.push({id:'lab-allowed',title:'Allowed',elements:[]},{id:'lab-hidden',title:'Hidden',elements:[]});
+ assert.throws(()=>verifyEditScope(original,next,selected,'screen',[{op:'add-screen',screenId:'lab-allowed'}]),/Unexpected screen count/);
+});
