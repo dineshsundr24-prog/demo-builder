@@ -209,7 +209,7 @@ async function planEdit(body){
 
  // New root-screen creation is a single validated, reversible proposal in the real editor.
  // It uses the proven isolated compiler, but persists nothing until the BA clicks Apply.
- if(project.channel==='portal'&&/\b(?:add|create|build|generate)\b/i.test(instruction)&&/\b(?:new\\s+)?(?:menu|screen)\\s+(?:called|named)\b/i.test(instruction)){
+ if(project.channel==='portal'&&/\b(?:add|create|build|generate)\b/i.test(instruction)&&/\b(?:new\s+)?(?:menu|screen)\s+(?:called|named)\b/i.test(instruction)){
   const workspace=workspaceFromDemo(demo);
   const created=createRequestedScreen(workspace,instruction);
   if(created){
