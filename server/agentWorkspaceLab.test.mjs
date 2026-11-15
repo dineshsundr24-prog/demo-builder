@@ -120,7 +120,8 @@ test('POC novel Customer Audit request creates isolated navigable screen with se
 test('POC new screen with unspecified fields asks clarification without mutation',()=>{
  const initial=workspaceFromDemo(demo);
  const updated=routeLabInstruction(initial,'Add a new menu called Customer Audit.');
- assert.equal(updated.lastResult.status,'unsupported');
+ assert.equal(updated.lastResult.status,'clarification');
+ assert.equal(updated.awaiting.kind,'target');
  assert.deepEqual(updated.demo,initial.demo);
 });
 test('POC blocks unsupported live integration rather than claiming successful screen creation',()=>{
