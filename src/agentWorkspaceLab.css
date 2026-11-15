@@ -2,3 +2,24 @@
 .agentlab-confirm-screen{display:flex;flex-direction:column;align-items:flex-start;min-height:130px;padding:18px;border:2px solid #8fb1e3;background:#f2f7ff}.agentlab-confirm-screen p{font-size:14px;font-weight:750;color:#1f477e}.agentlab-confirm-screen button{margin-top:4px}
 
 .agentlab-inline-feedback{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:9px;border:1px solid #cbd9eb;font-size:11px;line-height:1.45}.agentlab-inline-feedback strong{font-size:12px}.agentlab-inline-feedback.passed{color:#176744;background:#eff9f5;border-color:#c8e6d7}.agentlab-inline-feedback.pending{color:#795e16;background:#fff9e9;border-color:#eedb9e}.agentlab-inline-feedback.blocked{color:#9d3838;background:#fff2f1;border-color:#f3ccc8}.agentlab-inline-feedback small{font-size:10px}
+
+/* Simplified test-first lab layout */
+.agentlab-simple{width:min(1480px,100%);height:min(950px,100%)}
+.agentlab-simple-content{display:grid;grid-template-columns:360px minmax(0,1fr);flex:1;min-height:0}
+.agentlab-simple-controls{background:#fff;border-right:1px solid #dce6f2;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:11px;min-height:0}
+.agentlab-simple-controls h3{font-size:13px;margin:5px 0 0;color:#1b385e}
+.agentlab-simple-tasks{display:flex;flex-direction:column;gap:7px}
+.agentlab-simple-task{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #d9e3f0;background:white;border-radius:10px;color:#324967;text-align:left;cursor:pointer;font-size:12px;font-weight:700}
+.agentlab-simple-task.selected{background:#eaf2ff;border-color:#6595e6;color:#174eac}
+.agentlab-task-number{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 24px;border-radius:100%;background:#f0f4fa;color:#41639a;font-size:12px}
+.agentlab-simple-task.selected .agentlab-task-number{background:#265cba;color:#fff}
+.agentlab-instruction-summary{background:#f7f9fd;border:1px solid #dce5f2;border-radius:9px;color:#253e60;font-size:12px;line-height:1.55;padding:12px;overflow-wrap:anywhere}
+.agentlab-simple-controls textarea{border:1px solid #cbd9ed;padding:9px;border-radius:8px;font-family:inherit;font-size:12px;resize:vertical}
+.agentlab-text-link{border:0;background:transparent;color:#235db4;padding:3px 0;text-align:left;cursor:pointer;font-size:11px;font-weight:700}
+.agentlab-simple-response{border:1px solid #d7e2f1;border-radius:10px;padding:13px;background:#f6f9fe;color:#29476e;display:flex;flex-direction:column;gap:9px;line-height:1.5;font-size:12px}
+.agentlab-simple-response strong{font-size:12px}.agentlab-simple-response p{margin:0}.agentlab-simple-response.passed{background:#eff9f5;border-color:#c8e6d7;color:#176744}.agentlab-simple-response.pending{background:#fff9e9;border-color:#eedb9e}.agentlab-simple-response.blocked{background:#fff2f1;border-color:#f3ccc8;color:#9d3838}
+.agentlab-simple-choices{display:flex;flex-direction:column;gap:7px}.agentlab-simple-choices button{padding:10px;border:1px solid #bdcfe8;background:#fff;color:#2259a6;border-radius:7px;text-align:left;cursor:pointer;font-size:11px}
+.agentlab-simple-preview{padding:16px 18px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px}
+.agentlab-simple-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.agentlab-simple-preview-heading>div{display:flex;flex-direction:column;gap:3px}.agentlab-simple-preview-heading strong{font-size:15px}.agentlab-simple-preview-heading span{font-size:11px;color:#7286a4}
+.agentlab-simple-preview .agentlab-portal{min-height:520px;flex-shrink:0}
+@media(max-width:850px){.agentlab-simple-content{display:flex;flex-direction:column;overflow-y:auto}.agentlab-simple-controls,.agentlab-simple-preview{overflow:visible}.agentlab-simple-controls{flex-shrink:0}.agentlab-simple-preview .agentlab-portal{min-height:420px}.agentlab-simple{height:100%}}
