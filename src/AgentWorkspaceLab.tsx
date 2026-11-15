@@ -26,6 +26,9 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
  const [source,setSource]=useState<'sample'|'project'>(demo?.channel==='portal'?'project':'sample');
  const [state,setState]=useState<LabState>(()=>workspaceFromDemo(demo?.channel==='portal'?demo:sample));
  const [command,setCommand]=useState(tasks[0].instruction);
+ const [selectedTask,setSelectedTask]=useState(tasks[0].id);
+ const [showInstruction,setShowInstruction]=useState(false);
+ const [showEvidence,setShowEvidence]=useState(false);
  const [error,setError]=useState('');
  const [confirmation,setConfirmation]=useState(false);
  const [history,setHistory]=useState<string[]>([]);
@@ -34,6 +37,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
  const completed=new Set(history);
  const status=(state.lastResult?.status||'idle');
  const activityVisible=active.elements.some(el=>el.id==='generated-user-activity-dashboard');
+ const selectTask=(t:typeof tasks[number])=>{setSelectedTask(t.id);setCommand(t.instruction);setError('');setState(s=>({...s,lastResult:null,awaiting:null}));};
  useEffect(()=>{
   if(status==='passed'&&activityVisible){
    const preview=previewRef.current;
@@ -42,7 +46,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
  },[state.demo,status,activityVisible]);
  function reset(nextSource: 'sample'|'project'=source){
   setSource(nextSource);setState(workspaceFromDemo(nextSource==='project'&&demo?.channel==='portal'?demo:sample));
-  setError('');setHistory([]);setConfirmation(false);
+  setError('');setHistory([]);setConfirmation(false);setSelectedTask(tasks[0].id);setCommand(tasks[0].instruction);setShowInstruction(false);setShowEvidence(false);
  }
  function run(instruction:string,taskId?:string){
   setCommand(instruction);setConfirmation(false);
@@ -60,29 +64,40 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
   try{const output=executeApproval(state,confirm) as LabState;setState(output);setConfirmation(['confirmation-required','confirmation-screen'].includes(output.approval?.lastAction||''));setError('');}
   catch(e){setError(e instanceof Error?e.message:'Approval simulation failed');}
  }
+
  return <div className="agentlab-overlay" role="dialog" aria-modal="true" aria-label="Agentic Demo Workspace lab">
-  <section className="agentlab-frame">
-   <header className="agentlab-header"><div><span className="agentlab-eyebrow">MEYON · CONTROLLED PROOF OF CONCEPT</span><h2>Agentic Demo Workspace</h2><p>Isolated copy of {source==='project'?projectName:'Kapiko example'} · no changes to your original project</p></div>
+  <section className="agentlab-frame agentlab-simple">
+   <header className="agentlab-header">
+    <div><span className="agentlab-eyebrow">MEYON · ISOLATED TEST</span><h2>Agentic Demo Workspace</h2><p>Choose a test, execute it, and inspect the result. Your original project stays unchanged.</p></div>
     <button onClick={onClose} aria-label="Close lab"><X size={19}/></button>
    </header>
-   <div className="agentlab-strip"><ShieldCheck size={16}/><span>Sandboxed test: three supported tasks, deterministic tools, zero model API calls. This is not yet a general-purpose coding agent.</span><div className="agentlab-switch"><button className={source==='sample'?'active':''} onClick={()=>reset('sample')}>Sample Kapiko</button><button disabled={demo?.channel!=='portal'} className={source==='project'?'active':''} onClick={()=>reset('project')}>Current portal copy</button></div></div>
-   <div className="agentlab-content">
-    <aside className="agentlab-left">
-     <h3>Try an instruction</h3><p className="agentlab-muted">Use the prepared tests, or enter one of the supported instructions.</p>
-     <div className="agentlab-task-list">{tasks.map(t=><button key={t.id} className="agentlab-task" onClick={()=>run(t.instruction,t.id)}><span>{completed.has(t.id)?<CheckCircle2 size={17}/>:<Play size={17}/>}</span><div><strong>{t.name}</strong><small>{t.instruction}</small></div><ChevronRight size={16}/></button>)}</div>
-     <label className="agentlab-command-label" htmlFor="agentlab-command">Instruction</label>
-     <textarea id="agentlab-command" rows={3} value={command} onChange={e=>setCommand(e.target.value)}/>
-     <button className="agentlab-run" onClick={()=>run(command)}><Play size={15}/> Execute in isolated workspace</button>
-     {state.lastResult&&<div className={'agentlab-inline-feedback '+(status==='passed'?'passed':status==='clarification'?'pending':'blocked')} role="status"><strong>{status==='passed'?'✓ Executed successfully':status==='clarification'?'Action requires input':'Action not applied'}</strong><span>{state.lastResult.message}</span>{status==='passed'&&activityVisible&&<small>Generated dashboard is displayed in the right preview. Scroll there to test search and CSV export.</small>}</div>}
-     {state.awaiting?.kind==='approval'&&<div className="agentlab-clarify"><strong>Agent clarification</strong><p>{state.awaiting.question}</p>{state.awaiting.options.map(o=><button key={o} onClick={()=>selectAnswer(o)}>{o}</button>)}</div>}
-     {state.awaiting?.kind==='target'&&<div className="agentlab-clarify"><strong>Target unresolved</strong><p>{state.awaiting.question}</p><small>Available entries: {state.awaiting.options.join(', ')}</small><p>Try the Sample Kapiko workspace for a complete baseline.</p></div>}
-     {state.lastResult&&<div className={'agentlab-result '+(status==='passed'?'passed':status==='clarification'?'pending':'blocked')}><strong>{status==='passed'?'Outcome verified':status==='clarification'?'Clarification needed':'No change applied'}</strong><p>{state.lastResult.message}</p></div>}
-     {error&&<div className="agentlab-result blocked" role="alert"><strong>Verification blocked</strong><p>{error}</p></div>}
-     <div className="agentlab-trace"><div className="agentlab-trace-heading"><SquareTerminal size={16}/><strong>Tool execution & evidence</strong></div>{state.trace.length?state.trace.slice(-8).map((t,i)=><div key={i}><code>{t.tool}</code><small>{t.detail}</small></div>):<p className="agentlab-muted">Run a task to see the executed tools and verified outcome.</p>}</div>
-     <button className="agentlab-reset" onClick={()=>reset()}><RotateCcw size={15}/> Reset isolated workspace</button>
+   <div className="agentlab-strip">
+    <ShieldCheck size={16}/>
+    <span>Controlled proof of concept · 3 supported scenarios · no AI model calls</span>
+    <div className="agentlab-switch"><button className={source==='sample'?'active':''} onClick={()=>reset('sample')}>Sample Kapiko</button><button disabled={demo?.channel!=='portal'} className={source==='project'?'active':''} onClick={()=>reset('project')}>Current portal copy</button></div>
+   </div>
+   <div className="agentlab-simple-content">
+    <aside className="agentlab-simple-controls">
+     <h3>1. Choose a test</h3>
+     <div className="agentlab-simple-tasks">{tasks.map((t,i)=><button key={t.id} className={'agentlab-simple-task '+(selectedTask===t.id?'selected':'')} onClick={()=>selectTask(t)} aria-pressed={selectedTask===t.id}><span className="agentlab-task-number">{completed.has(t.id)?<CheckCircle2 size={16}/>:i+1}</span><span>{t.name}</span></button>)}</div>
+     <h3>2. Run the instruction</h3>
+     <div className="agentlab-instruction-summary">{command}</div>
+     <button className="agentlab-text-link" onClick={()=>setShowInstruction(v=>!v)}>{showInstruction?'Hide instruction editor':'Edit instruction'}</button>
+     {showInstruction&&<textarea aria-label="Edit test instruction" value={command} onChange={e=>setCommand(e.target.value)} rows={3}/>}
+     <button className="agentlab-run" onClick={()=>run(command,selectedTask)}><Play size={16}/> Execute test</button>
+     <h3>3. Result</h3>
+     {state.awaiting?.kind==='approval'?<div className="agentlab-simple-response" role="status">
+      <strong>Clarification needed</strong>
+      <p>{state.awaiting.question}</p>
+      <div className="agentlab-simple-choices">{state.awaiting.options.map(o=><button key={o} onClick={()=>selectAnswer(o)}>{o}</button>)}</div>
+     </div>:state.awaiting?.kind==='target'?<div className="agentlab-simple-response" role="status"><strong>Choose a valid target</strong><p>{state.awaiting.question}</p><small>{state.awaiting.options.join(', ')}</small></div>:state.lastResult?<div className={'agentlab-simple-response '+(status==='passed'?'passed':status==='clarification'?'pending':'blocked')} role="status"><strong>{status==='passed'?'Test completed':status==='clarification'?'More information needed':'No change applied'}</strong><p>{state.lastResult.message}</p>{status==='passed'&&activityVisible&&<p>Dashboard added to the preview on the right. Try its search and CSV export.</p>}</div>:<div className="agentlab-simple-response idle"><p>Click <strong>Execute test</strong> to see the result here.</p></div>}
+     {error&&<div className="agentlab-simple-response blocked" role="alert"><strong>Execution error</strong><p>{error}</p></div>}
+     <button className="agentlab-text-link" onClick={()=>setShowEvidence(v=>!v)}>{showEvidence?'Hide execution details':'View execution details'}</button>
+     {showEvidence&&<div className="agentlab-trace"><strong>Executed tools</strong>{state.trace.length?state.trace.map((t,i)=><div key={i}><code>{t.tool}</code><small>{t.detail}</small></div>):<p>No tools executed yet.</p>}</div>}
+     <button className="agentlab-reset" onClick={()=>reset()}><RotateCcw size={15}/> Reset test workspace</button>
     </aside>
-    <main className="agentlab-right" ref={previewRef}>
-     <div className="agentlab-preview-heading"><div><span>LIVE SANDBOX PREVIEW</span><strong>{state.demo.name}</strong></div><div><ClipboardCheck size={17}/> {completed.size}/3 scenarios exercised</div></div>
+    <main className="agentlab-simple-preview" ref={previewRef}>
+     <div className="agentlab-simple-preview-heading"><div><strong>Live preview</strong><span>{state.demo.name}</span></div><span>{completed.size} of 3 tests completed</span></div>
      <div className="agentlab-portal">
       <nav className="agentlab-nav"><strong>{source==='sample'?'Kapiko Bank':projectName}</strong>{state.menu.map(item=><button className={item.screenId===active.id?'active':''} key={item.id} onClick={()=>setState(s=>({...s,selectedScreenId:item.screenId}))}><span className="agentlab-menu-square"/>{item.label}</button>)}</nav>
       <div className="agentlab-screen">
@@ -96,7 +111,7 @@ export default function AgentWorkspaceLab({demo,projectName,onClose}:{demo:DemoD
        {state.approval&&<div className="agentlab-approval"><strong>Approval interaction · demo only</strong><p>Application status: <b>{state.approval.status}</b></p><button onClick={()=>approve(false)} disabled={state.approval.status==='Approved'}>{state.approval.mode.includes('confirmation screen')?'Continue to confirmation': 'Approve application'}</button>{confirmation&&<div className={"agentlab-confirm"+(state.approval.mode.includes("confirmation screen")?" agentlab-confirm-screen":"")}><p>{state.approval.mode.includes("confirmation screen")?"Confirmation screen — review approval of this fictional application":"Approve this fictional application?"}</p><button onClick={()=>approve(true)}>Confirm approval</button><button onClick={()=>setConfirmation(false)}>Cancel</button></div>}{state.approval.lastAction&&!confirmation&&<small>{state.approval.lastAction}</small>}</div>}
       </div>
      </div>
-     <div className="agentlab-bottom"><Code2 size={16}/><span>Read-only original project · local sandbox state · verified structural operations · no real banking transactions</span></div>
+     <div className="agentlab-bottom"><Code2 size={16}/><span>Sandbox only · original project is not changed</span></div>
     </main>
    </div>
   </section>
