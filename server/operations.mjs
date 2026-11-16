@@ -113,7 +113,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link','add-record-summary'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -209,6 +209,19 @@ export function applyOperations(original,target,operations,channel){
    const removed=matches[0].field;
    form.fields.splice(matches[0].index,1);
    changed.push({target:{level:'field',screenId:at.screenId,elementId:form.id,childId:removed.id},operation:'remove-field'});
+  }else if(op.op==='add-record-summary'){
+   if(channel!=='portal'||at.level!=='screen')fail('Record summary requires a selected portal screen.');
+   const screen=candidate.screens.find(sc=>sc.id===at.screenId);
+   const element=screen.elements.find(e=>e.id===op.sourceElementId);
+   const table=element?.kind==='table'?element:element?.kind==='composed'?element.items.find(x=>x.kind==='table'&&x.id===op.sourceTableId):null;
+   if(!table||table.id!==op.sourceTableId||!Array.isArray(table.rows))fail('Record summary source table is missing.');
+   if(screen.elements.length>=15)fail('Screen has reached the maximum number of components.');
+   if(screen.elements.some(e=>e.id==='summary-total-records'))fail('Record summary card already exists.');
+   const label=String(op.label||'').trim();
+   if(!/^total\s+[\w -]{1,55}records?$/i.test(label))fail('Record summary label must identify a total record count.');
+   const summary={id:'summary-total-records',kind:'stats',items:[{id:'total-records',label,value:String(table.rows.length)}]};
+   screen.elements.unshift(summary);
+   changed.push({target:at,operation:'add-record-summary',elementId:summary.id});
   }else if(op.op==='add-component'){
    if(at.level!=='screen')fail('Adding a composed component requires screen selection.');
    const screen=candidate.screens.find(x=>x.id===at.screenId);
@@ -251,6 +264,13 @@ export function applyOperations(original,target,operations,channel){
  for(const op of operations){
   if(op.op==='add-menu-link'){
    if(!candidate.navLinks?.some(link=>link.label===op.label&&link.screenId===op.screenId))fail('Outcome verification failed: menu option does not exist.');
+  }else if(op.op==='add-record-summary'){
+   const sc=candidate.screens.find(x=>x.id===(op.target||target).screenId);
+   const summary=sc?.elements.find(x=>x.id==='summary-total-records');
+   const source=sc?.elements.find(x=>x.id===op.sourceElementId);
+   const table=source?.kind==='table'?source:source?.kind==='composed'?source.items.find(x=>x.kind==='table'&&x.id===op.sourceTableId):null;
+   if(!summary||summary.kind!=='stats'||!table||summary.items[0]?.label!==op.label||summary.items[0]?.value!==String(table.rows.length))
+    fail('Record summary did not match source table count.');
   }else if(op.op==='configure-report'){
    const sc=candidate.screens.find(x=>x.id===(op.target||target).screenId);
    const tables=sc.elements.filter(x=>x.kind==='table');
@@ -303,6 +323,33 @@ export function applyOperations(original,target,operations,channel){
  }
  return {definition:candidate,changed,checks,preservedScreens:original.screens.length-1};
 }
+
+/**
+ * Grounded summary-card intent. Counts records from an existing table rather than
+ * letting a model invent data, modify an existing table, or create fake metrics.
+ */
+export function planRecordSummary(demo,target,instruction){
+ const text=String(instruction||'').trim();
+ if(!/\b(?:add|create|insert|include)\s+(?:(?:a|an|the)\s+)?(?:new\s+)?(?:summary|kpi|metric)\s+(?:card|tile)\b/i.test(text))return null;
+ const requested=/\b(total\s+(?:(?:\w[\w-]*)\s+){0,3}records?)\b/i.exec(text);
+ if(!requested)return {status:'unsupported',reason:'A summary card needs a measurable metric. For a record count, request “total records”.'};
+ if(demo.channel!=='portal'||target?.level!=='screen')return {status:'unsupported',reason:'Record summary cards require selecting an entire portal screen.'};
+ const screen=demo.screens.find(sc=>sc.id===target.screenId);
+ if(!screen)return {status:'unsupported',reason:'The selected screen was not found.'};
+ const sources=screen.elements.flatMap(element=>{
+  if(element.kind==='table')return [{elementId:element.id,table:element}];
+  if(element.kind==='composed')return element.items.filter(item=>item.kind==='table').map(table=>({elementId:element.id,table}));
+  return [];
+ });
+ if(sources.length!==1)return {status:'clarification',question:sources.length?'Which table should the summary count? This screen contains multiple tables.':'A table is required to calculate total records. Which data should be counted?'};
+ const source=sources[0];
+ if(!Array.isArray(source.table.rows))return {status:'unsupported',reason:'The selected table has no usable record list.'};
+ const label=requested[1].replace(/\b\w/g,c=>c.toUpperCase()).replace(/\s+/g,' ');
+ if(screen.elements.some(e=>e.id==='summary-total-records'||(e.kind==='stats'&&e.items?.some(item=>item.label.toLowerCase()===label.toLowerCase()))))
+  return {status:'unsupported',reason:'A summary card for '+label+' already exists on the selected screen.'};
+ return {status:'resolved',operations:[{op:'add-record-summary',target:{level:'screen',screenId:target.screenId},label,sourceElementId:source.elementId,sourceTableId:source.table.id}]};
+}
+
 export function deriveFastOperations(demo,target,instruction){
  const text=String(instruction||'');
  // Header controls live in the renderer, not screen content. Resolve explicitly
