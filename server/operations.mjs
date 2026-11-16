@@ -42,7 +42,7 @@ function chosenForm(screen,elementId){
  return forms[0];
 }
 export function locateNode(demo,target){
- if(!target||!['screen','element','field','button','header'].includes(target.level))fail('Unsupported selection level.');
+ if(!target||!['screen','element','field','button','header','item'].includes(target.level))fail('Unsupported selection level.');
  const screen=demo.screens.find(s=>s.id===target.screenId);
  if(!screen)fail('Selected screen does not exist.');
  if(target.level==='screen')return {screen,node:screen,level:'screen'};
@@ -50,6 +50,12 @@ export function locateNode(demo,target){
  const element=screen.elements.find(e=>e.id===target.elementId);
  if(!element)fail('Selected component does not exist.');
  if(target.level==='element')return {screen,element,node:element,level:'element'};
+ if(target.level==='item'){
+  if(element.kind!=='composed')fail('Selected component is not a generated interactive section.');
+  const node=element.items.find(x=>x.id===target.childId);
+  if(!node)fail('Selected generated item does not exist.');
+  return {screen,element,node,level:'item'};
+ }
  if(target.level==='field'){
   if(element.kind!=='form')fail('Selected component is not a form.');
   const node=element.fields.find(f=>f.id===target.childId);
@@ -65,7 +71,7 @@ export function targetLabel(demo,target){
  const n=locateNode(demo,target);
  if(target.level==='screen')return n.screen.title+' (entire screen)';
  if(target.level==='header')return 'Header · '+n.screen.title;
- if(target.level==='field')return n.node.label+' · '+n.screen.title;
+ if(target.level==='field'||target.level==='item')return n.node.label+' · '+n.screen.title;
  if(target.level==='button')return n.node.label+' · '+n.screen.title;
  return (n.node.title||n.node.kind)+' · '+n.screen.title;
 }
@@ -113,7 +119,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link','add-record-summary'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link','add-record-summary','set-item'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -121,7 +127,8 @@ export function applyOperations(original,target,operations,channel){
   if(target.level!=='screen'){
    const same=at.level===target.level&&at.elementId===target.elementId&&at.childId===target.childId;
    const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
-   if(!same&&!formChild)fail('Operation escaped the selected component.');
+   const composedChild=target.level==='element'&&at.level==='item'&&at.elementId===target.elementId;
+   if(!same&&!formChild&&!composedChild)fail('Operation escaped the selected component.');
   }
   if(op.op==='add-menu-link'){
    if(channel!=='portal'||at.level!=='screen')fail('Standalone navigation links require a portal screen selection.');
@@ -209,6 +216,29 @@ export function applyOperations(original,target,operations,channel){
    const removed=matches[0].field;
    form.fields.splice(matches[0].index,1);
    changed.push({target:{level:'field',screenId:at.screenId,elementId:form.id,childId:removed.id},operation:'remove-field'});
+  }else if(op.op==='set-item'){
+   if(at.level!=='item')fail('Generated item update requires a resolved item target.');
+   const resolved=locateNode(candidate,at);
+   const item=resolved.node;
+   const property=String(op.property||'');
+   const universal=new Set(['label']);
+   const editable={
+    text:new Set(['text']),card:new Set(['text']),badge:new Set(['text']),
+    input:new Set(['text','required','inputType']),
+    checkbox:new Set(['required']),
+    select:new Set(['required','options']),
+    button:new Set([]),table:new Set([]),progress:new Set([]),divider:new Set([])
+   };
+   if(!universal.has(property)&&!editable[item.kind]?.has(property))fail('Property '+property+' is not editable on a '+item.kind+' component.');
+   const value=op.value;
+   if(property==='label'&&(typeof value!=='string'||!value.trim()||value.length>160))fail('Item label must be 1–160 characters.');
+   if(property==='text'&&(typeof value!=='string'||value.length>500))fail('Item text must be at most 500 characters.');
+   if(property==='required'&&typeof value!=='boolean')fail('Required flag must be boolean.');
+   if(property==='inputType'&&!['text','email','number','date','password'].includes(value))fail('Invalid input type.');
+   if(property==='options'&&(!Array.isArray(value)||!value.length||value.length>30||value.some(x=>typeof x!=='string'||x.length>100)))fail('Invalid select options.');
+   if(same(item[property],value))fail('Generated item already has requested value.');
+   item[property]=structuredClone(value);
+   changed.push({target:at,operation:'set-item',itemId:item.id,property});
   }else if(op.op==='add-record-summary'){
    if(channel!=='portal'||at.level!=='screen')fail('Record summary requires a selected portal screen.');
    const screen=candidate.screens.find(sc=>sc.id===at.screenId);
@@ -264,6 +294,9 @@ export function applyOperations(original,target,operations,channel){
  for(const op of operations){
   if(op.op==='add-menu-link'){
    if(!candidate.navLinks?.some(link=>link.label===op.label&&link.screenId===op.screenId))fail('Outcome verification failed: menu option does not exist.');
+  }else if(op.op==='set-item'){
+   const item=locateNode(candidate,op.target||target).node;
+   if(!same(item[op.property],op.value))fail('Generated component item did not match requested update.');
   }else if(op.op==='add-record-summary'){
    const sc=candidate.screens.find(x=>x.id===(op.target||target).screenId);
    const summary=sc?.elements.find(x=>x.id==='summary-total-records');
