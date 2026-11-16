@@ -5,7 +5,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
 import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
-import {applyOperations,locateNode,targetLabel} from './operations.mjs';
+import {applyOperations,locateNode,targetLabel,planRecordSummary} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
@@ -252,6 +252,21 @@ async function planEdit(body){
  const integrationGuard=externalDataGuard(instruction,priorClarifications);
  if(integrationGuard)return integrationGuard;
  const integrationDecision=externalDataDecision(instruction,priorClarifications);
+ const recordSummary=planRecordSummary(demo,target,instruction);
+ if(recordSummary){
+  if(recordSummary.status==='clarification')return {needsClarification:true,question:recordSummary.question,reason:'The metric needs an unambiguous existing table.',options:[]};
+  if(recordSummary.status!=='resolved')return technicalFailure(recordSummary.reason,'summary');
+  try{
+   const operations=recordSummary.operations;
+   const result=applyOperations(demo,target,operations,project.channel);
+   return {scope:'planned',target,label:targetLabel(demo,target),operations,definition:result.definition,
+    checks:[...result.checks,'Summary value equals source table row count','Existing table, search and filters preserved'],
+    preservedScreens:result.preservedScreens,summary:'Added the requested record-count summary card using the existing table. Review and Apply.',
+    usage:{model:'grounded-summary-operation',inputTokens:0,outputTokens:0}};
+  }catch(e){
+   return technicalFailure('Record summary could not be safely applied: '+String(e.message||'validation failed'),'summary');
+  }
+ }
   const reportTools=reportToolsIntent(instruction);
  if(reportTools&&project.channel==='portal'&&['screen','element'].includes(target.level)){
   const picked=target.level==='element'&&demo.screens.find(x=>x.id===target.screenId)?.elements.find(e=>e.id===target.elementId)?.kind!=='table'?{level:'screen',screenId:target.screenId}:target;
