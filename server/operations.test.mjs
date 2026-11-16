@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {applyOperations,deriveFastOperations,locateNode,targetLabel} from './operations.mjs';
+import {applyOperations,deriveFastOperations,locateNode,targetLabel,planRecordSummary} from './operations.mjs';
 const baseline={schemaVersion:1,id:'kapiko',name:'Kapiko Bank Mobile Onboarding',description:'Functional sample',channel:'mobile',theme:'teal',chrome:{brandName:'Kapiko Bank',showBrandIcon:true,showBackButton:true},screens:[
  {id:'welcome',title:'Welcome',subtitle:'Start',elements:[{id:'hero',kind:'hero',title:'Welcome',description:'Welcome to Kapiko Bank'},{id:'action',kind:'actions',buttons:[{id:'start',label:'Get Started',nextScreen:'register'}]}]},
  {id:'register',title:'Registration',subtitle:'Personal details',elements:[{id:'form',kind:'form',title:'Register',fields:[{id:'mobile',label:'Mobile Number',type:'text',required:true}],actionLabel:'Continue',nextScreen:'done'}]},
@@ -281,4 +281,46 @@ test('Reorder: AI field anchor label or registry ID is translated into exact sib
  const ops2=resolveChangeSet(r,target,[{action:'move-field',targetId:'field:register:form:mobile',afterFieldId:'field:register:form:email'}]);
  assert.equal(ops2[0].afterFieldId,'email');
  assert.throws(()=>resolveChangeSet(r,target,[{action:'move-field',targetId:'field:register:form:mobile',afterFieldId:'Invented ID'}]),/does not match/);
+});
+
+
+const auditPortal={schemaVersion:1,id:'kapiko-audit',name:'Kapiko Portal',description:'Demo',
+ channel:'portal',theme:'navy',screens:[
+ {id:'lab-customer-audit',title:'Customer Audit',subtitle:'Fictional demo records',elements:[
+  {id:'generated-customer-audit-records',kind:'composed',title:'Customer Audit Records',items:[
+   {id:'sample-data-note',kind:'text',label:'Fictional data',text:'Fictional data only'},
+   {id:'search',kind:'input',label:'Search records',inputType:'text'},
+   {id:'filter-select',kind:'select',label:'Filter by Status',options:['All','Active','Locked']},
+   {id:'data-table',kind:'table',label:'Customer Audit Records',columns:[{id:'col0',label:'User'},{id:'col1',label:'Status'}],
+    rows:[{col0:'U1',col1:'Active'},{col0:'U2',col1:'Locked'},{col0:'U3',col1:'Active'}],
+    filterField:'search',filterFields:[{field:'filter-select',column:'col1'}]}
+  ]}
+ ]},
+ {id:'reports',title:'Reports',subtitle:'Unchanged',elements:[{id:'untouched',kind:'notice',tone:'info',title:'Untouched',body:'Must stay unchanged'}]}
+ ]};
+test('Scenario 2 RCA: total audit records creates a grounded summary before original table and preserves all filters',()=>{
+ const target={level:'screen',screenId:'lab-customer-audit'};
+ const prompt='On the Customer Audit screen, add a summary card showing total audit records. Keep the existing table, search and filtering unchanged.';
+ const plan=planRecordSummary(auditPortal,target,prompt);
+ assert.equal(plan.status,'resolved');
+ const result=applyOperations(auditPortal,target,plan.operations,'portal');
+ const before=auditPortal.screens[0].elements[0];
+ const after=result.definition.screens[0];
+ assert.equal(after.elements[0].kind,'stats');
+ assert.equal(after.elements[0].items[0].label,'Total Audit Records');
+ assert.equal(after.elements[0].items[0].value,'3');
+ assert.deepEqual(after.elements[1],before);
+ assert.deepEqual(result.definition.screens[1],auditPortal.screens[1]);
+ assert.equal(auditPortal.screens[0].elements.length,1);
+ assert.ok(result.checks.length);
+ assert.throws(()=>applyOperations(result.definition,target,plan.operations,'portal'),/already exists/);
+});
+test('Summary refuses to invent totals when source table is absent or ambiguous',()=>{
+ const target={level:'screen',screenId:'lab-customer-audit'};
+ const prompt='Add a summary card showing total audit records';
+ const missing=structuredClone(auditPortal);missing.screens[0].elements=[];
+ assert.equal(planRecordSummary(missing,target,prompt).status,'clarification');
+ const ambiguous=structuredClone(auditPortal);ambiguous.screens[0].elements.push(structuredClone(ambiguous.screens[0].elements[0]));
+ ambiguous.screens[0].elements[1].id='another-component';
+ assert.equal(planRecordSummary(ambiguous,target,prompt).status,'clarification');
 });
