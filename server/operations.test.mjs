@@ -324,3 +324,29 @@ test('Summary refuses to invent totals when source table is absent or ambiguous'
  ambiguous.screens[0].elements[1].id='another-component';
  assert.equal(planRecordSummary(ambiguous,target,prompt).status,'clarification');
 });
+
+
+test('Generic refinement updates a field inside generated composed UI without changing siblings',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const demo={schemaVersion:1,id:'generated-edit',name:'Generated Portal',description:'Demo',channel:'portal',theme:'navy',screens:[
+  {id:'audit',title:'Audit',subtitle:'View',elements:[{id:'generated-panel',kind:'composed',title:'Audit Form',items:[
+   {id:'help',kind:'text',label:'Instructions',text:'Before'},
+   {id:'search',kind:'input',label:'Search records',inputType:'text'},
+   {id:'go',kind:'button',label:'Continue',actions:[{type:'notice',message:'Proceed'}]}
+  ]}]},
+  {id:'other',title:'Other screen',subtitle:'Unchanged',elements:[{id:'notice',kind:'notice',tone:'info',title:'Other',body:'Stay'}]}
+ ]};
+ const selection={level:'screen',screenId:'audit'};
+ const registry=buildRegistry(demo,selection);
+ const item=registry.find(e=>e.type==='composed-item'&&e.label==='Search records');
+ assert.equal(item.id,'item:audit:generated-panel:search');
+ const operations=resolveChangeSet(registry,selection,[{action:'set-item',targetId:item.id,property:'label',value:'Search audit events'}]);
+ const applied=applyOperations(demo,selection,operations,'portal');
+ assert.equal(applied.definition.screens[0].elements[0].items[1].label,'Search audit events');
+ assert.deepEqual(applied.definition.screens[0].elements[0].items[0],demo.screens[0].elements[0].items[0]);
+ assert.deepEqual(applied.definition.screens[0].elements[0].items[2],demo.screens[0].elements[0].items[2]);
+ assert.deepEqual(applied.definition.screens[1],demo.screens[1]);
+ assert.equal(demo.screens[0].elements[0].items[1].label,'Search records');
+ assert.throws(()=>resolveChangeSet(registry,selection,[{action:'set-item',targetId:'item:other:nope:search',property:'label',value:'Injected'}]),/not found/);
+ assert.throws(()=>applyOperations(demo,selection,[{op:'set-item',target:item.target,property:'onClick',value:'malicious'}],'portal'),/not editable/);
+});
