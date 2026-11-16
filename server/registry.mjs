@@ -19,6 +19,16 @@ export function buildRegistry(demo,selected){
    if(element.kind==='form')caps.push('add-field');
    if(demo.channel==='portal'&&element.kind==='table')caps.push('configure-report');
    add('element',screen,element,element,nodeId('screen',screen.id),caps);
+   // Expose controls generated inside a composed component as stable addressable targets.
+   // They are not separate React nodes in the application definition, so resolve them
+   // against the owning composed element and their persistent item IDs.
+   if(element.kind==='composed')for(const item of element.items){
+    const target={level:'item',screenId:screen.id,elementId:element.id,childId:item.id};
+    const id=nodeId('item',screen.id,element.id,item.id);
+    entries.push({id,target,label:item.label,type:'composed-item',kind:item.kind,
+      parentId:nodeId('element',screen.id,element.id),screenTitle:screen.title,
+      capabilities:['set-item']});
+   }
    if(element.kind==='form')for(const field of element.fields){
     add('field',screen,element,field,nodeId('element',screen.id,element.id),['set','remove-field','move-field'],field.id);
    }
@@ -38,7 +48,8 @@ export function chooseRegistryTarget(registry,id,selection){
  if(selection.level!=='screen'){
   const same=entry.target.level===selection.level&&entry.target.elementId===selection.elementId&&entry.target.childId===selection.childId;
   const childOfForm=selection.level==='element'&&entry.target.level==='field'&&entry.target.elementId===selection.elementId;
-  if(!same&&!childOfForm)throw new Error('Target is outside the selected component.');
+  const childOfComposed=selection.level==='element'&&entry.target.level==='item'&&entry.target.elementId===selection.elementId;
+  if(!same&&!childOfForm&&!childOfComposed)throw new Error('Target is outside the selected component.');
  }
  return entry;
 }
@@ -100,6 +111,10 @@ export function resolveChangeSet(registry,selection,changes){
   const entry=chooseRegistryTarget(registry,change.targetId,selection);
   if(!entry.capabilities.includes(kind))throw new Error('Operation '+String(kind)+' is unsupported for '+entry.type+' "'+entry.label+'".');
   const target=entry.target;
+  if(kind==='set-item'){
+   if(typeof change.property!=='string'||!Object.hasOwn(change,'value'))throw new Error('Composed item update requires a property and value.');
+   return {op:'set-item',target,property:change.property,value:change.value};
+  }
   if(kind==='set'){
    if(typeof change.property!=='string'||!Object.hasOwn(change,'value'))throw new Error('Update requires property and value.');
    return {op:'set',target,property:change.property,value:change.value};
@@ -126,5 +141,5 @@ export function resolveChangeSet(registry,selection,changes){
  });
 }
 export function compactRegistry(registry,selection){
- return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,parentId,capabilities,exactSelection,target})=>({id,label,type,parentId,capabilities,exactSelection,...(type==='field'?{fieldId:target.childId}: {})}));
+ return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,kind,parentId,capabilities,exactSelection,target})=>({id,label,type,parentId,capabilities,exactSelection,...(type==='field'?{fieldId:target.childId}: {}),...(type==='composed-item'?{itemKind:kind}: {})}));
 }
