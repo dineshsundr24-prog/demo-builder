@@ -1,4 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
+import {appearanceTargets,validAppearanceValue} from '../src/visualStyle.mjs';
 import {makeExampleReportTable,validReportTools} from './reportTools.mjs';
 import {verifyEditScope} from '../src/editScope.mjs';
 // Constrained operation-based Demo Definition edits.
@@ -122,7 +123,7 @@ export function applyOperations(original,target,operations,channel){
  const before=JSON.stringify(original);
  const changed=[];
  for(const op of operations){
-  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link','add-record-summary','set-item'].includes(op.op))fail('Unsupported change operation.');
+  if(!op||typeof op!=='object'||!['set','remove-element','add-field','remove-field','move-field','add-component','add-subsection','configure-report','add-menu-link','add-record-summary','set-item','set-style'].includes(op.op))fail('Unsupported change operation.');
   // Every operation is bound to the user-selected target. Screen-level selection may edit descendants
   // but element/field/button/header selection may not escape its own subtree.
   const at=op.target||target;
@@ -219,6 +220,13 @@ export function applyOperations(original,target,operations,channel){
    const removed=matches[0].field;
    form.fields.splice(matches[0].index,1);
    changed.push({target:{level:'field',screenId:at.screenId,elementId:form.id,childId:removed.id},operation:'remove-field'});
+  }else if(op.op==='set-style'){
+   if(!appearanceTargets.has(at.level))fail('Visual styling requires a component, generated item or button target.');
+   if(!validAppearanceValue(op.property,op.value))fail('Unsupported visual property or invalid styling value.');
+   const node=locateNode(candidate,at).node;
+   if(node.appearance?.[op.property]===op.value)fail('The selected visual property already has this value.');
+   node.appearance={...(node.appearance||{}),[op.property]:op.value};
+   changed.push({target:at,operation:'set-style',property:op.property});
   }else if(op.op==='set-item'){
    if(at.level!=='item')fail('Generated item update requires a resolved item target.');
    const resolved=locateNode(candidate,at);
