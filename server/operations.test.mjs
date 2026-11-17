@@ -350,3 +350,55 @@ test('Generic refinement updates a field inside generated composed UI without ch
  assert.throws(()=>resolveChangeSet(registry,selection,[{action:'set-item',targetId:'item:other:nope:search',property:'label',value:'Injected'}]),/not found/);
  assert.throws(()=>applyOperations(demo,selection,[{op:'set-item',target:item.target,property:'onClick',value:'malicious'}],'portal'),/not editable/);
 });
+
+
+test('Visual appearance refinement is generic for hero banners, buttons and generated controls',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const selection={level:'screen',screenId:'welcome'};
+ const demo=structuredClone(baseline);
+ const heroEntry=buildRegistry(demo,selection).find(x=>x.type==='hero');
+ const buttonEntry=buildRegistry(demo,selection).find(x=>x.type==='button');
+ const changes=resolveChangeSet(buildRegistry(demo,selection),selection,[
+  {action:'set-style',targetId:heroEntry.id,property:'backgroundColor',value:'#F58220'},
+  {action:'set-style',targetId:buttonEntry.id,property:'alignment',value:'center'}
+ ]);
+ const result=applyOperations(demo,selection,changes,'mobile');
+ assert.equal(result.definition.screens[0].elements[0].appearance.backgroundColor,'#F58220');
+ assert.equal(result.definition.screens[0].elements[1].buttons[0].appearance.alignment,'center');
+ assert.deepEqual(result.definition.screens[1],demo.screens[1]);
+ assert.deepEqual(result.definition.screens[2],demo.screens[2]);
+ assert.deepEqual(demo,baseline);
+ assert.throws(()=>applyOperations(demo,selection,[{op:'set-style',target:heroEntry.target,property:'backgroundColor',value:'url(https://bad.example)'}],'mobile'),/Unsupported visual/);
+ assert.throws(()=>applyOperations(demo,selection,[{op:'set-style',target:heroEntry.target,property:'width',value:'999%'}],'mobile'),/Unsupported visual/);
+});
+test('Generated component styling retains controls, data bindings and navigation',async()=>{
+ const {buildRegistry,resolveChangeSet}=await import('./registry.mjs');
+ const demo=structuredClone(baseline);
+ demo.screens[0].elements.push({id:'panel',kind:'composed',title:'Customer details',items:[
+  {id:'input',kind:'input',label:'Full name',required:true},
+  {id:'submit',kind:'button',label:'Continue',actions:[{type:'navigate',screen:'register'}]}
+ ]});
+ const selection={level:'element',screenId:'welcome',elementId:'panel'};
+ const registry=buildRegistry(demo,selection);
+ const item=registry.find(e=>e.type==='composed-item'&&e.label==='Continue');
+ const changes=resolveChangeSet(registry,selection,[{action:'set-style',targetId:item.id,property:'backgroundColor',value:'#D32F2F'}]);
+ const updated=applyOperations(demo,selection,changes,'mobile').definition;
+ assert.equal(updated.screens[0].elements[2].items[1].appearance.backgroundColor,'#D32F2F');
+ assert.deepEqual(updated.screens[0].elements[2].items[0],demo.screens[0].elements[2].items[0]);
+ assert.deepEqual(updated.screens[0].elements[2].items[1].actions,demo.screens[0].elements[2].items[1].actions);
+ assert.deepEqual(updated.screens[1],demo.screens[1]);
+});
+test('Appearance validation rejects unsafe visual objects while existing legacy demos remain valid',async()=>{
+ const {validAppearance,appearanceToStyle}=await import('../src/visualStyle.mjs');
+ const {validateStrictDemo}=await import('./refine.mjs');
+ assert.equal(validAppearance(undefined),true);
+ assert.equal(validAppearance({backgroundColor:'#F58220',padding:16,alignment:'center'}),true);
+ assert.equal(validAppearance({backgroundColor:'linear-gradient(red,blue)'}),false);
+ assert.equal(validAppearance({position:'fixed'}),false);
+ assert.equal(validAppearance({padding:-1}),false);
+ assert.deepEqual(appearanceToStyle({backgroundColor:'#F58220',alignment:'center'}),{backgroundColor:'#F58220',marginLeft:'auto',marginRight:'auto'});
+ assert.equal(validateStrictDemo(baseline,'mobile'),true);
+ const tampered=structuredClone(baseline);
+ tampered.screens[0].elements[0].appearance={backgroundColor:'expression(alert(1))'};
+ assert.equal(validateStrictDemo(tampered,'mobile'),false);
+});
