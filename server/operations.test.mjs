@@ -396,7 +396,11 @@ test('Appearance validation rejects unsafe visual objects while existing legacy 
  assert.equal(validAppearance({backgroundColor:'linear-gradient(red,blue)'}),false);
  assert.equal(validAppearance({position:'fixed'}),false);
  assert.equal(validAppearance({padding:-1}),false);
- assert.deepEqual(appearanceToStyle({backgroundColor:'#F58220',alignment:'center'}),{backgroundColor:'#F58220',marginLeft:'auto',marginRight:'auto'});
+ assert.deepEqual(appearanceToStyle({backgroundColor:'#F58220',alignment:'center'}),{background:'#F58220',marginLeft:'auto',marginRight:'auto'});
+ // Rendered mobile hero has a CSS gradient; the inline background shorthand
+ // must override it so the saved change is visually observable.
+ assert.equal(appearanceToStyle({backgroundColor:'#F58220'}).background,'#F58220');
+ assert.equal(Object.hasOwn(appearanceToStyle({backgroundColor:'#F58220'}),'backgroundColor'),false);
  assert.equal(validateStrictDemo(baseline,'mobile'),true);
  const tampered=structuredClone(baseline);
  tampered.screens[0].elements[0].appearance={backgroundColor:'expression(alert(1))'};
