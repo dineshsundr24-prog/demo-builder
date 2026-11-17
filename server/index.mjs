@@ -248,28 +248,6 @@ async function planEdit(body){
    return technicalFailure('Navigation option could not be applied: '+String(e.message||'invalid navigation'),'navigation');
   }
  }
- // Explicit visual color changes to a selected banner can be executed safely
- // without asking a language model to invent component IDs or CSS paths.
- const colorRequest=/\b(?:change|make|set|update|apply|use|turn)\b[\s\S]{0,150}\b(?:colou?r|background|banner|hero)\b|\b(?:colou?r|background)\b[\s\S]{0,150}\b(?:change|make|set|update|apply|use|turn)\b/i.test(instruction);
- if(colorRequest&&target.level==='element'){
-  const node=locateNode(demo,target).node;
-  if(node.kind==='hero'){
-   const named={orange:'#F58220',red:'#D32F2F',blue:'#1565C0',green:'#2E7D32',teal:'#008E86',purple:'#6A1B9A',black:'#212121',white:'#FFFFFF',yellow:'#F9A825',grey:'#757575',gray:'#757575'};
-   const explicit=instruction.match(/#[0-9a-fA-F]{6}\b/);
-   const mentioned=Object.keys(named).filter(c=>new RegExp('\\\\b'+c+'\\\\b','i').test(instruction));
-   const color=explicit?.[0]||(mentioned.length===1?named[mentioned[0]]:null);
-   if(color){
-    const operations=[{op:'set',target,property:'backgroundColor',value:color}];
-    try{
-     const result=applyOperations(demo,target,operations,project.channel);
-     return{scope:'planned',target,label:targetLabel(demo,target),operations,definition:result.definition,
-      checks:[...result.checks,'Selected banner color updated','Unrelated screens and components preserved'],
-      preservedScreens:result.preservedScreens,summary:'Updated the selected banner background color. Review before applying.',
-      usage:{model:'deterministic-style',inputTokens:0,outputTokens:0}};
-    }catch(e){return technicalFailure('Banner color could not be changed: '+String(e.message||'validation failed'),'style');}
-   }
-  }
- }
  const priorClarifications=Array.isArray(body?.clarifications)?body.clarifications.slice(0,5):[];
  const integrationGuard=externalDataGuard(instruction,priorClarifications);
  if(integrationGuard)return integrationGuard;
@@ -363,13 +341,14 @@ async function planEdit(body){
   'If dataSourceMode is demo, generate realistic but clearly fictional local data. If dataSourceMode is placeholder, provide a visible integration placeholder and NO live-data claim. Never assert any connection to external banking systems.',
   'Treat clarifications in the context as explicit resolved decisions from the user. DO NOT ask those same questions again. Produce a valid resolved change plan after the user has chosen a workable alternative. Ask only for genuinely new missing requirements, not JSON schema details or action implementation.',
   'You are the grounded intent interpreter for a structured interactive application demo.',
-  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|set-item|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"clarify","question":"one specific question about the requested behavior","options":["choice 1","choice 2"]}.',
+  'Return one JSON object: {"status":"resolved","changes":[{"action":"set|set-item|set-style|add-field|remove-field|remove-element|move-field|add-component|configure-report","targetId":"one id from candidates","property":"for set","value":"for set","field":{"label":"for add-field","type":"text|email|password|number|select|date|checkbox","required":true},"afterFieldId":"existing field id for insertion/move; __start__ for first"}]} OR {"status":"ambiguous","candidateIds":["real ID",...],"question":"one short clarifying question"} OR {"status":"clarify","question":"one specific question about the requested behavior","options":["choice 1","choice 2"]}.',
   'Make one change per user intent, maximum eight. Never silently skip a requested change. Use only candidate registry IDs, which include real type, parent and allowed capabilities. Never fabricate target IDs, invent fields to remove or refer to other screens.',
   'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. A mandatory consent checkbox is one existing field changed using two set actions: type=checkbox and required=true. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
   'Only plan capabilities explicitly advertised for a registry object. For missing visual components, ALWAYS use add-component and supply the full component definition with its state actions. If required behavior is genuinely ambiguous, return clarify with one precise question and two working alternatives. Do not invent API access or external transactions. When a name matches multiple targets return ambiguous.',
   'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
+  'For set-style: choose an exact registry target with capability set-style. Property must be one of backgroundColor, textColor (six-digit hexadecimal #RRGGBB), textAlign or alignment (left,center,right), padding (integer 0..48), borderRadius (integer 0..32). Edit the existing element, button or composed item; NEVER invent a new component for visual adjustments. A selected banner/section is an element. Map natural-language colors to an appropriate hex value using project guidelines. If the user requests a color change, prefer backgroundColor unless text is explicitly named. For a centrally aligned button use alignment=center on that button. Do not change content or unrelated components.',
   'For set-item: targetId must reference a registry composed-item. Allowed property label for any item, text for text/card/badge/input, required for input/checkbox/select, inputType for input, and options for select. Change only the addressed item and preserve the rest of the generated component.',
-  'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow/backgroundColor (six-digit hex #RRGGBB); notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
+  'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow/backgroundColor (six-digit hex #RRGGBB, legacy); notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
   'For move-field, use beforeFieldId or afterFieldId. Use a real field ID, full field registry ID, or unique existing field label from the same form. For above/before use beforeFieldId, for below/after use afterFieldId. Use afterFieldId=__start__ for first position. For add-field, an absent anchor means append. If an action cannot be safely completed, return unsupported for the whole request.',
   'For missing UI use add-component with targetId=screen:<selected screen id>, and a COMPLETE component:{id,title,items:[...]}. Every item requires id,kind,label. Supported kinds: text,card,input,checkbox,select,button,progress,table,badge,divider (maximum 24). Table items require columns:[{id,label}] and rows:[{columnId:stringValue}], with optional filterField (ID of an input or select) and filterColumn (existing column ID). Button items may have actions:[{type:"navigate",screen:"existing screen id"},{type:"set",target:"existing item id",value:"string"},{type:"toggle",target:"id"},{type:"increment",target:"id",amount:1},{type:"show|hide",target:"id"},{type:"reset"},{type:"notice",message:"text"},{type:"download-csv",target:"table item id"}]. Items can have visibleWhen:{field:"existing item id",equals:"string"}. Form controls use required, options, inputType. Every action target MUST be one of the component item IDs, except navigate uses a real existing screen ID. Always create working locally simulated demo behavior using these actions; no executable code. Supply entire component, never only targetId.',
   'For add-component do not reject simply because the request names a widget absent from the current catalogue: approximate it using the available item kinds. Only return unsupported when a faithful useful clickable approximation cannot be made. User-specified business logic is not required unless explicitly requested.',
