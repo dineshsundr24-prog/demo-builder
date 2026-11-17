@@ -12,7 +12,7 @@ export type Field = {id:string;label:string;type:'text'|'email'|'password'|'numb
 export type Element = (
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
-  | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string}
+  | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string;submitAppearance?:VisualAppearance}
   | {id:string;kind:'composed';title:string;items:{
     id:string;kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress'|'table'|'badge'|'divider';
     label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;appearance?:VisualAppearance;
@@ -70,7 +70,7 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;
  if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
  ids.add(s.id);
- const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!validAppearance(e.appearance)||((e.kind==='actions')&&e.buttons.some(b=>!validAppearance(b.appearance)))||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
+ const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!validAppearance(e.appearance)||((e.kind==='actions')&&e.buttons.some(b=>!validAppearance(b.appearance)))||((e.kind==='form')&&!validAppearance(e.submitAppearance))||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
  if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
