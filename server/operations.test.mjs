@@ -406,3 +406,62 @@ test('Appearance validation rejects unsafe visual objects while existing legacy 
  tampered.screens[0].elements[0].appearance={backgroundColor:'expression(alert(1))'};
  assert.equal(validateStrictDemo(tampered,'mobile'),false);
 });
+
+
+test('Visual inventory resolves a named form submit button from screen-level chat without clarification',async()=>{
+ const {resolveVisualTarget}=await import('./visualTarget.mjs');
+ const {buildRegistry}=await import('./registry.mjs');
+ const demo=structuredClone(baseline);
+ demo.screens[1].elements[0].actionLabel='Send OTP';
+ const selection={level:'screen',screenId:'register'};
+ const registry=buildRegistry(demo,selection);
+ const submit=registry.find(e=>e.type==='button'&&e.label==='Send OTP');
+ assert.equal(submit.id,'button:register:form:__submit__');
+ const plan=resolveVisualTarget(demo,selection,'change the Send OTP button colour to Orange');
+ assert.equal(plan.status,'resolved');
+ assert.equal(plan.operations[0].target.childId,'__submit__');
+ assert.equal(plan.operations[0].value,'#F58220');
+ const changed=applyOperations(demo,selection,plan.operations,'mobile').definition;
+ assert.equal(changed.screens[1].elements[0].submitAppearance.backgroundColor,'#F58220');
+ assert.equal(changed.screens[1].elements[0].actionLabel,'Send OTP');
+ assert.equal(changed.screens[1].elements[0].nextScreen,'done');
+ assert.deepEqual(changed.screens[1].elements[0].fields,demo.screens[1].elements[0].fields);
+ assert.deepEqual(changed.screens[0],demo.screens[0]);
+ assert.deepEqual(changed.screens[2],demo.screens[2]);
+ assert.equal(demo.screens[1].elements[0].submitAppearance,undefined);
+});
+test('Visual inventory addresses form submit buttons across different captions and styling requests',async()=>{
+ const {resolveVisualTarget}=await import('./visualTarget.mjs');
+ const demo=structuredClone(baseline);
+ const selection={level:'screen',screenId:'register'};
+ for(const [label,instruction,property,value] of [
+  ['Continue','Center the Continue button','alignment','center'],
+  ['Verify and proceed','Make the Verify and proceed button background blue','backgroundColor','#1565C0'],
+  ['Submit review','Change Submit review button color to #D32F2F','backgroundColor','#D32F2F']
+ ]){
+  demo.screens[1].elements[0].actionLabel=label;
+  const plan=resolveVisualTarget(demo,selection,instruction);
+  assert.equal(plan?.status,'resolved',instruction);
+  assert.equal(plan.operations[0].property,property);
+  assert.equal(plan.operations[0].value,value);
+  assert.equal(applyOperations(demo,selection,plan.operations,'mobile').definition.screens[1].elements[0].submitAppearance[property],value);
+ }
+});
+test('Visual name ambiguity never changes multiple controls or invents a target',async()=>{
+ const {resolveVisualTarget}=await import('./visualTarget.mjs');
+ const demo=structuredClone(baseline);
+ demo.screens[0].elements[1].buttons.push({id:'start2',label:'Get Started',nextScreen:'register'});
+ const selection={level:'screen',screenId:'welcome'};
+ const plan=resolveVisualTarget(demo,selection,'Change Get Started button colour to orange');
+ assert.equal(plan.status,'ambiguous');
+ assert.equal(plan.choices.length,2);
+ assert.equal(demo.screens[0].elements[1].buttons[0].appearance,undefined);
+});
+test('Form submit style validation rejects invalid style values and keeps legacy forms valid',async()=>{
+ const {validateStrictDemo}=await import('./refine.mjs');
+ assert.equal(validateStrictDemo(baseline,'mobile'),true);
+ const demo=structuredClone(baseline);
+ demo.screens[1].elements[0].submitAppearance={backgroundColor:'url(javascript:alert(1))'};
+ assert.equal(validateStrictDemo(demo,'mobile'),false);
+ assert.throws(()=>applyOperations(baseline,{level:'screen',screenId:'register'},[{op:'set-style',target:{level:'button',screenId:'register',elementId:'form',childId:'__submit__'},property:'width',value:999}],'mobile'),/Unsupported visual/);
+});
