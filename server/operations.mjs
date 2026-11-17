@@ -12,7 +12,7 @@ const fail=(reason)=>{throw new Error(reason)};
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const allowedScreen=new Set(['title','subtitle']);
 const allowedElement={
- hero:new Set(['title','description','eyebrow','backgroundColor']),
+ hero:new Set(['title','description','eyebrow']),
  notice:new Set(['title','body','tone']),
  form:new Set(['title','description','actionLabel','nextScreen']),
  table:new Set(['title','subtitle','detailScreen']),
@@ -89,9 +89,6 @@ function propertySet(demo,target,property,value){
  if(property==='showBrandIcon'||property==='showBackButton'||property==='required'){if(typeof value!=='boolean')fail(property+' must be boolean.');}
  else if(property==='options'){if(!Array.isArray(value)||value.length>20||value.some(x=>typeof x!=='string'))fail('Options must be strings.');}
  else if(property==='type'){if(!fieldTypes.has(value))fail('Invalid field type.');}
- else if(property==='backgroundColor'){
-  if(typeof value!=='string'||!/^#[0-9a-fA-F]{6}$/.test(value))fail('Background color must be a six-digit hex color.');
- }
  else if(property==='tone'){if(!['info','success'].includes(value))fail('Invalid notice tone.');}
  else if(property==='variant'){if(!['primary','secondary'].includes(value))fail('Invalid button variant.');}
  else if(typeof value!=='string'||value.length>350)fail('Text property must be a string of 350 characters or fewer.');
