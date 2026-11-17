@@ -1,3 +1,5 @@
+// @ts-ignore Validated visual style definitions are shared across app and runtime.
+import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useMemo,useState} from 'react';
 import {ChevronRight,Download,Search,SlidersHorizontal} from 'lucide-react';
 import type {Element} from './demo';
@@ -25,7 +27,7 @@ export default function ReportTable({element,onNavigate}:{element:Table;onNaviga
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
- return <section className="surface report-table-surface">
+ return <section className="surface report-table-surface" style={appearanceToStyle(element.appearance)}>
   <div className="section-head report-section-head"><div className="report-title"><h3>{element.title}</h3>{element.subtitle&&<p>{element.subtitle}</p>}</div>
   {(searchEnabled||filterEnabled||downloadEnabled)&&<div className="report-toolbar">
    {searchEnabled&&<label className="report-search"><Search size={14}/><input aria-label={'Search '+element.title} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search records"/></label>}
