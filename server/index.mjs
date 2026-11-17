@@ -7,6 +7,7 @@ import {isGlobalRequest,classifyGlobalEdit,applyChromeEdit} from './chrome.mjs';
 import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs';
 import {applyOperations,locateNode,targetLabel,planRecordSummary} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
+import {resolveVisualTarget} from './visualTarget.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
 import {workspaceFromDemo,createRequestedScreen} from '../src/agentWorkspaceEngine.mjs';
@@ -322,6 +323,21 @@ async function planEdit(body){
  }
   // One grounded model call: target IDs may only come from this registry.
  const registry=buildRegistry(demo,target);
+ // Simple explicit styling edits resolve against real rendered control names.
+ // No invented IDs, unnecessary clarification or extra LLM round trip.
+ const directStyle=resolveVisualTarget(demo,target,instruction);
+ if(directStyle?.status==='resolved'){
+  try{
+   const result=applyOperations(demo,target,directStyle.operations,project.channel);
+   return {scope:'planned',target,label:directStyle.entry.label,operations:directStyle.operations,definition:result.definition,
+    checks:[...result.checks,'Named visible control resolved uniquely','Requested style value verified'],
+    preservedScreens:result.preservedScreens,summary:'Updated '+directStyle.entry.label+' appearance. Review before applying.',
+    usage:{model:'grounded-visible-target',inputTokens:0,outputTokens:0}};
+  }catch(e){return technicalFailure('Visual edit could not be applied: '+String(e.message||'validation failed'),'visual-edit');}
+ }
+ if(directStyle?.status==='ambiguous')return {needsClarification:true,
+  question:'Which matching control should change?',options:directStyle.choices.map(x=>x.childId||x.elementId).slice(0,4),
+  reason:directStyle.reason};
  // Deterministic single-field reorder bypasses AI-generated position IDs.
  const fastReorder=resolveSimpleFieldReorder(registry,target,instruction);
  if(fastReorder){
@@ -346,6 +362,7 @@ async function planEdit(body){
   'Remove a field with remove-field targeting its field registry ID, never remove-element. Add fields by targeting the parent form element. Dates such as expiry use type date. A mandatory consent checkbox is one existing field changed using two set actions: type=checkbox and required=true. When adding new fields, do not invent an id; the engine assigns it. Use afterFieldId only for an explicit placement.',
   'Only plan capabilities explicitly advertised for a registry object. For missing visual components, ALWAYS use add-component and supply the full component definition with its state actions. If required behavior is genuinely ambiguous, return clarify with one precise question and two working alternatives. Do not invent API access or external transactions. When a name matches multiple targets return ambiguous.',
   'An exact visual selection takes precedence unless the instruction explicitly names a different object. Avoid editing fields in unrelated forms. Screen selection only scopes the search; it does not imply removal of the whole screen.',
+  'The visible control inventory includes form submit buttons as button entries with id __submit__. Use set-style targeting that button for form submit color and alignment changes. When the user mentions a uniquely labeled existing button, never propose creating a new section or replacing the form.',
   'For set-style: choose an exact registry target with capability set-style. Property must be one of backgroundColor, textColor (six-digit hexadecimal #RRGGBB), textAlign or alignment (left,center,right), padding (integer 0..48), borderRadius (integer 0..32). Edit the existing element, button or composed item; NEVER invent a new component for visual adjustments. A selected banner/section is an element. Map natural-language colors to an appropriate hex value using project guidelines. If the user requests a color change, prefer backgroundColor unless text is explicitly named. For a centrally aligned button use alignment=center on that button. Do not change content or unrelated components.',
   'For set-item: targetId must reference a registry composed-item. Allowed property label for any item, text for text/card/badge/input, required for input/checkbox/select, inputType for input, and options for select. Change only the addressed item and preserve the rest of the generated component.',
   'For set: allowed properties are screen title/subtitle; header brandName/showBrandIcon/showBackButton; hero title/description/eyebrow; notice title/body/tone; form title/description/actionLabel/nextScreen; table title/subtitle/detailScreen; field label/placeholder/required/type/options; button label/variant/nextScreen.',
