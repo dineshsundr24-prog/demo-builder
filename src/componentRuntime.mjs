@@ -1,3 +1,4 @@
+import {validAppearance} from './visualStyle.mjs';
 // Safe declarative interactions for AI-composed demo components.
 // All actions operate on local prototype state: no eval, script injection, API calls, or arbitrary paths.
 const id=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v);
@@ -10,6 +11,7 @@ export function validDynamicComponent(element,screenIds=[]){
  for(const x of items){
   if(!x||!id(x.id)||ids.has(x.id)||!dynamicKinds.includes(x.kind)||!str(x.label,160))return false;
   ids.add(x.id);
+  if(!validAppearance(x.appearance))return false;
   if(x.text!==undefined&&!str(x.text,500))return false;
   if(x.required!==undefined&&typeof x.required!=='boolean')return false;
   if(x.visibleWhen!==undefined&&(!x.visibleWhen||!id(x.visibleWhen.field)||typeof x.visibleWhen.equals!=='string'))return false;
