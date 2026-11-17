@@ -18,6 +18,7 @@ export function buildRegistry(demo,selected){
    const caps=['hero','notice','form','table'].includes(element.kind)?['set','remove-element']:['remove-element'];
    if(element.kind==='form')caps.push('add-field');
    if(demo.channel==='portal'&&element.kind==='table')caps.push('configure-report');
+   caps.push('set-style');
    add('element',screen,element,element,nodeId('screen',screen.id),caps);
    // Expose controls generated inside a composed component as stable addressable targets.
    // They are not separate React nodes in the application definition, so resolve them
@@ -27,13 +28,13 @@ export function buildRegistry(demo,selected){
     const id=nodeId('item',screen.id,element.id,item.id);
     entries.push({id,target,label:item.label,type:'composed-item',kind:item.kind,
       parentId:nodeId('element',screen.id,element.id),screenTitle:screen.title,
-      capabilities:['set-item']});
+      capabilities:['set-item','set-style']});
    }
    if(element.kind==='form')for(const field of element.fields){
     add('field',screen,element,field,nodeId('element',screen.id,element.id),['set','remove-field','move-field'],field.id);
    }
    if(element.kind==='actions')for(const button of element.buttons){
-    add('button',screen,element,button,nodeId('element',screen.id,element.id),['set'],button.id);
+    add('button',screen,element,button,nodeId('element',screen.id,element.id),['set','set-style'],button.id);
    }
   }
  }
@@ -111,6 +112,10 @@ export function resolveChangeSet(registry,selection,changes){
   const entry=chooseRegistryTarget(registry,change.targetId,selection);
   if(!entry.capabilities.includes(kind))throw new Error('Operation '+String(kind)+' is unsupported for '+entry.type+' "'+entry.label+'".');
   const target=entry.target;
+  if(kind==='set-style'){
+   if(typeof change.property!=='string'||!Object.hasOwn(change,'value'))throw new Error('Style change requires a supported property and value.');
+   return {op:'set-style',target,property:change.property,value:change.value};
+  }
   if(kind==='set-item'){
    if(typeof change.property!=='string'||!Object.hasOwn(change,'value'))throw new Error('Composed item update requires a property and value.');
    return {op:'set-item',target,property:change.property,value:change.value};
@@ -141,5 +146,5 @@ export function resolveChangeSet(registry,selection,changes){
  });
 }
 export function compactRegistry(registry,selection){
- return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,kind,parentId,capabilities,exactSelection,target})=>({id,label,type,parentId,capabilities,exactSelection,...(type==='field'?{fieldId:target.childId}: {}),...(type==='composed-item'?{itemKind:kind}: {})}));
+ return registry.filter(e=>e.target.screenId===selection.screenId).map(({id,label,type,kind,parentId,capabilities,exactSelection,target})=>({id,label,type,parentId,capabilities,exactSelection,...(['element','button','composed-item'].includes(type)?{styleProperties:['backgroundColor','textColor','textAlign','padding','borderRadius','alignment']}:{}),...(type==='field'?{fieldId:target.childId}: {}),...(type==='composed-item'?{itemKind:kind}: {})}));
 }
