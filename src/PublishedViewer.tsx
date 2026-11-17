@@ -34,7 +34,7 @@ export default function PublishedViewer({snapshot}:{snapshot:PublishedSnapshot|n
  }
  function render(el:Element){
   switch(el.kind){
-   case 'hero':return <section className="hero"><div className="eyebrow">{el.eyebrow}</div><h2>{el.title}</h2><p>{el.description}</p></section>;
+   case 'hero':return <section className="hero" style={el.backgroundColor?{background:el.backgroundColor}:undefined}><div className="eyebrow">{el.eyebrow}</div><h2>{el.title}</h2><p>{el.description}</p></section>;
    case 'stats':return <section className="stats">{el.items.map(x=><div key={x.id} className="stat"><div className="stat-label">{x.label}</div><div className="stat-number">{x.value}</div>{x.delta&&<div className="stat-delta">{x.delta}</div>}</div>)}</section>;
    case 'notice':return <div className={'notice '+el.tone}>{el.tone==='success'?<CheckCircle2 size={19}/>:<Info size={19}/>}<div><strong>{el.title}</strong><p>{el.body}</p></div></div>;
    case 'actions':return <div className="button-row">{el.buttons.map(b=><button className={'btn '+(b.variant==='secondary'?'outline':'primary')} key={b.id} onClick={()=>go(b.nextScreen)}>{b.label}<ArrowRight size={14}/></button>)}</div>;
