@@ -10,7 +10,7 @@ import {validAppearance} from './visualStyle.mjs';
 export type VisualAppearance={backgroundColor?:string;textColor?:string;textAlign?:'left'|'center'|'right';padding?:number;borderRadius?:number;alignment?:'left'|'center'|'right'};
 export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox';placeholder?:string;required?:boolean;options?:string[]};
 export type Element = (
-  | {id:string;kind:'hero';eyebrow?:string;title:string;description:string;backgroundColor?:string}
+  | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
   | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string}
   | {id:string;kind:'composed';title:string;items:{
