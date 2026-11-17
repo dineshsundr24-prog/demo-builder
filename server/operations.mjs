@@ -63,6 +63,7 @@ export function locateNode(demo,target){
   if(!node)fail('Selected form field does not exist.');
   return {screen,element,node,level:'field'};
  }
+ if(element.kind==='form'&&target.childId==='__submit__')return {screen,element,node:{id:'__submit__',label:element.actionLabel,appearance:element.submitAppearance},level:'button'};
  if(element.kind!=='actions')fail('Selected component is not a button group.');
  const node=element.buttons.find(b=>b.id===target.childId);
  if(!node)fail('Selected button does not exist.');
@@ -129,7 +130,8 @@ export function applyOperations(original,target,operations,channel){
    const same=at.level===target.level&&at.elementId===target.elementId&&at.childId===target.childId;
    const formChild=target.level==='element'&&at.level==='field'&&at.elementId===target.elementId;
    const composedChild=target.level==='element'&&at.level==='item'&&at.elementId===target.elementId;
-   if(!same&&!formChild&&!composedChild)fail('Operation escaped the selected component.');
+   const submitChild=target.level==='element'&&at.level==='button'&&at.elementId===target.elementId;
+   if(!same&&!formChild&&!composedChild&&!submitChild)fail('Operation escaped the selected component.');
   }
   if(op.op==='add-menu-link'){
    if(channel!=='portal'||at.level!=='screen')fail('Standalone navigation links require a portal screen selection.');
@@ -220,9 +222,12 @@ export function applyOperations(original,target,operations,channel){
   }else if(op.op==='set-style'){
    if(!appearanceTargets.has(at.level))fail('Visual styling requires a component, generated item or button target.');
    if(!validAppearanceValue(op.property,op.value))fail('Unsupported visual property or invalid styling value.');
-   const node=locateNode(candidate,at).node;
+   const located=locateNode(candidate,at);
+   const node=located.node;
    if(node.appearance?.[op.property]===op.value)fail('The selected visual property already has this value.');
-   node.appearance={...(node.appearance||{}),[op.property]:op.value};
+   if(at.level==='button'&&located.element.kind==='form'&&at.childId==='__submit__')
+    located.element.submitAppearance={...(located.element.submitAppearance||{}),[op.property]:op.value};
+   else node.appearance={...(node.appearance||{}),[op.property]:op.value};
    changed.push({target:at,operation:'set-style',property:op.property});
   }else if(op.op==='set-item'){
    if(at.level!=='item')fail('Generated item update requires a resolved item target.');
@@ -302,6 +307,10 @@ export function applyOperations(original,target,operations,channel){
  for(const op of operations){
   if(op.op==='add-menu-link'){
    if(!candidate.navLinks?.some(link=>link.label===op.label&&link.screenId===op.screenId))fail('Outcome verification failed: menu option does not exist.');
+  }else if(op.op==='set-style'){
+   const at=op.target||target;
+   const node=locateNode(candidate,at).node;
+   if(!same(node.appearance?.[op.property],op.value))fail('Visual style outcome verification failed for '+op.property);
   }else if(op.op==='set-item'){
    const item=locateNode(candidate,op.target||target).node;
    if(!same(item[op.property],op.value))fail('Generated component item did not match requested update.');
