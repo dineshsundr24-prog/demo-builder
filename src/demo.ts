@@ -5,14 +5,17 @@ import {validComposed} from './composed.mjs';
 import {validReportTools} from '../server/reportTools.mjs';
 // @ts-ignore Browser and server share portal navigation validation.
 import {validNavigationLinks} from './portalMenuLinks.mjs';
+// @ts-ignore Shared style contract validates serialized visual properties.
+import {validAppearance} from './visualStyle.mjs';
+export type VisualAppearance={backgroundColor?:string;textColor?:string;textAlign?:'left'|'center'|'right';padding?:number;borderRadius?:number;alignment?:'left'|'center'|'right'};
 export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox';placeholder?:string;required?:boolean;options?:string[]};
-export type Element =
+export type Element = (
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string;backgroundColor?:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
   | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string}
   | {id:string;kind:'composed';title:string;items:{
     id:string;kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress'|'table'|'badge'|'divider';
-    label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;
+    label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;appearance?:VisualAppearance;
     inputType?:'text'|'email'|'number'|'date'|'password';value?:number;
     visibleWhen?:{field:string;equals:string};
     columns?:{id:string;label:string}[];rows?:Record<string,string>[];
@@ -21,7 +24,7 @@ export type Element =
   }[]}
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
-  | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string}[]};
+  | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string;appearance?:VisualAppearance}[]}) & {appearance?:VisualAppearance};
 export type ScreenChrome={brandName?:string;showBrandIcon?:boolean;showBackButton?:boolean};
 export type Screen = {id:string;title:string;subtitle:string;elements:Element[];parentScreenId?:string;chrome?:ScreenChrome};
 export type DemoChrome={brandName:string;showBrandIcon:boolean;showBackButton:boolean};
@@ -67,7 +70,7 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;
  if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
  ids.add(s.id);
- const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
+ const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!validAppearance(e.appearance)||((e.kind==='actions')&&e.buttons.some(b=>!validAppearance(b.appearance)))||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
  if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
