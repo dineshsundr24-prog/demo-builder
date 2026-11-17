@@ -19,7 +19,9 @@ export function validAppearanceValue(property,value){
 export function appearanceToStyle(value){
  if(!validAppearance(value)||!value)return undefined;
  const css={};
- if(value.backgroundColor!==undefined)css.backgroundColor=value.backgroundColor;
+ // Explicit backgrounds must replace class-level gradients/images, not sit underneath them.
+ // Setting only CSS backgroundColor leaves a preexisting background-image visible.
+ if(value.backgroundColor!==undefined)css.background=value.backgroundColor;
  if(value.textColor!==undefined)css.color=value.textColor;
  if(value.textAlign!==undefined)css.textAlign=value.textAlign;
  if(value.padding!==undefined)css.padding=value.padding+'px';
