@@ -266,7 +266,7 @@ function App(){
  async function handleFiles(files:FileList|null){if(!files?.length)return;const names=Array.from(files).map(f=>f.name);updateProject({files:[...project.files,...names]});setToast('Attached filenames recorded locally. Document extraction and AI processing are not connected yet.');if(fileInput.current)fileInput.current.value='';}
  function render(el:Element){
  switch(el.kind){
- case'hero':return <section className="hero"><div className="eyebrow">{el.eyebrow}</div><h2>{el.title}</h2><p>{el.description}</p></section>;
+ case'hero':return <section className="hero" style={el.backgroundColor?{background:el.backgroundColor}:undefined}><div className="eyebrow">{el.eyebrow}</div><h2>{el.title}</h2><p>{el.description}</p></section>;
  case'stats':return <section className="stats">{el.items.map(x=><div key={x.id} className="stat"><div className="stat-label">{x.label}</div><div className="stat-number">{x.value}</div>{x.delta&&<div className="stat-delta">{x.delta}</div>}</div>)}</section>;
  case'notice':return <div className={'notice '+el.tone}>{el.tone==='success'?<CheckCircle2 size={19}/>:<Info size={19}/>}<div><strong>{el.title}</strong><p>{el.body}</p></div></div>;
  case'actions':return <div className="button-row">{el.buttons.map(b=><button data-select-level="button" data-select-element={el.id} data-select-child={b.id} className={'btn '+(b.variant==='secondary'?'outline':'primary')+(activeSelection?.level==='button'&&activeSelection.elementId===el.id&&activeSelection.childId===b.id?' visual-selected':'')} key={b.id} onClick={()=>go(b.nextScreen)}>{b.label}<ArrowRight size={14}/></button>)}</div>;
