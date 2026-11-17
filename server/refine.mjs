@@ -72,6 +72,7 @@ export function validateStrictDemo(d,channel){
    elIds.add(e.id);
    if(!validAppearance(e.appearance))return false;
    if(e.kind==='actions'&&e.buttons.some(b=>!validAppearance(b.appearance)))return false;
+   if(e.kind==='form'&&!validAppearance(e.submitAppearance))return false;
    if(e.kind==='hero'&&!(typeof e.title==='string'&&typeof e.description==='string'))return false;
    if(e.kind==='stats'&&(!Array.isArray(e.items)||e.items.some(x=>!x||typeof x.id!=='string'||typeof x.label!=='string'||typeof x.value!=='string')))return false;
    if(e.kind==='notice'&&(!['info','success'].includes(e.tone)||typeof e.title!=='string'||typeof e.body!=='string'))return false;
