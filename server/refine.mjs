@@ -1,3 +1,4 @@
+import {validAppearance} from '../src/visualStyle.mjs';
 import {validComposed} from '../src/composed.mjs';
 import {validNavigationLinks} from '../src/portalMenuLinks.mjs';
 import {validReportTools} from './reportTools.mjs';
@@ -69,6 +70,8 @@ export function validateStrictDemo(d,channel){
   for(const e of s.elements){
    if(!e||typeof e.id!=='string'||!e.id||elIds.has(e.id))return false;
    elIds.add(e.id);
+   if(!validAppearance(e.appearance))return false;
+   if(e.kind==='actions'&&e.buttons.some(b=>!validAppearance(b.appearance)))return false;
    if(e.kind==='hero'&&!(typeof e.title==='string'&&typeof e.description==='string'))return false;
    if(e.kind==='stats'&&(!Array.isArray(e.items)||e.items.some(x=>!x||typeof x.id!=='string'||typeof x.label!=='string'||typeof x.value!=='string')))return false;
    if(e.kind==='notice'&&(!['info','success'].includes(e.tone)||typeof e.title!=='string'||typeof e.body!=='string'))return false;
