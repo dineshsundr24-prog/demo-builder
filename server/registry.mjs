@@ -30,6 +30,8 @@ export function buildRegistry(demo,selected){
       parentId:nodeId('element',screen.id,element.id),screenTitle:screen.title,
       capabilities:['set-item','set-style']});
    }
+   // Form submit is a real, visible button even though it is stored as form.actionLabel.
+   if(element.kind==='form')add('button',screen,element,{label:element.actionLabel},nodeId('element',screen.id,element.id),['set-style'],'__submit__');
    if(element.kind==='form')for(const field of element.fields){
     add('field',screen,element,field,nodeId('element',screen.id,element.id),['set','remove-field','move-field'],field.id);
    }
@@ -50,7 +52,8 @@ export function chooseRegistryTarget(registry,id,selection){
   const same=entry.target.level===selection.level&&entry.target.elementId===selection.elementId&&entry.target.childId===selection.childId;
   const childOfForm=selection.level==='element'&&entry.target.level==='field'&&entry.target.elementId===selection.elementId;
   const childOfComposed=selection.level==='element'&&entry.target.level==='item'&&entry.target.elementId===selection.elementId;
-  if(!same&&!childOfForm&&!childOfComposed)throw new Error('Target is outside the selected component.');
+  const childOfSubmit=selection.level==='element'&&entry.target.level==='button'&&entry.target.elementId===selection.elementId;
+  if(!same&&!childOfForm&&!childOfComposed&&!childOfSubmit)throw new Error('Target is outside the selected component.');
  }
  return entry;
 }
