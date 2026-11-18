@@ -3,6 +3,8 @@ import {navigationMenuLinks} from './portalMenuLinks.mjs';
 import ReportTable from './ReportTable';
 import ComposedElement from './ComposedElement';
 import MobileNavigation from './MobileNavigation';
+// @ts-ignore Shared mobile placement contract.
+import {layoutMobileScreen} from './mobileLayout.mjs';
 // @ts-ignore Validated visual style definitions are shared across app and runtime.
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useState} from 'react';
@@ -56,5 +58,9 @@ export default function PublishedViewer({snapshot}:{snapshot:PublishedSnapshot|n
   <div className="portal-menu-parent"><button className={parent.id===screen.id?'on':''} onClick={()=>{go(parent.id);if(children.length)setExpandedPortalMenus(v=>({...v,[parent.id]:true}));}}><ChevronRight size={14}/><span>{parent.title}</span></button>{children.length>0&&<button className="portal-menu-toggle" title={(isOpen?'Collapse ':'Expand ')+parent.title} aria-label={(isOpen?'Collapse ':'Expand ')+parent.title+' menu'} onClick={()=>setExpandedPortalMenus(v=>({...v,[parent.id]:!isOpen}))}><ChevronRight size={14} className={isOpen?'expanded':''}/></button>}</div>
   {children.length>0&&isOpen&&<div className="portal-submenu">{children.map(child=><button key={child.id} className={child.id===screen.id?'on':''} onClick={()=>go(child.id)}><ChevronRight size={13}/><span>{child.title}</span></button>)}</div>}
  </div>;
-})}</nav>}<div className="demo-main">{isMobile&&<div className="mobile-brand">{showIcon&&<span className="mobile-symbol"><Wallet size={17}/></span>}<span>{brand}</span></div>}{showBack&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className="elements">{screen.elements.map(e=><React.Fragment key={e.id}>{render(e)}</React.Fragment>)}</div>{notice&&<div className="notice success"><CheckCircle2 size={18}/>{notice}</div>}</div></div></div></div></div></main><footer className="published-footer">Frozen published snapshot · Content is embedded in the share link · No editor or access token is included</footer></div>;
+})}</nav>}<div className="demo-main">{isMobile&&<div className="mobile-app-header">
+ <div className="mobile-layout-slot mobile-layout-header-left">{layoutMobileScreen(screen)['header-left'].map(el=><React.Fragment key={el.id}>{render(el)}</React.Fragment>)}</div>
+ <div className="mobile-brand">{showIcon&&<span className="mobile-symbol"><Wallet size={17}/></span>}<span>{brand}</span></div>
+ <div className="mobile-layout-slot mobile-layout-header-right">{layoutMobileScreen(screen)['header-right'].map(el=><React.Fragment key={el.id}>{render(el)}</React.Fragment>)}</div>
+ </div>}{showBack&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className="elements">{(isMobile?layoutMobileScreen(screen).body:screen.elements).map(e=><React.Fragment key={e.id}>{render(e)}</React.Fragment>)}</div>{notice&&<div className="notice success"><CheckCircle2 size={18}/>{notice}</div>}{isMobile&&<div className="mobile-layout-slot mobile-layout-bottom">{layoutMobileScreen(screen).bottom.map(e=><React.Fragment key={e.id}>{render(e)}</React.Fragment>)}</div>}</div></div></div></div></div></main><footer className="published-footer">Frozen published snapshot · Content is embedded in the share link · No editor or access token is included</footer></div>;
 }
