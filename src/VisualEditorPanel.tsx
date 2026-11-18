@@ -56,7 +56,16 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
    </div>}
    {mode==='components'&&<div className="ve-section">
     <div className="ve-section-heading"><b>Component library</b><span>Drag or click to add</span></div>
-    <div className="ve-palette">{palette.filter((kind:string)=>demo.channel==='mobile'||!(kind in mobileTemplateLabels)).map((kind:string)=><button key={kind} draggable onDragStart={e=>{setDrag({kind:'palette',id:kind});e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','palette:'+kind);}} onClick={()=>{try{const out=addVisualComponent(demo,screen.id,kind);onChange(out.definition,'Add '+labels[kind]);choose(out.elementId);}catch(e){onError(String(e instanceof Error?e.message:e));}}}><Plus size={13}/>{labels[kind]||kind}</button>)}</div>
+    {[
+      {name:'Basic controls',items:palette.filter((kind:string)=>!(kind in mobileTemplateLabels))},
+      ...(demo.channel==='mobile'?[
+        {name:'Mobile layout & navigation',items:['bottom-nav','mobile-menu','search-field','progress-steps','profile-card']},
+        {name:'Banking & identity journeys · Demo',items:['uaepass-login','uaepass-ekyc','face-verification','otp-entry','document-upload']}
+      ]:[])
+     ].map(group=><React.Fragment key={group.name}>
+       <div className="ve-palette-heading">{group.name}</div>
+       <div className="ve-palette">{group.items.map((kind:string)=><button key={kind} draggable onDragStart={e=>{setDrag({kind:'palette',id:kind});e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','palette:'+kind);}} onClick={()=>{try{const out=addVisualComponent(demo,screen.id,kind);onChange(out.definition,'Add '+labels[kind]);choose(out.elementId);}catch(e){onError(String(e instanceof Error?e.message:e));}}}><Plus size={13}/>{labels[kind]||kind}</button>)}</div>
+     </React.Fragment>)}
     <div className="ve-section-heading"><b>{screen.title}</b><span>{screen.elements.length} components</span></div>
     <p className="ve-help">Drag components to reorder them. Click to edit their properties. Changes appear in the preview immediately.</p>
     <div className="ve-components">
