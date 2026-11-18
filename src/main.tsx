@@ -5,6 +5,7 @@ import {navigationMenuLinks} from './portalMenuLinks.mjs';
 import ReportTable from './ReportTable';
 import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
+import MobileNavigation from './MobileNavigation';
 import VisualEditorPanel from './VisualEditorPanel';
 // @ts-ignore Shared browser/Node canvas scroll geometry.
 import {boundedScroll,edgeDragMovement} from './canvasScroll.mjs';
@@ -25,7 +26,7 @@ import './styles.css';
 import './workspace.css';
 
 type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
-type Target={level:'screen'|'header'|'element'|'field'|'button'|'item';screenId:string;elementId?:string;childId?:string};
+type Target={level:'screen'|'header'|'element'|'field'|'button'|'item'|'nav-link';screenId:string;elementId?:string;childId?:string};
 type AmbiguousTarget={projectId:string;instruction:string;choices:{id:string;label:string;screen:string;type:string;target:Target}[];question:string};
 type PendingEdit={projectId:string;instruction:string;target:Target;scope:'global'|'screen';before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
@@ -332,6 +333,7 @@ function App(){
  case'stats':return <section className="stats" style={appearanceToStyle(el.appearance)}>{el.items.map(x=><div key={x.id} className="stat"><div className="stat-label">{x.label}</div><div className="stat-number">{x.value}</div>{x.delta&&<div className="stat-delta">{x.delta}</div>}</div>)}</section>;
  case'notice':return <div className={'notice '+el.tone} style={appearanceToStyle(el.appearance)}>{el.tone==='success'?<CheckCircle2 size={19}/>:<Info size={19}/>}<div><strong>{el.title}</strong><p>{el.body}</p></div></div>;
  case'actions':return <div className="button-row" style={appearanceToStyle(el.appearance)}>{el.buttons.map(b=><span className="canvas-button-holder" key={b.id}><button data-select-level="button" data-select-element={el.id} data-select-child={b.id} style={appearanceToStyle(b.appearance)} className={'btn '+(b.variant==='secondary'?'outline':'primary')+(activeSelection?.level==='button'&&activeSelection.elementId===el.id&&activeSelection.childId===b.id?' visual-selected':'')} onClick={()=>go(b.nextScreen)}>{b.label}<ArrowRight size={14}/></button>{selectMode&&!pending&&<button type="button" data-editor-control="true" className="canvas-delete-button" title={'Remove '+b.label} aria-label={'Remove '+b.label} onClick={e=>{e.preventDefault();e.stopPropagation();canvasAction('Remove button',()=>removeVisualButton(project.demo!,screen!.id,el.id,b.id));setSelected({level:'element',screenId:screen!.id,elementId:el.id});}}><Trash2 size={12}/></button>}</span>)}</div>;
+ case'navigation':return <MobileNavigation element={el} onNavigate={go} editing={selectMode&&!pending} selectedLinkId={activeSelection?.level==='nav-link'&&activeSelection.elementId===el.id?activeSelection.childId:undefined} onSelectLink={id=>setSelected({level:'nav-link',screenId:screen!.id,elementId:el.id,childId:id})}/>;
  case'table':return <ReportTable key={el.id} element={el} onNavigate={go}/>;
  case'composed':return <ComposedElement key={el.id} element={el} onNavigate={go}
  editor={selectMode&&!pending?{
