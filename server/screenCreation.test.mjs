@@ -68,10 +68,12 @@ test('New portal report screen uses the same compiler and remains reachable',()=
  assert.equal(validateStrictDemo(out.definition,'portal'),true);
 });
 
-test('Ambiguous/mismatched anchor and duplicate screen do not change source',()=>{
+test('Explicitly named anchor overrides preview, while duplicate screen cannot be created',()=>{
  const request='Add a new Document Upload screen after Personal Details';
  const out=compileNewScreen(base,{level:'screen',screenId:'welcome'},request,blueprint);
- assert.equal(out.status,'clarify');
+ assert.equal(out.status,'resolved');
+ assert.equal(out.anchorScreenId,'details');
+ assert.equal(out.definition.screens[1].elements[0].nextScreen,out.createdScreenId);
  assert.deepEqual(base.screens[0].elements[0].buttons[0].nextScreen,'details');
  assert.throws(()=>compileNewScreen(base,{level:'screen',screenId:'details'},'Create a new screen called Completed',blueprint),/already exists/);
  const long=structuredClone(base);
