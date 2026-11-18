@@ -6,11 +6,13 @@ import ReportTable from './ReportTable';
 import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
 import VisualEditorPanel from './VisualEditorPanel';
+// @ts-ignore Shared browser/Node visual mutation engine.
+import {insertVisualComponent,moveVisualComponentBefore,moveVisualComponent,moveVisualField,removeVisualComponent,removeVisualField} from './visualEditor.mjs';
 // @ts-ignore Validated visual style definitions are shared across app and runtime.
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
-import{ArrowLeft,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Code2,Copy,Download,Eye,FileJson,FolderPlus,Info,LayoutDashboard,MessageSquare,Monitor,MoreHorizontal,Paperclip,Plus,Minus,RefreshCw,Search,Send,Settings2,ShieldCheck,Smartphone,Sparkles,Upload,Wallet,X,MousePointer2,Maximize2,Minimize2,Images}from'lucide-react';
+import{ArrowLeft,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Code2,Copy,Download,Eye,FileJson,FolderPlus,Info,LayoutDashboard,MessageSquare,Monitor,MoreHorizontal,Paperclip,Plus,Minus,RefreshCw,Search,Send,Settings2,ShieldCheck,Smartphone,Sparkles,Upload,Wallet,X,MousePointer2,Maximize2,Minimize2,Images,GripVertical,Trash2,ArrowUp,ArrowDown}from'lucide-react';
 import{cloneDemo,DemoDefinition,Element,mobileStarter,starter,validateDemo}from './demo';
 import PublishedViewer from './PublishedViewer';
 // @ts-ignore Shared pure JS contract is also exercised by backend tests.
@@ -41,7 +43,7 @@ function App(){
  const[zoom,setZoom]=useState(100);const[tab,setTab]=useState<'preview'|'definition'>('preview');const[toast,setToast]=useState('');const[search,setSearch]=useState('');const[expanded,setExpanded]=useState(false);
  const[importOpen,setImportOpen]=useState(false);const[jsonDraft,setJsonDraft]=useState('');
  const[publishOpen,setPublishOpen]=useState(false);const[publishedUrl,setPublishedUrl]=useState('');
- const[selectMode,setSelectMode]=useState(false);const[selected,setSelected]=useState<Target|null>(null);const[visualComment,setVisualComment]=useState('');
+ const[selectMode,setSelectMode]=useState(true);const[selected,setSelected]=useState<Target|null>(null);const[visualComment,setVisualComment]=useState('');
  const[pending,setPending]=useState<PendingEdit|null>(null);
  const[ambiguity,setAmbiguity]=useState<AmbiguousTarget|null>(null);
  const[generationQuestion,setGenerationQuestion]=useState<{projectId:string;question:string;reason:string;suggestions:string[]}|null>(null);
@@ -69,6 +71,7 @@ function App(){
  };
  function pick(e:React.MouseEvent<HTMLElement>){
   if(!selectMode||!screen)return;
+  if((e.target as HTMLElement).closest('[data-editor-control]'))return;
   e.preventDefault();e.stopPropagation();
   const clicked=(e.target as HTMLElement).closest<HTMLElement>('[data-select-level]');
   const level=(clicked?.dataset.selectLevel||'screen') as Target['level'];
@@ -85,7 +88,7 @@ function App(){
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
  useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
  function updateProject(change:Partial<Project>){setState(s=>({...s,projects:s.projects.map(p=>p.id===s.activeId?{...p,...change}:p)}));}
- function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(false);setPending(null);setAmbiguity(null);setGenerationQuestion(null);setRefinementQuestion(null);}
+ function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(true);setPending(null);setAmbiguity(null);setGenerationQuestion(null);setRefinementQuestion(null);}
  function createProject(){const name=createName.trim();if(!name){setToast('Enter a project name.');return;}const p:Project={id:makeId(),name,company:createCompany.trim(),channel:createChannel,guidelines:'',requirement:'',files:[],demo:null,messages:[]};setState(s=>({projects:[...s.projects,p],activeId:p.id}));setScreenId('');setCreateOpen(false);setCreateName('');setCreateCompany('');setComposer('');}
  async function generateFor(projectSnapshot:Project,brief:string){
   if(aiBusy)return;
@@ -109,7 +112,7 @@ function App(){
     const msg:Message={id:makeId(),role:'system',text:String(data.summary||'Demo generated successfully.')+'\nModel: '+String(data.usage?.model||'Configured model')+' · Input tokens: '+String(data.usage?.inputTokens||0)+' · Output tokens: '+String(data.usage?.outputTokens||0),date:new Date().toISOString()};
     setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,demo:cloneDemo(data.definition),revisions:[],messages:[...p.messages,msg]}:p)}));
     if(state.activeId===target){setScreenId(data.definition.screens[0].id);setTab('preview');setFormValues({});}
-    setSelected(null);setPending(null);setToast('AI generated '+data.definition.screens.length+' interactive screens.');
+    setSelected(null);setSelectMode(true);setPending(null);setToast('AI generated '+data.definition.screens.length+' interactive screens.');
   }catch(err){const message=err instanceof Error?err.message:'Unable to connect to AI service.';setToast(message);}
   finally{setAiBusy(false);}
  }
@@ -200,6 +203,45 @@ function App(){
    setToast(description+' saved. Undo is available.');
   }catch(e){setToast(e instanceof Error?e.message:'Visual edit failed.');}
  }
+ function canvasAction(description:string,change:()=>DemoDefinition){
+  if(!project.demo||!screen||pending||aiBusy)return;
+  try{commitVisual(change(),description);}catch(error){setToast(error instanceof Error?error.message:'Unable to edit on canvas.');}
+ }
+ function canvasDeleteElement(elementId:string){
+  if(!screen||!project.demo)return;
+  canvasAction('Remove component',()=>removeVisualComponent(project.demo!,screen.id,elementId));
+  setSelected({level:'screen',screenId:screen.id});
+ }
+ function canvasDeleteField(elementId:string,fieldId:string){
+  if(!screen||!project.demo)return;
+  canvasAction('Remove field',()=>removeVisualField(project.demo!,screen.id,elementId,fieldId));
+  setSelected({level:'element',screenId:screen.id,elementId});
+ }
+ function canvasReorderField(e:React.DragEvent<HTMLElement>,formId:string,index:number){
+  if(!screen||!project.demo||!selectMode||pending)return;
+  e.preventDefault();e.stopPropagation();
+  const raw=e.dataTransfer.getData('text/plain');
+  if(!raw.startsWith('field:'+formId+':'))return;
+  const fieldId=raw.slice(('field:'+formId+':').length);
+  canvasAction('Move field',()=>moveVisualField(project.demo!,screen.id,formId,fieldId,index));
+  setSelected({level:'field',screenId:screen.id,elementId:formId,childId:fieldId});
+ }
+ function canvasDrop(e:React.DragEvent<HTMLElement>,beforeId?:string){
+  if(!screen||!project.demo||!selectMode||pending)return;
+  e.preventDefault();e.stopPropagation();
+  const raw=e.dataTransfer.getData('text/plain');
+  if(raw.startsWith('palette:')){
+   try{
+    const result=insertVisualComponent(project.demo,screen.id,raw.slice(8),beforeId);
+    commitVisual(result.definition,'Add and position component');
+    setSelected({level:'element',screenId:screen.id,elementId:result.elementId});
+   }catch(err){setToast(err instanceof Error?err.message:'Unable to drop component.');}
+  }else if(raw.startsWith('component:')){
+   const source=raw.slice(10);
+   canvasAction('Move component',()=>beforeId?moveVisualComponentBefore(project.demo!,screen.id,source,beforeId):moveVisualComponent(project.demo!,screen.id,source,screen.elements.length-1));
+   setSelected({level:'element',screenId:screen.id,elementId:source});
+  }
+ }
  function undoLastEdit(){
   if(pending){setToast('Apply or discard the preview first.');return;}
   const history=project.revisions||[];
@@ -250,7 +292,7 @@ function App(){
   }
 }
  function generateBrief(){if(generationQuestion?.projectId===project.id){setToast('Answer the clarification first to continue this draft.');return;}if(!project.requirement.trim()){setToast('Enter a requirement first.');return;}if(pending){setToast('Discard the pending edit before regenerating.');return;}void generateFor(project,project.requirement);}
- function loadSample(){setPending(null);setSelected(null);const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
+ function loadSample(){setPending(null);setSelected(null);setSelectMode(true);const sample=cloneDemo(project.channel==='mobile'?mobileStarter:starter);updateProject({demo:sample,revisions:[]});setScreenId(sample.screens[0].id);setTab('preview');setToast('Example loaded. This is a starter template, not AI-generated.');}
  function applyDefinition(){try{if(pending)throw Error('Discard the proposed change before importing.');const obj:unknown=JSON.parse(jsonDraft);if(!validateDemo(obj))throw Error('Definition is not valid for schema version 1.');if(obj.channel!==project.channel)throw Error('Definition channel must match the current project channel.');updateProject({demo:cloneDemo(obj),revisions:[]});setScreenId(obj.screens[0].id);setImportOpen(false);setTab('preview');setToast('Demo definition imported.');}catch(e){setToast(e instanceof Error?e.message:'Invalid JSON.');}}
  function resetDemo(){if(pending){setToast('Discard the proposed change first.');return;}setSelected(null);updateProject({demo:null,revisions:[]});setScreenId('');setToast('Preview cleared. Project requirements were preserved.');}
  function publishDemo(){
