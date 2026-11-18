@@ -23,7 +23,7 @@ import './styles.css';
 import './workspace.css';
 
 type DemoRevision={id:string;date:string;instruction:string;screenId:string;before:DemoDefinition};
-type Target={level:'screen'|'header'|'element'|'field'|'button';screenId:string;elementId?:string;childId?:string};
+type Target={level:'screen'|'header'|'element'|'field'|'button'|'item';screenId:string;elementId?:string;childId?:string};
 type AmbiguousTarget={projectId:string;instruction:string;choices:{id:string;label:string;screen:string;type:string;target:Target}[];question:string};
 type PendingEdit={projectId:string;instruction:string;target:Target;scope:'global'|'screen';before:DemoDefinition;definition:DemoDefinition;operations:unknown[];checks:string[];summary:string;label:string};
 type PublishedVersion={version:number;publishedAt:string;url:string};
