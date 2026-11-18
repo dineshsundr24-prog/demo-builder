@@ -91,6 +91,7 @@ export function editVisualComponent(d,screenId,elementId,patch){
  for(const [name,value] of Object.entries(patch)){
   if(!permitted[el.kind]?.includes(name)||typeof value!=='string')throw Error('This property cannot be edited here.');
   if(value.length>350)throw Error('Text is too long.');
+  if(name==='title'&&!value.trim())throw Error('Title cannot be blank. Enter a heading or use Undo to restore it.');
   el[name]=value;
  }
  return next;
