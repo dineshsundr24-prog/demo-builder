@@ -139,3 +139,18 @@ test('Generated item editing rejects invalid colors and dependent control remova
  assert.throws(()=>removeVisualItem(composed,'start','dynamic','status'),/referenced/);
  assert.deepEqual(composed.screens[0].elements.at(-1).items.map(x=>x.id),['status','message']);
 });
+
+test('Hero eyebrow brand label can be edited separately from heading and description',()=>{
+ const {definition,elementId}=addVisualComponent(demo,'start','hero');
+ const original=definition.screens[0].elements.find(e=>e.id===elementId);
+ const withEyebrow=editVisualComponent(definition,'start',elementId,{eyebrow:'Kapiko Bank'});
+ const hero=withEyebrow.screens[0].elements.find(e=>e.id===elementId);
+ assert.equal(hero.eyebrow,'Kapiko Bank');
+ assert.equal(hero.title,original.title);
+ assert.equal(hero.description,original.description);
+ assert.equal(validateStrictDemo(withEyebrow,'mobile'),true);
+ const revised=editVisualComponent(withEyebrow,'start',elementId,{title:'Welcome to Kapiko Digital Bank'});
+ assert.equal(revised.screens[0].elements.find(e=>e.id===elementId).eyebrow,'Kapiko Bank');
+ assert.throws(()=>editVisualComponent(revised,'start',elementId,{title:''}),/cannot be blank/);
+ assert.equal(revised.screens[0].elements.find(e=>e.id===elementId).title,'Welcome to Kapiko Digital Bank');
+});
