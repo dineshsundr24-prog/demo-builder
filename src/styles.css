@@ -22,3 +22,6 @@
 .composed-action{width:100%;justify-content:center}
 .composed-progress{display:flex;flex-direction:column;gap:6px;font-size:12px}
 .composed-progress progress{width:100%;height:10px;accent-color:#167f91}
+
+/* A direct child appearance choice must override internal default text colors. */
+.hero[style*="color"] .eyebrow{color:inherit}
