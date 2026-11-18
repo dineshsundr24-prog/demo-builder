@@ -380,3 +380,14 @@
 .studio .preview-side-tools{position:sticky;right:0;top:6px;align-self:flex-start;margin-left:8px}
 .studio .device-zoom-stage .demo-main{overscroll-behavior:auto}
 .studio .device-zoom-stage .select-on .demo-main{overscroll-behavior:auto}
+
+/* Zoomed design viewport has its own independent scroll area; explicit pan controls
+   are always reachable even when the phone consumes pointer wheel events. */
+.studio .preview-viewport{overflow-x:auto;overflow-y:auto;scrollbar-width:auto;scrollbar-color:#8ca9cd #eaf0f9}
+.studio .preview-viewport::-webkit-scrollbar{width:12px;height:12px}
+.studio .preview-viewport::-webkit-scrollbar-thumb{background:#8ca9cd;border-radius:8px;border:2px solid #eaf0f9}
+.studio .preview-viewport::-webkit-scrollbar-track{background:#eaf0f9}
+.studio .preview-stage-canvas{flex:0 0 auto;min-width:0;width:auto}
+.canvas-pan-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:3px;width:43px}
+.canvas-pan-buttons button{padding:3px;width:20px;height:26px;display:grid;place-items:center;border:1px solid #c7d7ed;border-radius:5px;background:#fff;color:#315f9c;cursor:pointer}
+.canvas-pan-buttons button:hover{background:#eaf2ff}
