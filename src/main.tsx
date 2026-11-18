@@ -6,6 +6,8 @@ import ReportTable from './ReportTable';
 import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
 import MobileNavigation from './MobileNavigation';
+// @ts-ignore Shared mobile screen placement contract.
+import {layoutMobileScreen,placeMobileElement} from './mobileLayout.mjs';
 import VisualEditorPanel from './VisualEditorPanel';
 // @ts-ignore Shared browser/Node canvas scroll geometry.
 import {boundedScroll,edgeDragMovement} from './canvasScroll.mjs';
@@ -230,6 +232,42 @@ function App(){
   canvasAction('Move field',()=>moveVisualField(project.demo!,screen.id,formId,fieldId,index));
   setSelected({level:'field',screenId:screen.id,elementId:formId,childId:fieldId});
  }
+ function canvasPlace(e:React.DragEvent<HTMLElement>,slot:'header-left'|'header-right'|'bottom'){
+  if(!project.demo||!screen||!selectMode||pending)return;
+  e.preventDefault();e.stopPropagation();
+  const raw=e.dataTransfer.getData('text/plain');
+  try{
+   if(raw.startsWith('component:')){
+    const elementId=raw.slice('component:'.length);
+    const next=placeMobileElement(project.demo,screen.id,elementId,slot);
+    commitVisual(next,'Move component to '+slot);
+    setSelected({level:'element',screenId:screen.id,elementId});
+   }else if(raw.startsWith('palette:')){
+    const kind=raw.slice('palette:'.length);
+    const added=insertVisualComponent(project.demo,screen.id,kind);
+    const next=placeMobileElement(added.definition,screen.id,added.elementId,slot);
+    commitVisual(next,'Add component to '+slot);
+    setSelected({level:'element',screenId:screen.id,elementId:added.elementId});
+   }
+  }catch(err){setToast(err instanceof Error?err.message:'Cannot place component here.');}
+ }
+ function renderMobileSlot(slot:'header-left'|'header-right'|'bottom'){
+  if(!screen||project.channel!=='mobile')return null;
+  const placed=layoutMobileScreen(screen)[slot];
+  return <div className={'mobile-layout-slot mobile-layout-'+slot+(selectMode?' mobile-layout-editing':'')}
+   onDragOver={e=>{if(selectMode){e.preventDefault();e.stopPropagation();}}}
+   onDrop={e=>canvasPlace(e,slot)}>
+   {placed.map(el=><div key={el.id} className={'mobile-slot-component'+(activeSelection?.elementId===el.id?' mobile-slot-selected':'')}
+      data-select-level="element" data-select-element={el.id}
+      draggable={selectMode&&!pending} onDragStart={e=>{e.stopPropagation();e.dataTransfer.setData('text/plain','component:'+el.id);e.dataTransfer.effectAllowed='move';}}>
+      {selectMode&&!pending&&<button type="button" data-editor-control="true" className="mobile-slot-edit"
+       onClick={e=>{e.preventDefault();e.stopPropagation();setSelected({level:'element',screenId:screen.id,elementId:el.id});}}
+       aria-label={'Edit '+el.title+' placement'} title={'Edit '+el.title+' placement'}><GripVertical size={13}/></button>}
+      {render(el)}
+    </div>)}
+   {selectMode&&!pending&&!placed.length&&<div className="mobile-slot-placeholder">{slot==='bottom'?'Drop bottom navigation here':slot==='header-left'?'Drop header item left':'Drop header item right'}</div>}
+  </div>;
+ }
  function canvasDrop(e:React.DragEvent<HTMLElement>,beforeId?:string){
   if(!screen||!project.demo||!selectMode||pending)return;
   e.preventDefault();e.stopPropagation();
@@ -237,12 +275,18 @@ function App(){
   if(raw.startsWith('palette:')){
    try{
     const result=insertVisualComponent(project.demo,screen.id,raw.slice(8),beforeId);
+    if(result.definition.screens.find(s=>s.id===screen.id)?.elements.find(el=>el.id===result.elementId)?.kind==='navigation'){
+      result.definition=placeMobileElement(result.definition,screen.id,result.elementId,'body');
+    }
     commitVisual(result.definition,'Add and position component');
     setSelected({level:'element',screenId:screen.id,elementId:result.elementId});
    }catch(err){setToast(err instanceof Error?err.message:'Unable to drop component.');}
   }else if(raw.startsWith('component:')){
    const source=raw.slice(10);
-   canvasAction('Move component',()=>beforeId?moveVisualComponentBefore(project.demo!,screen.id,source,beforeId):moveVisualComponent(project.demo!,screen.id,source,screen.elements.length-1));
+   canvasAction('Move component',()=>{
+    const moved=placeMobileElement(project.demo!,screen.id,source,'body');
+    return beforeId?moveVisualComponentBefore(moved,screen.id,source,beforeId):moveVisualComponent(moved,screen.id,source,screen.elements.length-1);
+   });
    setSelected({level:'element',screenId:screen.id,elementId:source});
   }
  }
@@ -401,14 +445,18 @@ function App(){
   <div className="portal-menu-parent"><button className={parent.id===screen.id?'on':''} onClick={()=>{go(parent.id);if(children.length)setExpandedPortalMenus(v=>({...v,[parent.id]:true}));}}><LayoutDashboard size={15}/><span>{parent.title}</span></button>{children.length>0&&<button className="portal-menu-toggle" aria-label={(isOpen?'Collapse ':'Expand ')+parent.title+' menu'} title={(isOpen?'Collapse ':'Expand ')+parent.title} onClick={()=>setExpandedPortalMenus(v=>({...v,[parent.id]:!isOpen}))}><ChevronDown size={14} className={isOpen?'expanded':''}/></button>}</div>
   {children.length>0&&isOpen&&<div className="portal-submenu">{children.map(child=><button key={child.id} className={child.id===screen.id?'on':''} onClick={()=>go(child.id)}><ChevronRight size={13}/><span>{child.title}</span></button>)}</div>}
  </div>;
-})}</nav>}<div data-select-level="screen" className={'demo-main'+(activeSelection?.level==='screen'?' visual-selected':'')}>{project.channel==='mobile'&&<div data-select-level="header" className={'mobile-brand'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<span className="mobile-symbol"><Wallet size={17}/></span>}<span>{brandName}</span></div>}{showBackButton&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className={'elements'+(selectMode?' canvas-editing':'')} onDragOver={e=>{if(selectMode)e.preventDefault();}} onDrop={e=>canvasDrop(e)}>
- {screen.elements.map((el,i)=><div data-select-level="element" data-select-element={el.id} draggable={selectMode&&!pending} onDragStart={e=>{if(!selectMode||((e.target as HTMLElement).closest('.canvas-field-editable')&&e.target!==e.currentTarget))return;e.stopPropagation();e.dataTransfer.setData('text/plain','component:'+el.id);e.dataTransfer.effectAllowed='move';}} onDragOver={e=>{if(selectMode){e.preventDefault();e.stopPropagation();}}} onDrop={e=>canvasDrop(e,el.id)}
+})}</nav>}<div data-select-level="screen" className={'demo-main'+(activeSelection?.level==='screen'?' visual-selected':'')}>{project.channel==='mobile'&&<div className="mobile-app-header">
+  {renderMobileSlot('header-left')}
+  <div data-select-level="header" className={'mobile-brand'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<span className="mobile-symbol"><Wallet size={17}/></span>}<span>{brandName}</span></div>
+  {renderMobileSlot('header-right')}
+ </div>}{showBackButton&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className={'elements'+(selectMode?' canvas-editing':'')} onDragOver={e=>{if(selectMode)e.preventDefault();}} onDrop={e=>canvasDrop(e)}>
+ {screen.elements.filter(el=>project.channel!=='mobile'||layoutMobileScreen(screen).body.some(item=>item.id===el.id)).map((el,i)=><div data-select-level="element" data-select-element={el.id} draggable={selectMode&&!pending} onDragStart={e=>{if(!selectMode||((e.target as HTMLElement).closest('.canvas-field-editable')&&e.target!==e.currentTarget))return;e.stopPropagation();e.dataTransfer.setData('text/plain','component:'+el.id);e.dataTransfer.effectAllowed='move';}} onDragOver={e=>{if(selectMode){e.preventDefault();e.stopPropagation();}}} onDrop={e=>canvasDrop(e,el.id)}
  className={'visual-target canvas-edit-target'+(activeSelection?.elementId===el.id?' visual-selected':'')} key={el.id}>
  {selectMode&&!pending&&<div className="canvas-element-toolbar" data-editor-control="true" onClick={e=>e.stopPropagation()}><span className="canvas-element-handle" title="Drag component to reorder"><GripVertical size={15}/><span>{el.kind==='form'?'Form':el.kind==='actions'?'Buttons':el.kind==='hero'?'Banner':el.kind==='notice'?'Text / Card':el.kind}</span></span><button title="Move up" aria-label="Move component up" disabled={i===0} onClick={()=>canvasAction('Move component up',()=>moveVisualComponent(project.demo!,screen.id,el.id,i-1))}><ArrowUp size={14}/></button><button title="Move down" aria-label="Move component down" disabled={i===screen.elements.length-1} onClick={()=>canvasAction('Move component down',()=>moveVisualComponent(project.demo!,screen.id,el.id,i+1))}><ArrowDown size={14}/></button><button title="Remove component" aria-label="Remove component" onClick={()=>canvasDeleteElement(el.id)}><Trash2 size={14}/></button></div>}
  {render(el)}
  </div>)}
  {selectMode&&!pending&&<div className="canvas-drop-end" onDragOver={e=>e.preventDefault()} onDrop={e=>canvasDrop(e)}>Drop a component here from the library</div>}
- </div></div></div></div></div></div></div><aside className="preview-side-tools" aria-label="Demo preview tools">
+ </div>{project.channel==='mobile'&&renderMobileSlot('bottom')}</div></div></div></div></div></div><aside className="preview-side-tools" aria-label="Demo preview tools">
  <details className="preview-screen-picker"><summary title="Choose screen" aria-label="Choose demo screen"><LayoutDashboard size={16}/></summary><div className="preview-screen-picker-panel">{demo.screens.map((s,i)=><button key={s.id} className={s.id===screen.id?'active':''} onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');go(s.id);}}>{String(i+1).padStart(2,'0')} · {s.title}</button>)}</div></details>
  <button className="side-screen-nav" title="Previous screen" aria-label="Previous screen" disabled={demo.screens.findIndex(s=>s.id===screen.id)===0} onClick={()=>go(demo.screens[Math.max(0,demo.screens.findIndex(s=>s.id===screen.id)-1)].id)}><ArrowLeft size={16}/></button>
  <button className="side-screen-nav" title="Next screen" aria-label="Next screen" disabled={demo.screens.findIndex(s=>s.id===screen.id)===demo.screens.length-1} onClick={()=>go(demo.screens[Math.min(demo.screens.length-1,demo.screens.findIndex(s=>s.id===screen.id)+1)].id)}><ArrowRight size={16}/></button>
