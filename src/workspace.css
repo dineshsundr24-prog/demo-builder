@@ -362,3 +362,10 @@
 .canvas-drop-end:hover{border-color:#2f76df;background:#e7f1ff}
 .canvas-editing .field input,.canvas-editing .field select,.canvas-editing .field textarea{pointer-events:none}
 @media(max-width:650px){.canvas-element-toolbar button{padding:2px}.canvas-mode-hint{display:none}}
+
+.canvas-button-holder{display:inline-flex;align-items:center;gap:4px;max-width:100%}
+.canvas-button-holder>.btn{flex:1}
+.canvas-delete-button{border:1px solid #f2c1c1;border-radius:6px;background:#fff4f4;color:#b73838;min-width:29px;min-height:29px;display:inline-grid;place-items:center;padding:5px;vertical-align:middle;flex:none}
+.canvas-delete-button:hover{background:#ffdfdf}
+.canvas-editing .form-footer{display:flex;align-items:center;justify-content:flex-end;gap:5px}
+.canvas-editing .button-row{align-items:center;gap:8px}
