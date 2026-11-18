@@ -116,6 +116,50 @@ export function setVisualAppearance(d,screenId,elementId,appearance,buttonId){
  if(buttonId==='__submit__')el.submitAppearance=updated;else node.appearance=updated;
  return next;
 }
+// A generated/composed section contains stable, editable child items.
+// Editing them uses the same application definition as the published renderer.
+export function editVisualItem(d,screenId,elementId,itemId,patch){
+ const next=clone(d),section=requireScreen(next,screenId).elements.find(e=>e.id===elementId);
+ if(section?.kind!=='composed')throw Error('Select a generated section.');
+ const item=section.items.find(i=>i.id===itemId);
+ if(!item)throw Error('Generated item no longer exists.');
+ for(const [key,value] of Object.entries(patch)){
+  if(!['label','text'].includes(key)||typeof value!=='string'||value.length>350)throw Error('Unsupported generated item property.');
+  if(key==='label'&&!value.trim())throw Error('Item label cannot be blank.');
+  item[key]=value;
+ }
+ return next;
+}
+export function setVisualItemAppearance(d,screenId,elementId,itemId,patch){
+ const next=clone(d),section=requireScreen(next,screenId).elements.find(e=>e.id===elementId);
+ if(section?.kind!=='composed')throw Error('Select a generated section.');
+ const item=section.items.find(i=>i.id===itemId);
+ if(!item)throw Error('Generated item no longer exists.');
+ const allowed=['backgroundColor','textColor','textAlign','alignment','padding','borderRadius'];
+ for(const [key,value] of Object.entries(patch)){
+  if(!allowed.includes(key))throw Error('Unsupported appearance property.');
+  if(['backgroundColor','textColor'].includes(key)&&!(typeof value==='string'&&/^#[a-fA-F0-9]{6}$/.test(value)))throw Error('Invalid color.');
+  if(['alignment','textAlign'].includes(key)&&!['left','center','right'].includes(value))throw Error('Invalid alignment.');
+  if(['padding','borderRadius'].includes(key)&&!(Number.isInteger(value)&&value>=0&&value<=48))throw Error('Invalid spacing.');
+ }
+ item.appearance={...(item.appearance||{}),...patch};return next;
+}
+export function moveVisualItem(d,screenId,elementId,itemId,toIndex){
+ const next=clone(d),section=requireScreen(next,screenId).elements.find(e=>e.id===elementId);
+ if(section?.kind!=='composed')throw Error('Select a generated section.');
+ const idx=section.items.findIndex(i=>i.id===itemId);
+ if(idx<0)throw Error('Generated item no longer exists.');
+ const dest=Math.max(0,Math.min(section.items.length-1,Number(toIndex)));
+ section.items.splice(dest,0,section.items.splice(idx,1)[0]);return next;
+}
+export function removeVisualItem(d,screenId,elementId,itemId){
+ const next=clone(d),section=requireScreen(next,screenId).elements.find(e=>e.id===elementId);
+ if(section?.kind!=='composed')throw Error('Select a generated section.');
+ if(!section.items.some(i=>i.id===itemId))throw Error('Generated item no longer exists.');
+ // Do not silently orphan downstream dynamic bindings.
+ if(section.items.some(i=>i.id!==itemId&&(i.visibleWhen?.field===itemId||i.filterField===itemId||i.filterFields?.some(f=>f.field===itemId)||i.actions?.some(a=>a.target===itemId))))throw Error('This item is referenced by another control. Update its dependent behavior before removing it.');
+ section.items=section.items.filter(i=>i.id!==itemId);return next;
+}
 export function addVisualField(d,screenId,formId,type='text'){
  const next=clone(d),form=requireScreen(next,screenId).elements.find(e=>e.id===formId);
  if(form?.kind!=='form')throw Error('Select a form first.');
