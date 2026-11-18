@@ -38,6 +38,23 @@ export function addVisualComponent(d,screenId,kind){
  sc.elements.push(el);
  return{definition:next,elementId:id};
 }
+// Insert a library component directly at the chosen location on the canvas.
+export function insertVisualComponent(d,screenId,kind,beforeElementId){
+ const added=addVisualComponent(d,screenId,kind);
+ if(!beforeElementId)return added;
+ const target=requireScreen(added.definition,screenId).elements.findIndex(e=>e.id===beforeElementId);
+ if(target<0)throw Error('Drop location is no longer available.');
+ return{definition:moveVisualComponent(added.definition,screenId,added.elementId,target),elementId:added.elementId};
+}
+export function moveVisualComponentBefore(d,screenId,elementId,beforeElementId){
+ const sc=requireScreen(d,screenId);
+ if(elementId===beforeElementId)return clone(d);
+ const target=sc.elements.findIndex(e=>e.id===beforeElementId);
+ if(target<0)throw Error('Drop location is no longer available.');
+ const current=sc.elements.findIndex(e=>e.id===elementId);
+ if(current<0)throw Error('Dragged component no longer exists.');
+ return moveVisualComponent(d,screenId,elementId,current<target?target-1:target);
+}
 export function moveVisualComponent(d,screenId,elementId,toIndex){
  const next=clone(d),elements=requireScreen(next,screenId).elements;
  const from=elements.findIndex(e=>e.id===elementId);
@@ -51,6 +68,15 @@ export function removeVisualComponent(d,screenId,elementId){
  const index=sc.elements.findIndex(x=>x.id===elementId);
  if(index<0)throw Error('Component not found.');
  sc.elements.splice(index,1);return next;
+}
+export function removeVisualButton(d,screenId,elementId,buttonId){
+ const next=clone(d),sc=requireScreen(next,screenId);
+ const group=sc.elements.find(e=>e.id===elementId);
+ if(group?.kind!=='actions')throw Error('Select an action button.');
+ if(!group.buttons.some(b=>b.id===buttonId))throw Error('Button does not exist.');
+ if(group.buttons.length===1)sc.elements=sc.elements.filter(e=>e.id!==elementId);
+ else group.buttons=group.buttons.filter(b=>b.id!==buttonId);
+ return next;
 }
 export function editVisualComponent(d,screenId,elementId,patch){
  const next=clone(d),el=requireScreen(next,screenId).elements.find(x=>x.id===elementId);
