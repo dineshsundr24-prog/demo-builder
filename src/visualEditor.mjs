@@ -1,9 +1,10 @@
 // Pure visual editing operations shared by the Studio and Node regression tests.
 // Edits operate on the single Demo Definition consumed by Preview and Published Viewer.
+import {mobileTemplate,mobileTemplateLabels,validMobileNavigation} from './mobileComponents.mjs';
 const clone=x=>structuredClone(x);
 const slug=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'item';
 const unique=(base,ids)=>{let id=base,n=2;while(ids.includes(id))id=base+'-'+n++;return id;};
-export const palette=['text','card','form','button','notice','hero','table'];
+export const palette=['text','card','form','button','notice','hero','table',...Object.keys(mobileTemplateLabels)];
 const requireScreen=(d,id)=>{const s=d.screens.find(x=>x.id===id);if(!s)throw Error('Screen does not exist.');return s;};
 export function addVisualScreen(d,title,afterId){
  if(d.screens.length>=12)throw Error('Maximum 12 screens reached.');
@@ -35,6 +36,8 @@ export function addVisualComponent(d,screenId,kind){
  if(kind==='form')el={...common,kind:'form',title:'Form',description:'Enter your details',fields:[{id:'field-1',label:'New field',type:'text',required:false}],actionLabel:'Continue'};
  if(kind==='button')el={...common,kind:'actions',buttons:[{id:'button-1',label:'Continue',variant:'primary'}]};
  if(kind==='table')el={...common,kind:'table',title:'Records',subtitle:'Sample entries',columns:[{id:'reference',label:'Reference'},{id:'status',label:'Status'}],rows:[{reference:'DEMO-1001',status:'Pending'}]};
+ if(Object.hasOwn(mobileTemplateLabels,kind))el=mobileTemplate(kind,id);
+ if(el?.kind==='navigation'&&next.channel!=='mobile')throw Error('Mobile navigation is available only for mobile projects.');
  sc.elements.push(el);
  return{definition:next,elementId:id};
 }
@@ -87,7 +90,7 @@ export function removeVisualButton(d,screenId,elementId,buttonId){
 export function editVisualComponent(d,screenId,elementId,patch){
  const next=clone(d),el=requireScreen(next,screenId).elements.find(x=>x.id===elementId);
  if(!el)throw Error('Component not found.');
- const permitted={hero:['title','description','eyebrow'],notice:['title','body','tone'],form:['title','description','actionLabel'],table:['title','subtitle'],actions:[],stats:[],composed:['title']};
+ const permitted={hero:['title','description','eyebrow'],notice:['title','body','tone'],form:['title','description','actionLabel'],table:['title','subtitle'],actions:[],stats:[],composed:['title'],navigation:['title']};
  for(const [name,value] of Object.entries(patch)){
   if(!permitted[el.kind]?.includes(name)||typeof value!=='string')throw Error('This property cannot be edited here.');
   if(value.length>350)throw Error('Text is too long.');
@@ -215,12 +218,18 @@ export function connectVisualFlow(d,fromId,sourceId,toId){
   const b=el?.kind==='actions'?el.buttons.find(b=>b.id===buttonId):null;
   if(!b)throw Error('Source button does not exist.');
   b.nextScreen=toId;
- }else throw Error('Choose a button or form submit event.');
+ }else if(key.startsWith('nav:')){
+  const [,elementId,linkId]=key.split(':');const el=source.elements.find(e=>e.id===elementId);
+  if(el?.kind!=='navigation')throw Error('Source navigation component does not exist.');
+  const link=el.links.find(l=>l.id===linkId);if(!link)throw Error('Navigation item does not exist.');
+  link.screenId=toId;
+ }else throw Error('Choose a button, menu item or form submit event.');
  return next;
 }
 export function visualFlowActions(d,screenId){
  const sc=requireScreen(d,screenId);
  return sc.elements.flatMap(el=>el.kind==='form'?(el.hideSubmit?[]:[{id:'form:'+el.id,label:el.actionLabel,screenId:el.nextScreen||''}]):
-  el.kind==='actions'?el.buttons.map(b=>({id:'button:'+el.id+':'+b.id,label:b.label,screenId:b.nextScreen||''})):[]);
+  el.kind==='actions'?el.buttons.map(b=>({id:'button:'+el.id+':'+b.id,label:b.label,screenId:b.nextScreen||''})):
+  el.kind==='navigation'?el.links.map(link=>({id:'nav:'+el.id+':'+link.id,label:link.label,screenId:link.screenId||''})):[]);
 }
 export function visualFlowEdges(d){return d.screens.flatMap(s=>visualFlowActions(d,s.id).filter(a=>a.screenId).map(a=>({from:s.id,to:a.screenId,actionId:a.id,label:a.label})));}
