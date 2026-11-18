@@ -2,6 +2,7 @@
 import {navigationMenuLinks} from './portalMenuLinks.mjs';
 import ReportTable from './ReportTable';
 import ComposedElement from './ComposedElement';
+import MobileNavigation from './MobileNavigation';
 // @ts-ignore Validated visual style definitions are shared across app and runtime.
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useState} from 'react';
@@ -40,6 +41,7 @@ export default function PublishedViewer({snapshot}:{snapshot:PublishedSnapshot|n
    case 'stats':return <section className="stats" style={appearanceToStyle(el.appearance)}>{el.items.map(x=><div key={x.id} className="stat"><div className="stat-label">{x.label}</div><div className="stat-number">{x.value}</div>{x.delta&&<div className="stat-delta">{x.delta}</div>}</div>)}</section>;
    case 'notice':return <div className={'notice '+el.tone} style={appearanceToStyle(el.appearance)}>{el.tone==='success'?<CheckCircle2 size={19}/>:<Info size={19}/>}<div><strong>{el.title}</strong><p>{el.body}</p></div></div>;
    case 'actions':return <div className="button-row" style={appearanceToStyle(el.appearance)}>{el.buttons.map(b=><button style={appearanceToStyle(b.appearance)} className={'btn '+(b.variant==='secondary'?'outline':'primary')} key={b.id} onClick={()=>go(b.nextScreen)}>{b.label}<ArrowRight size={14}/></button>)}</div>;
+   case 'navigation':return <MobileNavigation element={el} onNavigate={go}/>;
    case 'table':return <ReportTable key={screen.id+el.id} element={el} onNavigate={go}/>;
    case 'composed':return <ComposedElement key={screen.id+el.id} element={el} onNavigate={go}/>;
    case 'form':return <section className="surface form-surface" style={appearanceToStyle(el.appearance)}><div className="section-head"><div><h3>{el.title}</h3><p>{el.description}</p></div></div><form onSubmit={e=>{e.preventDefault();submit(el);}}><div className="form-grid">{el.fields.map(f=><label className={'field'+(f.type==='checkbox'?' checkbox-field':'')} key={f.id}><span>{f.label}{f.required&&<em> *</em>}</span>{f.type==='checkbox'?<input type="checkbox" checked={formValues[f.id]==='true'} onChange={e=>setFormValues(v=>({...v,[f.id]:String(e.target.checked)}))} aria-label={f.label}/>:f.type==='file'?<><input type="file" aria-label={f.label} onChange={e=>setFormValues(v=>({...v,[f.id]:e.target.files?.[0]?.name||''}))}/><small>Demo selection only — no file is uploaded.</small></>:f.type==='select'?<select value={formValues[f.id]||''} onChange={e=>setFormValues(v=>({...v,[f.id]:e.target.value}))}><option value="">Select an option</option>{(f.options||[]).map(o=><option key={o}>{o}</option>)}</select>:<input type={f.type} value={formValues[f.id]||''} onChange={e=>setFormValues(v=>({...v,[f.id]:e.target.value}))} placeholder={f.placeholder}/ >}{errors[f.id]&&<small className="error">{errors[f.id]}</small>}</label>)}</div><div className="form-footer">{!el.hideSubmit&&<button className="btn primary" style={appearanceToStyle(el.submitAppearance)}>{el.actionLabel}<ArrowRight size={15}/></button>}</div></form></section>;
