@@ -1,3 +1,4 @@
+import {placeMobileElement} from './mobileLayout.mjs';
 // Pure visual editing operations shared by the Studio and Node regression tests.
 // Edits operate on the single Demo Definition consumed by Preview and Published Viewer.
 import {mobileTemplate,mobileTemplateLabels,validMobileNavigation} from './mobileComponents.mjs';
@@ -22,6 +23,7 @@ export function renameVisualScreen(d,screenId,title){
  if(next.screens.some(x=>x.id!==screenId&&x.title.toLowerCase()===title.toLowerCase()))throw Error('A screen with that name already exists.');
  sc.title=title;return next;
 }
+export {placeMobileElement};
 export function addVisualComponent(d,screenId,kind){
  if(!palette.includes(kind))throw Error('Unsupported component kind.');
  const next=clone(d),sc=requireScreen(next,screenId);
@@ -39,6 +41,12 @@ export function addVisualComponent(d,screenId,kind){
  if(Object.hasOwn(mobileTemplateLabels,kind))el=mobileTemplate(kind,id);
  if(el?.kind==='navigation'&&next.channel!=='mobile')throw Error('Mobile navigation is available only for mobile projects.');
  sc.elements.push(el);
+ if(el.kind==='navigation'){
+  // Make the new component available even if a slot is occupied: use the body
+  // until the BA explicitly frees or selects a header/footer position.
+  const slot=el.placement;
+  if(slot!=='body'&&sc.elements.some(other=>other.id!==id&&other.kind==='navigation'&&(other.placement||(other.variant==='menu'?'header-right':'bottom'))===slot))el.placement='body';
+ }
  return{definition:next,elementId:id};
 }
 // Insert a library component directly at the chosen location on the canvas.
