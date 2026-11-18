@@ -114,7 +114,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
      {element.kind==='navigation'&&selected?.level!=='nav-link'&&<div className="ve-field">
        <label>Position on mobile screen</label>
        <select aria-label="Mobile navigation placement" value={effectiveMobilePlacement(element)}
-         onChange={e=>act('Move navigation to '+e.target.value,()=>placeMobileElement(demo,screen.id,element.id,e.target.value))}>
+         onChange={e=>act('Move navigation to '+e.target.value,()=>placeMobileElement(demo,screen.id,element.id,e.target.value as 'header-left'|'header-right'|'body'|'bottom'))}>
          {element.variant==='menu'&&<><option value="header-left">Header · Top left</option><option value="header-right">Header · Top right</option></>}
          {element.variant==='footer'&&<option value="bottom">Bottom navigation</option>}
          <option value="body">Content section</option>
