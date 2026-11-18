@@ -58,3 +58,6 @@
  .studio-workarea:has(> .ve-panel) > .ve-panel{height:45dvh;min-height:340px;max-height:none;flex:0 0 auto}
  .studio-workarea:has(> .ve-panel) > .preview-pane{height:75dvh;min-height:500px;max-height:none;flex:0 0 auto}
 }
+
+.ve-palette-heading{font-size:11px;font-weight:800;color:#516c98;margin:5px 0 0;padding-top:4px;border-top:1px solid #eef2f7}
+.ve-palette-heading:first-of-type{border-top:0}
