@@ -8,6 +8,7 @@ import {classifyScreenChromeEdit,applyScreenChromeEdit} from './screenChrome.mjs
 import {applyOperations,locateNode,targetLabel,planRecordSummary} from './operations.mjs';
 import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder} from './registry.mjs';
 import {resolveVisualTarget} from './visualTarget.mjs';
+import {planMultiEdit} from './multiEdit.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
 import {screenCreationIntent,compileNewScreen,requestScreenBlueprint} from './screenCreation.mjs';
@@ -315,6 +316,21 @@ async function planEdit(body){
  }
   // One grounded model call: target IDs may only come from this registry.
  const registry=buildRegistry(demo,target);
+ // Resolve a batch atomically against actual controls before invoking the free-form planner.
+ // Partial success is forbidden: an unsupported clause returns a precise diagnostic.
+ const batch=planMultiEdit(demo,target,instruction);
+ if(batch?.status==='resolved'){
+  try{
+   const result=applyOperations(demo,target,batch.operations,project.channel);
+   return {scope:'planned',target,label:targetLabel(demo,target),operations:batch.operations,definition:result.definition,
+    checks:[...result.checks,'All '+batch.changeCount+' requested edits applied atomically','Existing screen navigation preserved'],
+    preservedScreens:result.preservedScreens,summary:'Updated '+batch.changeCount+' existing control properties. Review before applying.',
+    usage:{model:'grounded-multi-edit',inputTokens:0,outputTokens:0}};
+  }catch(e){return technicalFailure('Unable to apply the complete edit: '+String(e.message||'validation failed'),'multi-edit');}
+ }
+ if(batch?.status==='unresolved'){
+  return technicalFailure('Cannot apply every requested change. '+(batch.clause?'Problem: '+batch.clause+'. ':'')+batch.reason,'multi-edit');
+ }
  // Simple explicit styling edits resolve against real rendered control names.
  // No invented IDs, unnecessary clarification or extra LLM round trip.
  const directStyle=resolveVisualTarget(demo,target,instruction);
