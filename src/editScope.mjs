@@ -18,7 +18,7 @@ export function verifyEditScope(before,next,target,scope,operations=[]){
  const created=next.screens.filter(sc=>!originalIds.has(sc.id));
  if(created.length!==additions.length)throw Error('Unexpected screen was created.');
  const menuOps=operations.filter(op=>op.op==='add-menu-link');
- if(additions.some(op=>op.op==='add-screen')&&next.channel!=='portal')throw Error('Root menu screen creation requires a portal.');
+ // Root screen creation is supported for both mobile and portal demos.
  const previousLinks=before.navLinks||[],nextLinks=next.navLinks||[];
  if(menuOps.length){
   if(nextLinks.length!==previousLinks.length+menuOps.length)throw Error('Requested navigation entry was not added.');
