@@ -5,7 +5,7 @@ import {validateStrictDemo} from './refine.mjs';
 import {verifyEditScope} from '../src/editScope.mjs';
 const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const slug=v=>norm(v).replace(/\s+/g,'-').slice(0,42)||'new-screen';
-const validFieldTypes=new Set(['text','email','password','number','select','date','checkbox']);
+const validFieldTypes=new Set(['text','email','password','number','select','date','checkbox','file']);
 const clean=(v,max=100)=>String(v||'').trim().replace(/\s+/g,' ').slice(0,max);
 const titleCase=v=>clean(v).replace(/\b\w/g,c=>c.toUpperCase());
 export const screenBlueprintSchema={
@@ -15,7 +15,7 @@ export const screenBlueprintSchema={
   kind:{type:'string',enum:['form','table','information','confirmation']},
   description:{type:'string'},actionLabel:{type:'string'},
   fields:{type:'array',items:{type:'object',additionalProperties:false,required:['label','type','required','options'],properties:{
-   label:{type:'string'},type:{type:'string',enum:['text','email','password','number','select','date','checkbox']},
+   label:{type:'string'},type:{type:'string',enum:['text','email','password','number','select','date','checkbox','file']},
    required:{type:'boolean'},options:{type:'array',items:{type:'string'}}
   }}},
   columns:{type:'array',items:{type:'string'}}
@@ -144,7 +144,7 @@ export async function requestScreenBlueprint({instruction,project,model,apiKey,f
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);
  try{
   const response=await fetchImpl('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{'Authorization':'Bearer '+apiKey,'Content-Type':'application/json'},
-   body:JSON.stringify({model,store:false,instructions:'Return a SEMANTIC description of exactly ONE additional mobile or portal application screen. Do not return application JSON or code. Choose kind form for data entry, table for data lists, information for informational content, confirmation for completion. Only use field types text,email,password,number,select,date,checkbox. Never claim an unsupported upload widget or real integration; use a clear informational description if files or third-party services are requested. Preserve explicitly requested field labels. Keep output short and directly responsive.',input:JSON.stringify({request:instruction,project:{name:project.name,company:project.company,channel:project.channel,guidelines:project.guidelines}}),text:{format:{type:'json_schema',name:'new_demo_screen',strict:true,schema:screenBlueprintSchema}},max_output_tokens:1300})});
+   body:JSON.stringify({model,store:false,instructions:'Return a SEMANTIC description of exactly ONE additional mobile or portal application screen. Do not return application JSON or code. Choose kind form for data entry, table for data lists, information for informational content, confirmation for completion. Only use field types text,email,password,number,select,date,checkbox,file. File inputs only simulate a local file selection, never a real upload to a backend or banking system. Preserve explicitly requested document and field labels. Preserve explicitly requested field labels. Keep output short and directly responsive.',input:JSON.stringify({request:instruction,project:{name:project.name,company:project.company,channel:project.channel,guidelines:project.guidelines}}),text:{format:{type:'json_schema',name:'new_demo_screen',strict:true,schema:screenBlueprintSchema}},max_output_tokens:1300})});
   if(!response.ok)throw Error('Model service status '+response.status);
   const raw=await response.json();
   if(raw?.status!=='completed'||raw?.incomplete_details)throw Error('Incomplete screen plan');
