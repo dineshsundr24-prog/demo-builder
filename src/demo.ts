@@ -7,6 +7,8 @@ import {validReportTools} from '../server/reportTools.mjs';
 import {validNavigationLinks} from './portalMenuLinks.mjs';
 // @ts-ignore Shared style contract validates serialized visual properties.
 import {validAppearance} from './visualStyle.mjs';
+// @ts-ignore Shared mobile navigation validator.
+import {validMobileNavigation} from './mobileComponents.mjs';
 export type VisualAppearance={backgroundColor?:string;textColor?:string;textAlign?:'left'|'center'|'right';padding?:number;borderRadius?:number;alignment?:'left'|'center'|'right'};
 export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox'|'file';placeholder?:string;required?:boolean;options?:string[]};
 export type Element = (
@@ -24,6 +26,7 @@ export type Element = (
   }[]}
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
+  | {id:string;kind:'navigation';variant:'footer'|'menu';title:string;links:{id:string;label:string;screenId?:string}[]}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string;appearance?:VisualAppearance}[]}) & {appearance?:VisualAppearance};
 export type ScreenChrome={brandName?:string;showBrandIcon?:boolean;showBackButton?:boolean};
 export type Screen = {id:string;title:string;subtitle:string;elements:Element[];parentScreenId?:string;chrome?:ScreenChrome};
@@ -70,10 +73,10 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  for(const s of d.screens){if(!s||typeof s.id!=='string'||!s.title||!Array.isArray(s.elements)||ids.has(s.id))return false;
  if(s.chrome&&(!Object.keys(s.chrome).length||Object.keys(s.chrome).some(k=>!['brandName','showBrandIcon','showBackButton'].includes(k))||(s.chrome.brandName!==undefined&&(typeof s.chrome.brandName!=='string'||!s.chrome.brandName.trim()||s.chrome.brandName.length>100))||(s.chrome.showBrandIcon!==undefined&&typeof s.chrome.showBrandIcon!=='boolean')||(s.chrome.showBackButton!==undefined&&typeof s.chrome.showBackButton!=='boolean')))return false;
  ids.add(s.id);
- const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!validAppearance(e.appearance)||((e.kind==='actions')&&e.buttons.some(b=>!validAppearance(b.appearance)))||((e.kind==='form')&&!validAppearance(e.submitAppearance))||!['hero','stats','form','table','notice','actions','composed'].includes(e.kind))return false;els.add(e.id);}}
+ const els=new Set<string>();for(const e of s.elements){if(!e||typeof e.id!=='string'||els.has(e.id)||!validAppearance(e.appearance)||((e.kind==='actions')&&e.buttons.some(b=>!validAppearance(b.appearance)))||((e.kind==='form')&&!validAppearance(e.submitAppearance))||!['hero','stats','form','table','notice','actions','composed','navigation'].includes(e.kind))return false;els.add(e.id);}}
  if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
-  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox','file'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:true));
+  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox','file'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:(e.kind==='navigation'&&(d.channel!=='mobile'||!validMobileNavigation(e,d.screens!.map(x=>x.id))))?false:true));
 }
 export function cloneDemo(d:DemoDefinition):DemoDefinition{return JSON.parse(JSON.stringify(d)) as DemoDefinition;}
