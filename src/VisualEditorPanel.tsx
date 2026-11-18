@@ -1,6 +1,8 @@
 import React,{useEffect,useState} from 'react';
 import {Plus,Trash2,GripVertical,ArrowDown,ArrowUp,Workflow,LayoutTemplate,PanelsTopLeft,Link2,ChevronDown,Palette,Settings2} from 'lucide-react';
 import type {DemoDefinition} from './demo';
+// @ts-ignore Mobile layout is shared with renderer and tests.
+import {effectiveMobilePlacement,placeMobileElement} from './mobileLayout.mjs';
 // @ts-ignore Shared navigation labels and pure editor mutation.
 import {mobileTemplateLabels,editNavigationItem} from './mobileComponents.mjs';
 // @ts-ignore This validated editing engine is shared with Node regression tests.
@@ -74,7 +76,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
       onDragOver={e=>e.preventDefault()}
       onDrop={e=>{e.preventDefault();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('component:'))act('Reorder component',()=>moveVisualComponent(demo,screen.id,raw.slice(10),i));else if(raw.startsWith('palette:')){try{const out=addVisualComponent(demo,screen.id,raw.slice(8));onChange(moveVisualComponent(out.definition,screen.id,out.elementId,i),'Add component');choose(out.elementId);}catch(err){onError(String(err));}}setDrag(null);}}
      >
-      <GripVertical size={14}/><button className="ve-component-title" onClick={()=>choose(el.id)}><strong>{elTitle(el)}</strong><small>{labels[el.kind]}</small></button>
+      <GripVertical size={14}/><button className="ve-component-title" onClick={()=>choose(el.id)}><strong>{elTitle(el)}</strong><small>{labels[el.kind]}{el.kind==='navigation'?' · '+effectiveMobilePlacement(el):''}</small></button>
       <button title="Move up" disabled={i===0} onClick={()=>act('Move component',()=>moveVisualComponent(demo,screen.id,el.id,i-1))}><ArrowUp size={13}/></button>
       <button title="Move down" disabled={i===screen.elements.length-1} onClick={()=>act('Move component',()=>moveVisualComponent(demo,screen.id,el.id,i+1))}><ArrowDown size={13}/></button>
      </div>)}
@@ -109,6 +111,16 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
       <div className="ve-field"><label>Alignment</label><select value={appearance.alignment||'left'} onChange={e=>updateAppearance({alignment:e.target.value})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
       {!selected?.childId&&<button className="ve-danger" onClick={()=>{act('Remove component',()=>removeVisualComponent(demo,screen.id,element.id));onSelect({level:'screen',screenId:screen.id});}}><Trash2 size={13}/> Remove component</button>}
      </>}
+     {element.kind==='navigation'&&selected?.level!=='nav-link'&&<div className="ve-field">
+       <label>Position on mobile screen</label>
+       <select aria-label="Mobile navigation placement" value={effectiveMobilePlacement(element)}
+         onChange={e=>act('Move navigation to '+e.target.value,()=>placeMobileElement(demo,screen.id,element.id,e.target.value))}>
+         {element.variant==='menu'&&<><option value="header-left">Header · Top left</option><option value="header-right">Header · Top right</option></>}
+         {element.variant==='footer'&&<option value="bottom">Bottom navigation</option>}
+         <option value="body">Content section</option>
+       </select>
+       <small className="ve-help">You can also drag the component into the matching region on the phone.</small>
+      </div>}
      {element.kind==='navigation'&&<div className="ve-field-list">
        <div className="ve-section-heading"><b>Navigation items</b><span>{element.links.length}</span></div>
        {element.links.map(l=><button key={l.id} className={'ve-secondary'+(selected?.childId===l.id?' active':'')} onClick={()=>onSelect({level:'nav-link',screenId:screen.id,elementId:element.id,childId:l.id})}>{l.label} · {demo.screens.find(s=>s.id===l.screenId)?.title||'Connect in Flow'}</button>)}
