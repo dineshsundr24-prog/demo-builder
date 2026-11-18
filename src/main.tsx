@@ -275,7 +275,7 @@ function App(){
   if(raw.startsWith('palette:')){
    try{
     const result=insertVisualComponent(project.demo,screen.id,raw.slice(8),beforeId);
-    if(result.definition.screens.find(s=>s.id===screen.id)?.elements.find(el=>el.id===result.elementId)?.kind==='navigation'){
+    if((result.definition as DemoDefinition).screens.find(s=>s.id===screen.id)?.elements.find(el=>el.id===result.elementId)?.kind==='navigation'){
       result.definition=placeMobileElement(result.definition,screen.id,result.elementId,'body');
     }
     commitVisual(result.definition,'Add and position component');
