@@ -102,3 +102,40 @@ test('Direct drag move and remove of a nested form field affect only the selecte
  assert.equal(before.fields.length,2);
  assert.equal(demo.screens[1].elements[0].fields.length,1);
 });
+
+test('Generalized nested cards are independent selectable editable items, not opaque parent sections',async()=>{
+ const {editVisualItem,setVisualItemAppearance,moveVisualItem,removeVisualItem}=await import('../src/visualEditor.mjs');
+ const composed=structuredClone(demo);
+ composed.screens[0].elements.push({id:'benefits',kind:'composed',title:'Why Choose Bank?',items:[
+  {id:'fast',kind:'card',label:'Fast Onboarding',text:'Open your account in minutes'},
+  {id:'secure',kind:'card',label:'Secure Banking',text:'Bank with confidence'},
+  {id:'help',kind:'text',label:'Support',text:'Need help?'}
+ ]});
+ assert.equal(validateStrictDemo(composed,'mobile'),true);
+ let changed=editVisualItem(composed,'start','benefits','fast',{label:'Fast Registration',text:'Apply in minutes'});
+ changed=setVisualItemAppearance(changed,'start','benefits','fast',{textColor:'#FFFFFF',backgroundColor:'#2563EB'});
+ let items=changed.screens[0].elements.at(-1).items;
+ assert.equal(items[0].label,'Fast Registration');
+ assert.equal(items[0].text,'Apply in minutes');
+ assert.equal(items[0].appearance.textColor,'#FFFFFF');
+ assert.equal(items[0].appearance.backgroundColor,'#2563EB');
+ assert.equal(items[1].label,'Secure Banking');
+ assert.equal(items[1].appearance,undefined);
+ changed=moveVisualItem(changed,'start','benefits','secure',0);
+ assert.equal(changed.screens[0].elements.at(-1).items[0].id,'secure');
+ changed=removeVisualItem(changed,'start','benefits','help');
+ assert.equal(changed.screens[0].elements.at(-1).items.length,2);
+ assert.equal(validateStrictDemo(changed,'mobile'),true);
+ assert.equal(composed.screens[0].elements.at(-1).items[0].label,'Fast Onboarding');
+});
+test('Generated item editing rejects invalid colors and dependent control removal',async()=>{
+ const {setVisualItemAppearance,removeVisualItem}=await import('../src/visualEditor.mjs');
+ const composed=structuredClone(demo);
+ composed.screens[0].elements.push({id:'dynamic',kind:'composed',title:'Check',items:[
+  {id:'status',kind:'select',label:'Status',options:['Yes','No']},
+  {id:'message',kind:'text',label:'Status message',visibleWhen:{field:'status',equals:'Yes'}}
+ ]});
+ assert.throws(()=>setVisualItemAppearance(composed,'start','dynamic','status',{textColor:'var(--bad)'}),/Invalid color/);
+ assert.throws(()=>removeVisualItem(composed,'start','dynamic','status'),/referenced/);
+ assert.deepEqual(composed.screens[0].elements.at(-1).items.map(x=>x.id),['status','message']);
+});
