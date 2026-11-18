@@ -1,12 +1,14 @@
 import React,{useEffect,useState} from 'react';
 import {Plus,Trash2,GripVertical,ArrowDown,ArrowUp,Workflow,LayoutTemplate,PanelsTopLeft,Link2,ChevronDown,Palette,Settings2} from 'lucide-react';
 import type {DemoDefinition} from './demo';
+// @ts-ignore Shared navigation labels and pure editor mutation.
+import {mobileTemplateLabels,editNavigationItem} from './mobileComponents.mjs';
 // @ts-ignore This validated editing engine is shared with Node regression tests.
 import {addVisualScreen,renameVisualScreen,addVisualComponent,moveVisualComponent,removeVisualComponent,editVisualComponent,setVisualAppearance,addVisualField,editVisualField,moveVisualField,removeVisualField,editVisualItem,setVisualItemAppearance,moveVisualItem,removeVisualItem,setVisualSubmitVisibility,removeVisualButton,connectVisualFlow,visualFlowActions,visualFlowEdges,palette} from './visualEditor.mjs';
 import './visualEditor.css';
-type Selection={level:'screen'|'element'|'field'|'button'|'item'|'header';screenId:string;elementId?:string;childId?:string};
+type Selection={level:'screen'|'element'|'field'|'button'|'item'|'nav-link'|'header';screenId:string;elementId?:string;childId?:string};
 type Props={demo:DemoDefinition;screenId:string;selected:Selection|null;busy:boolean;onSelectScreen:(id:string)=>void;onSelect:(choice:Selection)=>void;onChange:(next:DemoDefinition,description:string)=>void;onError:(reason:string)=>void};
-const labels:Record<string,string>={hero:'Hero banner',notice:'Text / card',form:'Form',actions:'Buttons',table:'Data table',stats:'Summary cards',composed:'Generated section'};
+const labels:Record<string,string>={hero:'Hero banner',notice:'Text / card',form:'Form',actions:'Buttons',table:'Data table',stats:'Summary cards',composed:'Generated section',navigation:'Mobile menu / footer',...mobileTemplateLabels};
 const colors=['#F58220','#2563EB','#0E9389','#159447','#4C1D95','#DC2626','#1F2937','#FFFFFF'];
 export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectScreen,onSelect,onChange,onError}:Props){
  const[mode,setMode]=useState<'screens'|'components'|'flow'>('components');
@@ -14,11 +16,12 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
  const[flowFrom,setFlowFrom]=useState('');
  const[flowAction,setFlowAction]=useState('');
  const[drag,setDrag]=useState<{kind:'component'|'field'|'palette';id:string;formId?:string}|null>(null);
- useEffect(()=>{if(selected&&['element','field','button','item'].includes(selected.level))setMode('components');},[selected?.level,selected?.screenId,selected?.elementId,selected?.childId]);
+ useEffect(()=>{if(selected&&['element','field','button','item','nav-link'].includes(selected.level))setMode('components');},[selected?.level,selected?.screenId,selected?.elementId,selected?.childId]);
  const screen=demo.screens.find(s=>s.id===screenId)||demo.screens[0];
  const element=screen?.elements.find(e=>e.id===selected?.elementId);
  const field=element?.kind==='form'&&selected?.level==='field'?element.fields.find(f=>f.id===selected.childId):null;
  const item=element?.kind==='composed'&&selected?.level==='item'?element.items.find(i=>i.id===selected.childId):null;
+ const navLink=element?.kind==='navigation'&&selected?.level==='nav-link'?element.links.find(l=>l.id===selected.childId):null;
  const actions:{id:string;label:string;screenId:string}[]=flowFrom?visualFlowActions(demo,flowFrom):[];
  const act=(description:string,fn:()=>DemoDefinition)=>{if(busy)return;try{const next=fn();onChange(next,description);}catch(e){onError(e instanceof Error?e.message:'Unable to edit component.');}};
  const choose=(elementId:string,childId?:string)=>onSelect({level:childId?'field':'element',screenId:screen.id,elementId,...(childId?{childId}:{})});
@@ -53,7 +56,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
    </div>}
    {mode==='components'&&<div className="ve-section">
     <div className="ve-section-heading"><b>Component library</b><span>Drag or click to add</span></div>
-    <div className="ve-palette">{palette.map((kind:string)=><button key={kind} draggable onDragStart={e=>{setDrag({kind:'palette',id:kind});e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','palette:'+kind);}} onClick={()=>{try{const out=addVisualComponent(demo,screen.id,kind);onChange(out.definition,'Add '+labels[kind]);choose(out.elementId);}catch(e){onError(String(e instanceof Error?e.message:e));}}}><Plus size={13}/>{labels[kind]||kind}</button>)}</div>
+    <div className="ve-palette">{palette.filter((kind:string)=>demo.channel==='mobile'||!(kind in mobileTemplateLabels)).map((kind:string)=><button key={kind} draggable onDragStart={e=>{setDrag({kind:'palette',id:kind});e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','palette:'+kind);}} onClick={()=>{try{const out=addVisualComponent(demo,screen.id,kind);onChange(out.definition,'Add '+labels[kind]);choose(out.elementId);}catch(e){onError(String(e instanceof Error?e.message:e));}}}><Plus size={13}/>{labels[kind]||kind}</button>)}</div>
     <div className="ve-section-heading"><b>{screen.title}</b><span>{screen.elements.length} components</span></div>
     <p className="ve-help">Drag components to reorder them. Click to edit their properties. Changes appear in the preview immediately.</p>
     <div className="ve-components">
@@ -68,8 +71,12 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
      </div>)}
     </div>
     {element&&<div className="ve-properties" key={screen.id+':'+element.id+':'+(selected?.childId||'')}>
-     <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='item'?'Generated item':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
-     {item?<div className="ve-fields">
+     <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='item'?'Generated item':selected?.level==='nav-link'?'Menu item':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
+     {navLink&&element?.kind==='navigation'?<div className="ve-fields">
+       <div className="ve-field"><label>Menu item label</label><input key={element.id+':'+navLink.id+':label'} defaultValue={navLink.label} onBlur={e=>{if(e.target.value!==navLink.label)act('Rename menu item',()=>editNavigationItem(demo,screen.id,element.id,navLink.id,{label:e.target.value}));}}/></div>
+       <div className="ve-field"><label>Destination screen</label><select value={navLink.screenId||''} onChange={e=>act('Connect menu destination',()=>editNavigationItem(demo,screen.id,element.id,navLink.id,{screenId:e.target.value}))}><option value="">Not connected</option>{demo.screens.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
+       <small className="ve-help">Navigation only runs in Run Preview. Choose a destination to make this item functional.</small>
+     </div>:item?<div className="ve-fields">
       <div className="ve-field"><label>Item label / heading</label><input key={item.id+':label'} defaultValue={item.label} onBlur={e=>{if(e.target.value!==item.label)updateItem({label:e.target.value});}}/></div>
       {item.kind!=='divider'&&<div className="ve-field"><label>Body text</label><textarea key={item.id+':text'} defaultValue={item.text||''} onBlur={e=>{if(e.target.value!==item.text)updateItem({text:e.target.value});}}/></div>}
       <div className="ve-field"><label><Palette size={13}/> Background color</label><div className="ve-colors">{colors.map(color=><button key={color} type="button" aria-label={'Set background '+color} title={color} style={{background:color}} onClick={()=>updateAppearance({backgroundColor:color})}/>)}</div></div>
@@ -93,6 +100,10 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
       <div className="ve-field"><label>Alignment</label><select value={appearance.alignment||'left'} onChange={e=>updateAppearance({alignment:e.target.value})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
       {!selected?.childId&&<button className="ve-danger" onClick={()=>{act('Remove component',()=>removeVisualComponent(demo,screen.id,element.id));onSelect({level:'screen',screenId:screen.id});}}><Trash2 size={13}/> Remove component</button>}
      </>}
+     {element.kind==='navigation'&&<div className="ve-field-list">
+       <div className="ve-section-heading"><b>Navigation items</b><span>{element.links.length}</span></div>
+       {element.links.map(l=><button key={l.id} className={'ve-secondary'+(selected?.childId===l.id?' active':'')} onClick={()=>onSelect({level:'nav-link',screenId:screen.id,elementId:element.id,childId:l.id})}>{l.label} · {demo.screens.find(s=>s.id===l.screenId)?.title||'Connect in Flow'}</button>)}
+     </div>}
      {element.kind==='composed'&&<div className="ve-field-list"><div className="ve-section-heading"><b>Generated components</b><span>{element.items.length}</span></div>{element.items.map((child,i)=><div className={'ve-field-row '+(selected?.level==='item'&&selected.childId===child.id?'active':'')} key={child.id} draggable onDragStart={e=>e.dataTransfer.setData('text/plain','item:'+element.id+':'+child.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('item:'+element.id+':'))act('Reorder generated item',()=>moveVisualItem(demo,screen.id,element.id,raw.slice(('item:'+element.id+':').length),i));}}><GripVertical size={13}/><button onClick={()=>onSelect({level:'item',screenId:screen.id,elementId:element.id,childId:child.id})}>{child.label||child.kind}</button></div>)}</div>}
      {element.kind==='form'&&<div className="ve-field-list"><div className="ve-section-heading"><b>Form fields</b><button onClick={()=>{try{const out=addVisualField(demo,screen.id,element.id,'text');onChange(out.definition,'Add field');choose(element.id,out.fieldId);}catch(e){onError(String(e));}}}><Plus size={14}/> Add</button></div>
       {element.fields.map((f,i)=><div key={f.id} draggable onDragStart={e=>{setDrag({kind:'field',id:f.id,formId:element.id});e.dataTransfer.setData('text/plain','field:'+element.id+':'+f.id);}}
