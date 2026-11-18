@@ -74,6 +74,6 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
-  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:true));
+  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox','file'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:true));
 }
 export function cloneDemo(d:DemoDefinition):DemoDefinition{return JSON.parse(JSON.stringify(d)) as DemoDefinition;}
