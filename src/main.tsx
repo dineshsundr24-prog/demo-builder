@@ -262,7 +262,7 @@ function App(){
       draggable={selectMode&&!pending} onDragStart={e=>{e.stopPropagation();e.dataTransfer.setData('text/plain','component:'+el.id);e.dataTransfer.effectAllowed='move';}}>
       {selectMode&&!pending&&<button type="button" data-editor-control="true" className="mobile-slot-edit"
        onClick={e=>{e.preventDefault();e.stopPropagation();setSelected({level:'element',screenId:screen.id,elementId:el.id});}}
-       aria-label={'Edit '+el.title+' placement'} title={'Edit '+el.title+' placement'}><GripVertical size={13}/></button>}
+       aria-label={'Edit '+(el.kind==='navigation'?el.title:el.kind)+' placement'} title={'Edit '+(el.kind==='navigation'?el.title:el.kind)+' placement'}><GripVertical size={13}/></button>}
       {render(el)}
     </div>)}
    {selectMode&&!pending&&!placed.length&&<div className="mobile-slot-placeholder">{slot==='bottom'?'Drop bottom navigation here':slot==='header-left'?'Drop header item left':'Drop header item right'}</div>}
