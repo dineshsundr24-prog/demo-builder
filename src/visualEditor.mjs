@@ -223,6 +223,12 @@ export function connectVisualFlow(d,fromId,sourceId,toId){
   if(el?.kind!=='navigation')throw Error('Source navigation component does not exist.');
   const link=el.links.find(l=>l.id===linkId);if(!link)throw Error('Navigation item does not exist.');
   link.screenId=toId;
+ }else if(key.startsWith('composed:')){
+  const [,elementId,itemId]=key.split(':');const el=source.elements.find(e=>e.id===elementId);
+  if(el?.kind!=='composed')throw Error('Source reusable template does not exist.');
+  const button=el.items.find(i=>i.id===itemId&&i.kind==='button');
+  if(!button)throw Error('Template button does not exist.');
+  button.nextScreen=toId;
  }else throw Error('Choose a button, menu item or form submit event.');
  return next;
 }
@@ -230,6 +236,7 @@ export function visualFlowActions(d,screenId){
  const sc=requireScreen(d,screenId);
  return sc.elements.flatMap(el=>el.kind==='form'?(el.hideSubmit?[]:[{id:'form:'+el.id,label:el.actionLabel,screenId:el.nextScreen||''}]):
   el.kind==='actions'?el.buttons.map(b=>({id:'button:'+el.id+':'+b.id,label:b.label,screenId:b.nextScreen||''})):
-  el.kind==='navigation'?el.links.map(link=>({id:'nav:'+el.id+':'+link.id,label:link.label,screenId:link.screenId||''})):[]);
+  el.kind==='navigation'?el.links.map(link=>({id:'nav:'+el.id+':'+link.id,label:link.label,screenId:link.screenId||''})):
+  el.kind==='composed'?el.items.filter(item=>item.kind==='button').map(item=>({id:'composed:'+el.id+':'+item.id,label:item.label,screenId:item.nextScreen||''})):[]);
 }
 export function visualFlowEdges(d){return d.screens.flatMap(s=>visualFlowActions(d,s.id).filter(a=>a.screenId).map(a=>({from:s.id,to:a.screenId,actionId:a.id,label:a.label})));}
