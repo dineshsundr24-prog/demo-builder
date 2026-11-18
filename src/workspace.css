@@ -412,3 +412,23 @@
 .studio .device-zoom-stage.canvas-zoom-stage .mobile-frame.canvas-mode-frame .demo-main .elements{
   overflow:visible;
 }
+
+/* Companion to the independent inspector viewport. Selecting a screen control
+   must not affect the right viewport's dimensions or native scroll gesture. */
+.studio-workarea:has(> .ve-panel) .preview-viewport{
+  box-sizing:border-box;
+  flex:1 1 0;
+  height:0;
+  min-height:0;
+  min-width:0;
+  max-height:none;
+  overflow-x:auto;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:auto;
+  scrollbar-gutter:stable;
+}
+.studio-workarea:has(> .ve-panel) .device-zoom-stage.canvas-zoom-stage{
+  max-height:none;
+  overflow:visible;
+}
