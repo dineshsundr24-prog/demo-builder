@@ -69,6 +69,12 @@ export function removeVisualComponent(d,screenId,elementId){
  if(index<0)throw Error('Component not found.');
  sc.elements.splice(index,1);return next;
 }
+export function setVisualSubmitVisibility(d,screenId,formId,visible){
+ const next=clone(d),form=requireScreen(next,screenId).elements.find(e=>e.id===formId);
+ if(form?.kind!=='form')throw Error('Select a form to change its submit button.');
+ form.hideSubmit=!visible;
+ return next;
+}
 export function removeVisualButton(d,screenId,elementId,buttonId){
  const next=clone(d),sc=requireScreen(next,screenId);
  const group=sc.elements.find(e=>e.id===elementId);
@@ -169,7 +175,7 @@ export function connectVisualFlow(d,fromId,sourceId,toId){
 }
 export function visualFlowActions(d,screenId){
  const sc=requireScreen(d,screenId);
- return sc.elements.flatMap(el=>el.kind==='form'?[{id:'form:'+el.id,label:el.actionLabel,screenId:el.nextScreen||''}]:
+ return sc.elements.flatMap(el=>el.kind==='form'?(el.hideSubmit?[]:[{id:'form:'+el.id,label:el.actionLabel,screenId:el.nextScreen||''}]):
   el.kind==='actions'?el.buttons.map(b=>({id:'button:'+el.id+':'+b.id,label:b.label,screenId:b.nextScreen||''})):[]);
 }
 export function visualFlowEdges(d){return d.screens.flatMap(s=>visualFlowActions(d,s.id).filter(a=>a.screenId).map(a=>({from:s.id,to:a.screenId,actionId:a.id,label:a.label})));}
