@@ -63,3 +63,42 @@ test('The same visual engine works for portal project definitions',()=>{
  const built=addVisualComponent(added.definition,added.screenId,'table');
  assert.equal(validateStrictDemo(built.definition,'portal'),true);
 });
+
+
+test('Direct canvas drop inserts library components before a hovered section',async()=>{
+ const {insertVisualComponent,moveVisualComponentBefore}=await import('../src/visualEditor.mjs');
+ const inserted=insertVisualComponent(demo,'details','hero','form');
+ const ids=inserted.definition.screens[1].elements.map(e=>e.id);
+ assert.equal(ids[0],inserted.elementId);
+ assert.equal(ids[1],'form');
+ const another=insertVisualComponent(inserted.definition,'details','notice');
+ const reordered=moveVisualComponentBefore(another.definition,'details',another.elementId,'form');
+ assert.deepEqual(reordered.screens[1].elements.map(e=>e.id),[inserted.elementId,another.elementId,'form']);
+ assert.equal(validateStrictDemo(reordered,'mobile'),true);
+ assert.equal(demo.screens[1].elements[0].id,'form');
+});
+test('Direct canvas removal of a button or form submit updates actual render state safely',async()=>{
+ const {removeVisualButton,setVisualSubmitVisibility,visualFlowActions}=await import('../src/visualEditor.mjs');
+ const removed=removeVisualButton(demo,'start','actions','begin');
+ assert.equal(removed.screens[0].elements.length,0);
+ assert.equal(validateStrictDemo(removed,'mobile'),true);
+ const hidden=setVisualSubmitVisibility(demo,'details','form',false);
+ assert.equal(hidden.screens[1].elements[0].hideSubmit,true);
+ assert.equal(visualFlowActions(hidden,'details').length,0);
+ assert.equal(validateStrictDemo(hidden,'mobile'),true);
+ const restored=setVisualSubmitVisibility(hidden,'details','form',true);
+ assert.equal(visualFlowActions(restored,'details').length,1);
+ assert.equal(demo.screens[1].elements[0].hideSubmit,undefined);
+});
+test('Direct drag move and remove of a nested form field affect only the selected form',async()=>{
+ const {addVisualField,moveVisualField,removeVisualField}=await import('../src/visualEditor.mjs');
+ const added=addVisualField(demo,'details','form','email');
+ const before=added.definition.screens[1].elements[0];
+ const moved=moveVisualField(added.definition,'details','form',added.fieldId,0);
+ assert.equal(moved.screens[1].elements[0].fields[0].id,added.fieldId);
+ const reduced=removeVisualField(moved,'details','form','name');
+ assert.equal(reduced.screens[1].elements[0].fields.length,1);
+ assert.equal(validateStrictDemo(reduced,'mobile'),true);
+ assert.equal(before.fields.length,2);
+ assert.equal(demo.screens[1].elements[0].fields.length,1);
+});
