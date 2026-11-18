@@ -12,7 +12,7 @@ export type Field = {id:string;label:string;type:'text'|'email'|'password'|'numb
 export type Element = (
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
   | {id:string;kind:'stats';items:{id:string;label:string;value:string;delta?:string}[]}
-  | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string;submitAppearance?:VisualAppearance}
+  | {id:string;kind:'form';title:string;description?:string;fields:Field[];actionLabel:string;nextScreen?:string;submitAppearance?:VisualAppearance;hideSubmit?:boolean}
   | {id:string;kind:'composed';title:string;items:{
     id:string;kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress'|'table'|'badge'|'divider';
     label:string;text?:string;required?:boolean;options?:string[];nextScreen?:string;appearance?:VisualAppearance;
