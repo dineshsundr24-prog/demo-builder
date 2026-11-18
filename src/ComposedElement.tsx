@@ -1,6 +1,7 @@
 // @ts-ignore Validated visual style definitions are shared across app and runtime.
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useState} from 'react';
+import {GripVertical,ArrowUp,ArrowDown,Trash2} from 'lucide-react';
 import type {Element} from './demo';
 // @ts-ignore Safe runtime is shared between browser and Node regression tests.
 import {dynamicRows,dynamicCsv,executeDynamicActions} from './componentRuntime.mjs';
@@ -8,7 +9,8 @@ import './styles.css';
 import './dynamicComponent.css';
 type Composed=Extract<Element,{kind:'composed'}>;
 type Item=Composed['items'][number];
-export default function ComposedElement({element,onNavigate}:{element:Composed;onNavigate:(id?:string)=>void}){
+type EditorControls={selectedItemId?:string;onSelect:(itemId:string)=>void;onMove:(itemId:string,toIndex:number)=>void;onRemove:(itemId:string)=>void};
+export default function ComposedElement({element,onNavigate,editor}:{element:Composed;onNavigate:(id?:string)=>void;editor?:EditorControls}){
  const [values,setValues]=useState<Record<string,string>>({});
  const [visible,setVisible]=useState<Record<string,boolean>>({});
  const [errors,setErrors]=useState<Record<string,string>>({});
@@ -31,11 +33,11 @@ export default function ComposedElement({element,onNavigate}:{element:Composed;o
  }
  return <section className="surface composed-surface dynamic-surface" style={appearanceToStyle(element.appearance)}>
   <div className="section-head"><div><h3>{element.title}</h3></div></div>
-  <div className="composed-items">{element.items.map(item=>{
+  <div className="composed-items">{element.items.map((item,itemIndex)=>{
    if(visible[item.id]===false)return null;
    if(item.visibleWhen&&String(values[item.visibleWhen.field]||'')!==item.visibleWhen.equals)return null;
    const val=values[item.id]||'';
-   switch(item.kind){
+   const renderItem=()=>{switch(item.kind){
     case 'text':return <p className="composed-text" style={appearanceToStyle(item.appearance)} key={item.id}>{item.text||item.label}</p>;
     case 'badge':return <span className="dynamic-badge" style={appearanceToStyle(item.appearance)} key={item.id}>{item.text||item.label}</span>;
     case 'divider':return <hr className="dynamic-divider" style={appearanceToStyle(item.appearance)} key={item.id}/>;
@@ -46,7 +48,19 @@ export default function ComposedElement({element,onNavigate}:{element:Composed;o
     case 'input':return <div className="composed-field" style={appearanceToStyle(item.appearance)} key={item.id}><label>{item.label}{item.required?' *':''}</label><input type={item.inputType||'text'} value={val} onChange={e=>setValues(p=>({...p,[item.id]:e.target.value}))} placeholder={item.text||''}/>{errors[item.id]&&<small className="error">{errors[item.id]}</small>}</div>;
     case 'button':return <button type="button" className="btn primary composed-action" style={appearanceToStyle(item.appearance)} key={item.id} onClick={()=>act(item)}>{item.label}</button>;
     case 'table':{const rows=dynamicRows(item,values) as Record<string,string>[];return <div className="dynamic-table-wrap" style={appearanceToStyle(item.appearance)} key={item.id}><div className="dynamic-table-title">{item.label}</div><div className="table-scroll"><table><thead><tr>{item.columns?.map(c=><th key={c.id}>{c.label}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{item.columns?.map(c=><td key={c.id}>{r[c.id]}</td>)}</tr>)}{rows.length===0&&<tr><td colSpan={item.columns?.length||1} className="empty">No matching records</td></tr>}</tbody></table></div></div>;}
-   }
+   }};
+   if(!editor)return renderItem();
+   return <div key={item.id} className={'composed-editable-item'+(editor.selectedItemId===item.id?' composed-item-selected':'')}
+    data-select-level="item" data-select-element={element.id} data-select-child={item.id}
+    draggable onDragStart={e=>{e.stopPropagation();e.dataTransfer.setData('text/plain','item:'+element.id+':'+item.id);e.dataTransfer.effectAllowed='move';}}
+    onDragOver={e=>{e.preventDefault();e.stopPropagation();}}
+    onDrop={e=>{e.preventDefault();e.stopPropagation();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('item:'+element.id+':')){const from=raw.slice(('item:'+element.id+':').length);editor.onMove(from,itemIndex);}}}>
+    <div className="composed-item-toolbar" data-editor-control="true" onClick={e=>e.stopPropagation()}>
+      <button type="button" className="composed-item-title" onClick={()=>editor.onSelect(item.id)} title={'Select '+item.label}><GripVertical size={13}/><span>{item.label||item.kind}</span></button>
+      <button type="button" aria-label={'Move '+item.label+' up'} disabled={itemIndex===0} onClick={()=>editor.onMove(item.id,itemIndex-1)}><ArrowUp size={13}/></button>
+      <button type="button" aria-label={'Move '+item.label+' down'} disabled={itemIndex===element.items.length-1} onClick={()=>editor.onMove(item.id,itemIndex+1)}><ArrowDown size={13}/></button>
+      <button type="button" aria-label={'Remove '+item.label} onClick={()=>editor.onRemove(item.id)}><Trash2 size={13}/></button>
+    </div>{renderItem()}</div>;
   })}</div>
   {notice&&<div role="status" className="notice success dynamic-notice">{notice}</div>}
  </section>;
