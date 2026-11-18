@@ -17,12 +17,13 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
  const screen=demo.screens.find(s=>s.id===screenId)||demo.screens[0];
  const element=screen?.elements.find(e=>e.id===selected?.elementId);
  const field=element?.kind==='form'&&selected?.level==='field'?element.fields.find(f=>f.id===selected.childId):null;
- const actions=flowFrom?visualFlowActions(demo,flowFrom):[];
+ const actions:{id:string;label:string;screenId:string}[]=flowFrom?visualFlowActions(demo,flowFrom):[];
  const act=(description:string,fn:()=>DemoDefinition)=>{if(busy)return;try{const next=fn();onChange(next,description);}catch(e){onError(e instanceof Error?e.message:'Unable to edit component.');}};
  const choose=(elementId:string,childId?:string)=>onSelect({level:childId?'field':'element',screenId:screen.id,elementId,...(childId?{childId}:{})});
  const updateField=(patch:Record<string,unknown>)=>{if(element?.kind!=='form'||!field)return;act('Edit field',()=>editVisualField(demo,screen.id,element.id,field.id,patch));};
  const updateElement=(patch:Record<string,unknown>)=>{if(!element)return;act('Edit component',()=>editVisualComponent(demo,screen.id,element.id,patch));};
  const updateAppearance=(patch:Record<string,unknown>)=>{if(!element)return;act('Update appearance',()=>setVisualAppearance(demo,screen.id,element.id,patch,selected?.level==='button'?selected.childId:undefined));};
+ const flowEdges:{from:string;to:string;actionId:string;label:string}[]=visualFlowEdges(demo);
  const elTitle=(el:DemoDefinition['screens'][number]['elements'][number])=>('title'in el&&typeof el.title==='string'?el.title:labels[el.kind]||el.kind);
  const navLabel=demo.channel==='mobile'?'Screen':'Page';
  const chosenButton=element?.kind==='actions'&&selected?.level==='button'?element.buttons.find(b=>b.id===selected.childId):null;
@@ -91,14 +92,14 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
     </div>}
    </div>}
    {mode==='flow'&&<div className="ve-section">
-    <div className="ve-section-heading"><b>Visual flow designer</b><span>{visualFlowEdges(demo).length} links</span></div>
+    <div className="ve-section-heading"><b>Visual flow designer</b><span>{flowEdges.length} links</span></div>
     <p className="ve-help">Select a source event and click a destination node to connect the screens. The navigation changes in the actual application preview.</p>
     <div className="ve-field"><label>Source screen</label><select value={flowFrom} onChange={e=>{setFlowFrom(e.target.value);setFlowAction('');}}><option value="">Choose source</option>{demo.screens.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
     {flowFrom&&<div className="ve-field"><label>Button / submit event</label><select value={flowAction} onChange={e=>setFlowAction(e.target.value)}><option value="">Choose action</option>{actions.map(a=><option key={a.id} value={a.id}>{a.label}{a.screenId?' → '+demo.screens.find(s=>s.id===a.screenId)?.title:''}</option>)}</select></div>}
     <div className="ve-flow-canvas">{demo.screens.map((s,i)=><React.Fragment key={s.id}><button className={'ve-flow-node '+(flowFrom===s.id?'source':'')} title={flowAction&&flowFrom&&flowFrom!==s.id?'Connect to '+s.title:'Select as source'} onClick={()=>{if(flowFrom&&flowAction&&flowFrom!==s.id){act('Connect workflow',()=>connectVisualFlow(demo,flowFrom,flowAction,s.id));setFlowAction('');}else{setFlowFrom(s.id);onSelectScreen(s.id);}}}><small>{String(i+1).padStart(2,'0')}</small><strong>{s.title}</strong>{flowFrom&&flowAction&&flowFrom!==s.id&&<span><Link2 size={13}/> Connect here</span>}</button>{i<demo.screens.length-1&&<div className="ve-flow-arrow"><ArrowDown size={17}/></div>}</React.Fragment>)}</div>
     <div className="ve-section-heading"><b>Configured navigation</b></div>
-    {visualFlowEdges(demo).map((e,i)=><div key={i} className="ve-edge"><span>{demo.screens.find(s=>s.id===e.from)?.title}</span><span>→</span><span>{demo.screens.find(s=>s.id===e.to)?.title}</span><small>{e.label}</small></div>)}
-    {!visualFlowEdges(demo).length&&<p className="ve-help">No linked screens yet. Choose a source event and destination above.</p>}
+    {flowEdges.map((e,i)=><div key={i} className="ve-edge"><span>{demo.screens.find(s=>s.id===e.from)?.title}</span><span>→</span><span>{demo.screens.find(s=>s.id===e.to)?.title}</span><small>{e.label}</small></div>)}
+    {!flowEdges.length&&<p className="ve-help">No linked screens yet. Choose a source event and destination above.</p>}
    </div>}
   </div>
   <div className="ve-footer">Changes save to this project · Undo in workspace · No AI required for editing</div>
