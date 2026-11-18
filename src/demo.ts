@@ -26,7 +26,7 @@ export type Element = (
   }[]}
   | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
-  | {id:string;kind:'navigation';variant:'footer'|'menu';title:string;links:{id:string;label:string;screenId?:string}[]}
+  | {id:string;kind:'navigation';variant:'footer'|'menu';placement?:'header-left'|'header-right'|'bottom'|'body';title:string;links:{id:string;label:string;screenId?:string}[]}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string;appearance?:VisualAppearance}[]}) & {appearance?:VisualAppearance};
 export type ScreenChrome={brandName?:string;showBrandIcon?:boolean;showBackButton?:boolean};
 export type Screen = {id:string;title:string;subtitle:string;elements:Element[];parentScreenId?:string;chrome?:ScreenChrome};
