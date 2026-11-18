@@ -90,3 +90,13 @@ test('Semantic model returns only a screen blueprint, not unrestricted code',asy
  const out=await requestScreenBlueprint({instruction:'Add a Document Upload screen',project:{name:'Bank Demo',company:'Bank',channel:'mobile'},model:'test-model',apiKey:'test',fetchImpl});
  assert.deepEqual(out,blueprint);
 });
+
+
+test('A simulated document file input is valid and does not imply backend upload',()=>{
+ const spec={...blueprint,fields:[{label:'Proof of address',type:'file',required:true,options:[]}]};
+ const out=compileNewScreen(base,{level:'screen',screenId:'details'},'Add a new Address Proof screen after Personal Details',spec);
+ const screen=out.definition.screens.find(s=>s.id===out.createdScreenId);
+ assert.equal(screen.elements[0].fields[0].type,'file');
+ assert.equal(screen.elements[0].fields[0].required,true);
+ assert.equal(validateStrictDemo(out.definition,'mobile'),true);
+});
