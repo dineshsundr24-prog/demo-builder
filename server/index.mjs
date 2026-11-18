@@ -10,7 +10,7 @@ import {buildRegistry,compactRegistry,resolveChangeSet,resolveSimpleFieldReorder
 import {resolveVisualTarget} from './visualTarget.mjs';
 import {planPortalSubsection} from './portalNavigation.mjs';
 import {planPortalMenuLink} from '../src/portalMenuLinks.mjs';
-import {workspaceFromDemo,createRequestedScreen} from '../src/agentWorkspaceEngine.mjs';
+import {screenCreationIntent,compileNewScreen,requestScreenBlueprint} from './screenCreation.mjs';
 import {reportToolsIntent} from './reportTools.mjs';
 import {clarificationResponse} from './refinementAssistance.mjs';
 import {canonicalPlan,plannerContext} from './plannerContract.mjs';
@@ -208,32 +208,24 @@ async function planEdit(body){
  const target=body?.target;
  try{locateNode(demo,target);}catch(e){throw Object.assign(new Error(e.message),{status:422});}
 
- // New root-screen creation is a single validated, reversible proposal in the real editor.
- // It uses the proven isolated compiler, but persists nothing until the BA clicks Apply.
- if(project.channel==='portal'&&/\b(?:add|create|build|generate)\b/i.test(instruction)&&/\b(?:new\s+)?(?:menu|screen)\s+(?:called|named)\b/i.test(instruction)){
-  const workspace=workspaceFromDemo(demo);
-  const created=createRequestedScreen(workspace,instruction);
-  if(created){
-   if(created.lastResult?.status==='clarification'){
-    return {needsClarification:true,question:created.awaiting?.question||'Which columns should the new screen display?',
-     reason:'The screen must have named fields before generation.',options:[]};
-   }
-   if(created.lastResult?.status!=='passed'){
-    return technicalFailure(created.lastResult?.message||'New screen cannot be created.','screen-creation');
-   }
-   if(demo.screens.length>=12)return technicalFailure('This portal already contains the maximum 12 screens.','screen-limit');
-   const screenId=created.selectedScreenId;
-   const screen=created.demo.screens.find(s=>s.id===screenId);
-   if(!screen||!validateStrictDemo(created.demo,project.channel))return technicalFailure('Generated screen failed schema validation.','screen-creation');
-   const operations=[{op:'add-screen',screenId,title:screen.title}];
-   return {scope:'planned',target:{level:'screen',screenId:target.screenId},label:screen.title+' · New navigation screen',
-    operations,definition:created.demo,createdScreenId:screenId,
-    checks:['New screen and navigation entry verified','Requested columns and controls compiled','Existing screens and navigation retained unchanged'],
-    preservedScreens:demo.screens.length,summary:'Created '+screen.title+' with interactive demo data. Review the new menu and screen before applying.',
-    usage:{model:'deterministic-screen-compiler',inputTokens:0,outputTokens:0}};
+ // Unified creation of complete application screens for mobile and portal.
+ // AI supplies semantic screen requirements; deterministic compilation owns IDs and navigation.
+ if(screenCreationIntent(instruction)){
+  try{
+   const blueprint=await requestScreenBlueprint({instruction,project,model,apiKey:process.env.OPENAI_API_KEY});
+   const result=compileNewScreen(demo,target,instruction,blueprint);
+   if(result.status==='clarify')return {needsClarification:true,question:result.question,options:result.options||[],
+    reason:'Select the existing journey screen that should connect to the new screen.'};
+   return {scope:'planned',target,label:'New screen · '+result.definition.screens.find(s=>s.id===result.createdScreenId).title,
+    definition:result.definition,createdScreenId:result.createdScreenId,operations:result.operations,
+    preservedScreens:demo.screens.length,checks:result.checks,
+    summary:'Created and connected a new '+project.channel+' screen. Review before applying.',
+    usage:{model,inputTokens:0,outputTokens:0}};
+  }catch(e){
+   return technicalFailure(String(e.message||'Unable to create a connected application screen'),'screen-creation');
   }
  }
-
+ 
  const menuLink=planPortalMenuLink(demo,instruction,target.screenId);
  if(menuLink){
   if(menuLink.alreadyExists)return technicalFailure('Requested menu option already exists on this portal','navigation');
