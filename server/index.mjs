@@ -216,7 +216,7 @@ async function planEdit(body){
    const result=compileNewScreen(demo,target,instruction,blueprint);
    if(result.status==='clarify')return {needsClarification:true,question:result.question,options:result.options||[],
     reason:'Select the existing journey screen that should connect to the new screen.'};
-   return {scope:'planned',target,label:'New screen · '+result.definition.screens.find(s=>s.id===result.createdScreenId).title,
+   return {scope:'planned',target:{level:'screen',screenId:result.anchorScreenId},label:'New screen · '+result.definition.screens.find(s=>s.id===result.createdScreenId).title,
     definition:result.definition,createdScreenId:result.createdScreenId,operations:result.operations,
     preservedScreens:demo.screens.length,checks:result.checks,
     summary:'Created and connected a new '+project.channel+' screen. Review before applying.',
