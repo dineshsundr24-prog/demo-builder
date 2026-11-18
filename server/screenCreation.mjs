@@ -82,14 +82,14 @@ export function compileNewScreen(demo,selection,instruction,blueprint){
  if(demo.screens.some(s=>norm(s.title)===norm(title)))throw Error('A screen named '+title+' already exists; select it to refine instead.');
  const anchor=requestedAnchor(demo,selection.screenId,instruction);
  if(anchor.status!=='resolved')return anchor;
- if(anchor.screenId!==selection.screenId)return{status:'clarify',question:'Select the '+demo.screens.find(s=>s.id===anchor.screenId)?.title+' screen before inserting a new screen after it.',options:[]};
+ // Explicitly named journey anchors take priority over the currently previewed screen.
  const screenIdBase='screen-'+slug(title);let screenId=screenIdBase,n=2;
  while(demo.screens.some(s=>s.id===screenId))screenId=screenIdBase+'-'+n++;
  const kind=['form','table','information','confirmation'].includes(blueprint?.kind)?blueprint.kind:'form';
  const subtitle=clean(blueprint?.subtitle,180)||'Continue your application journey';
  const description=clean(blueprint?.description,500)||'Complete this step using fictional demonstration data.';
  const actionLabel=clean(blueprint?.actionLabel,65)||'Continue';
- const source=demo.screens.find(s=>s.id===selection.screenId);
+ const source=demo.screens.find(s=>s.id===anchor.screenId);
  const next=structuredClone(demo);
  const current=next.screens.find(s=>s.id===source.id);
  // Preserve the selected screen's existing successor by inserting the new step in the chain.
@@ -123,17 +123,17 @@ export function compileNewScreen(demo,selection,instruction,blueprint){
   current.elements.push({id:screenId+'-entry',kind:'actions',buttons:[{id:'open',label:'Continue to '+title,nextScreen:screenId}]});
  }
  const screen={id:screenId,title,subtitle,elements};
- const anchorIndex=next.screens.findIndex(s=>s.id===selection.screenId);
+ const anchorIndex=next.screens.findIndex(s=>s.id===anchor.screenId);
  next.screens.splice(anchorIndex+1,0,screen);
- const operations=[{op:'add-screen',screenId,title,anchorScreenId:selection.screenId,previousDestination:oldDestination}];
+ const operations=[{op:'add-screen',screenId,title,anchorScreenId:anchor.screenId,previousDestination:oldDestination}];
  if(!validateStrictDemo(next,demo.channel))throw Error('Generated screen or connected navigation failed application validation.');
- verifyEditScope(demo,next,{level:'screen',screenId:selection.screenId},'screen',operations);
- for(const previous of demo.screens.filter(s=>s.id!==selection.screenId)){
+ verifyEditScope(demo,next,{level:'screen',screenId:anchor.screenId},'screen',operations);
+ for(const previous of demo.screens.filter(s=>s.id!==anchor.screenId)){
   if(JSON.stringify(next.screens.find(s=>s.id===previous.id))!==JSON.stringify(previous))throw Error('Unrelated existing screen changed.');
  }
  if(linked&&!current.elements.some(e=>e.kind==='form'&&e.nextScreen===screenId||e.kind==='actions'&&e.buttons.some(b=>b.nextScreen===screenId)))throw Error('New screen is not reachable from the selected screen.');
  if(!linked&&!current.elements.some(e=>e.kind==='actions'&&e.buttons.some(b=>b.nextScreen===screenId)))throw Error('New screen is not reachable.');
- return{status:'resolved',definition:next,operations,createdScreenId:screenId,anchorScreenId:selection.screenId,
+ return{status:'resolved',definition:next,operations,createdScreenId:screenId,anchorScreenId:anchor.screenId,
   checks:['New screen passes application schema','Existing journey can open new screen','Unrelated screens unchanged','Existing onward navigation preserved when present']};
 }
 export async function requestScreenBlueprint({instruction,project,model,apiKey,fetchImpl=fetch}){
