@@ -51,7 +51,7 @@ function App(){
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[rememberAI,setRememberAI]=useState(()=>{try{return localStorage.getItem('meyon-demo-ai-remember')==='yes';}catch{return false;}});const[accessToken,setAccessToken]=useState(()=>{try{return sessionStorage.getItem('meyon-demo-ai-access')||(localStorage.getItem('meyon-demo-ai-remember')==='yes'?localStorage.getItem('meyon-demo-ai-saved')||'':'');}catch{return '';}});const[accessDraft,setAccessDraft]=useState('');
  const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
- const fileInput=useRef<HTMLInputElement>(null);const end=useRef<HTMLDivElement>(null);
+ const fileInput=useRef<HTMLInputElement>(null);const end=useRef<HTMLDivElement>(null);const previewScroll=useRef<HTMLDivElement>(null);
  const project=state.projects.find(p=>p.id===state.activeId)||state.projects[0];
  const demo=pending?.projectId===project.id?pending.definition:project.demo;
  const screen=demo?.screens.find(s=>s.id===screenId)||demo?.screens[0];
@@ -371,7 +371,7 @@ function App(){
   <div className="visual-comment-heading"><MousePointer2 size={15}/><strong>{activeSelection?'Selected: '+targetName(activeSelection):'Select a screen or component'}</strong><span>{activeSelection?'Add a comment below':'Click a component or blank screen area'}</span></div>
   {activeSelection&&<div className="visual-comment-entry"><input autoFocus aria-label="Comment on selected component" placeholder="What should change here?" value={visualComment} onChange={e=>setVisualComment(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();requestVisualEdit();}}}/><button disabled={!visualComment.trim()||aiBusy} onClick={requestVisualEdit}>Preview change</button></div>}
  </div>}
- <div className="preview-viewport" onWheelCapture={e=>{
+ <div className="preview-viewport" ref={previewScroll} onWheelCapture={e=>{
   if(project.channel!=='mobile'||!selectMode||zoom<=100)return;
   const outer=e.currentTarget;
   const maxY=outer.scrollHeight-outer.clientHeight,maxX=outer.scrollWidth-outer.clientWidth;
@@ -383,7 +383,7 @@ function App(){
   const nextY=Math.max(0,Math.min(maxY,outer.scrollTop+vertical));
   const nextX=Math.max(0,Math.min(maxX,outer.scrollLeft+horizontal));
   if(Math.abs(nextY-outer.scrollTop)>0.5||Math.abs(nextX-outer.scrollLeft)>0.5){
-   e.preventDefault();
+   if(e.cancelable)e.preventDefault();
    outer.scrollTop=nextY;outer.scrollLeft=nextX;
   }
  }}>{demo&&screen?<><div className="active-screen-title"><strong>{String(demo.screens.findIndex(s=>s.id===screen.id)+1).padStart(2,'0')} · {screen.title}</strong>{selectMode&&<span className="canvas-mode-hint"><GripVertical size={13}/> Drag, select or delete directly on the canvas</span>}</div><div className="preview-stage-layout"><div className="preview-stage-canvas"><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage':'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,height:780*zoom/100}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame':'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?{transform:`scale(${zoom/100})`,transformOrigin:'top left'}:undefined}><div className={'demo-shell'+(selectMode?' select-on':'')} onClickCapture={pick}>{project.channel==='portal'&&<nav className="demo-nav"><div data-select-level="header" className={'demo-logo'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<Wallet size={18}/>} {brandName}</div>{navigationMenuLinks(demo).map((link:{id:string;label:string;screenId:string})=><div className="portal-menu-group" key={link.id}><div className="portal-menu-parent"><button className="portal-menu-link" onClick={()=>go(link.screenId)}><LayoutDashboard size={15}/><span>{link.label}</span></button></div></div>)}
@@ -413,6 +413,12 @@ function App(){
    <button className="preview-fullscreen-btn" title={expanded?'Exit full-screen presentation':'Full-screen presentation'} aria-label={expanded?'Exit presentation':'Present fullscreen'} onClick={()=>{setExpanded(v=>!v);setTab('preview');}}>{expanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</button>
   </div>
   <div className="preview-toolbar-secondary">
+   {demo&&project.channel==='mobile'&&tab==='preview'&&selectMode&&<div className="canvas-pan-buttons" aria-label="Scroll zoomed canvas">
+     <button type="button" aria-label="Scroll preview up" title="Scroll preview up" onClick={()=>previewScroll.current?.scrollBy({top:-260,behavior:'smooth'})}><ArrowUp size={16}/></button>
+     <button type="button" aria-label="Scroll preview down" title="Scroll preview down" onClick={()=>previewScroll.current?.scrollBy({top:260,behavior:'smooth'})}><ArrowDown size={16}/></button>
+     <button type="button" aria-label="Scroll preview left" title="Scroll preview left" onClick={()=>previewScroll.current?.scrollBy({left:-180,behavior:'smooth'})}><ArrowLeft size={16}/></button>
+     <button type="button" aria-label="Scroll preview right" title="Scroll preview right" onClick={()=>previewScroll.current?.scrollBy({left:180,behavior:'smooth'})}><ArrowRight size={16}/></button>
+   </div>}
    {demo&&project.channel==='mobile'&&tab==='preview'&&<div className="zoom-controls" aria-label="Mobile preview zoom"><button aria-label="Zoom out" title="Zoom out" disabled={zoom<=50} onClick={()=>setZoom(z=>Math.max(50,z-10))}><Minus size={15}/></button><button className="zoom-value" title="Reset zoom to 100%" aria-label="Reset zoom to 100%" onClick={()=>setZoom(100)}>{zoom}%</button><button aria-label="Zoom in" title="Zoom in" disabled={zoom>=150} onClick={()=>setZoom(z=>Math.min(150,z+10))}><Plus size={15}/></button></div>}
    <details className="preview-more-menu"><summary title="More demo actions" aria-label="More demo actions"><MoreHorizontal size={19}/></summary><div className="preview-more-panel">
     {(project.publishedVersions||[]).length>0&&<button onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');setPublishedUrl(project.publishedVersions?.[project.publishedVersions.length-1]?.url||'');setPublishOpen(true);}}><ShieldCheck size={15}/> Versions ({project.publishedVersions?.length})</button>}
