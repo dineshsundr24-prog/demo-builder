@@ -1,3 +1,4 @@
+import {validMobilePlacement} from './mobileLayout.mjs';
 // Shared, safe mobile component templates; nothing contacts UAE PASS or a biometric service.
 // Navigation is first-class so Flow and Design edit the same destination identifiers.
 const id=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v);
@@ -14,7 +15,7 @@ export const mobileTemplateLabels={
  'profile-card':'Profile summary',
 };
 export function validMobileNavigation(el,screenIds=[]){
- return !!el&&el.kind==='navigation'&&id(el.id)&&['footer','menu'].includes(el.variant)&&
+ return !!el&&el.kind==='navigation'&&id(el.id)&&['footer','menu'].includes(el.variant)&&validMobilePlacement(el)&&
  typeof el.title==='string'&&el.title.length<=100&&
  Array.isArray(el.links)&&el.links.length>=1&&el.links.length<=6&&
  new Set(el.links.map(l=>l.id)).size===el.links.length&&
@@ -27,9 +28,9 @@ export function mobileTemplate(kind,id){
  const card=(suffix,label,text)=>({id:suffix,kind:'card',label,text});
  const button=(suffix,label,message)=>({id:suffix,kind:'button',label,actions:safeNotice(message)});
  const composed=(title,items)=>({id,kind:'composed',title,items});
- if(kind==='bottom-nav')return{id,kind:'navigation',variant:'footer',title:'Bottom Navigation',links:[
+ if(kind==='bottom-nav')return{id,kind:'navigation',variant:'footer',placement:'bottom',title:'Bottom Navigation',links:[
   {id:'home',label:'Home'},{id:'services',label:'Services'},{id:'activity',label:'Activity'},{id:'profile',label:'Profile'}]};
- if(kind==='mobile-menu')return{id,kind:'navigation',variant:'menu',title:'Menu',links:[
+ if(kind==='mobile-menu')return{id,kind:'navigation',variant:'menu',placement:'header-right',title:'Menu',links:[
   {id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications'},{id:'documents',label:'Documents'},{id:'settings',label:'Settings'}]};
  if(kind==='uaepass-login')return composed('UAE PASS sign-in — simulated',[
   card('intro','Sign in securely','Authenticate with UAE PASS to continue. This is a fictional local demo, not an official UAE PASS login.'),
