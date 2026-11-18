@@ -371,35 +371,7 @@ function App(){
   <div className="visual-comment-heading"><MousePointer2 size={15}/><strong>{activeSelection?'Selected: '+targetName(activeSelection):'Select a screen or component'}</strong><span>{activeSelection?'Add a comment below':'Click a component or blank screen area'}</span></div>
   {activeSelection&&<div className="visual-comment-entry"><input autoFocus aria-label="Comment on selected component" placeholder="What should change here?" value={visualComment} onChange={e=>setVisualComment(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();requestVisualEdit();}}}/><button disabled={!visualComment.trim()||aiBusy} onClick={requestVisualEdit}>Preview change</button></div>}
  </div>}
- <div className="preview-viewport" ref={previewScroll} onWheelCapture={e=>{
-  // Editing is a workspace interaction, not a live-app gesture.
-  // Route wheel input to the phone's content first; when the phone reaches its
-  // scroll boundary, continue moving the outer, zoomed workspace. This works
-  // at 50–150% zoom, including 100%, and with the pointer inside the phone.
-  if(project.channel!=='mobile'||!selectMode)return;
-  const outer=e.currentTarget;
-  const inner=outer.querySelector<HTMLElement>('.device-zoom-stage .demo-main');
-  const deltaMultiplier=e.deltaMode===1?16:e.deltaMode===2?outer.clientHeight:1;
-  const dy=e.deltaY*deltaMultiplier;
-  const dx=e.deltaX*deltaMultiplier+(e.shiftKey?dy:0);
-  const travelY=e.shiftKey?0:dy;
-  const clamp=(v:number,min:number,max:number)=>Math.max(min,Math.min(max,v));
-  let remainingY=travelY;
-  // This is a design canvas. The same scroll target must work regardless of
-  // which child element currently happens to be under the mouse.
-  if(inner){
-    const nextInner=clamp(inner.scrollTop+remainingY,0,Math.max(0,inner.scrollHeight-inner.clientHeight));
-    remainingY-=nextInner-inner.scrollTop;
-    inner.scrollTop=nextInner;
-  }
-  const nextY=clamp(outer.scrollTop+remainingY,0,Math.max(0,outer.scrollHeight-outer.clientHeight));
-  const nextX=clamp(outer.scrollLeft+dx,0,Math.max(0,outer.scrollWidth-outer.clientWidth));
-  const consumed=Math.abs(travelY-remainingY)>0.5||Math.abs(nextY-outer.scrollTop)>0.5||Math.abs(nextX-outer.scrollLeft)>0.5;
-  if(consumed){
-    if(e.cancelable)e.preventDefault();
-    outer.scrollTop=nextY;outer.scrollLeft=nextX;
-  }
- }}>{demo&&screen?<><div className="active-screen-title"><strong>{String(demo.screens.findIndex(s=>s.id===screen.id)+1).padStart(2,'0')} · {screen.title}</strong>{selectMode&&<span className="canvas-mode-hint"><GripVertical size={13}/> Drag, select or delete directly on the canvas</span>}</div><div className="preview-stage-layout"><div className="preview-stage-canvas"><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage':'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,height:780*zoom/100}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame':'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?{transform:`scale(${zoom/100})`,transformOrigin:'top left'}:undefined}><div className={'demo-shell'+(selectMode?' select-on':'')} onClickCapture={pick}>{project.channel==='portal'&&<nav className="demo-nav"><div data-select-level="header" className={'demo-logo'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<Wallet size={18}/>} {brandName}</div>{navigationMenuLinks(demo).map((link:{id:string;label:string;screenId:string})=><div className="portal-menu-group" key={link.id}><div className="portal-menu-parent"><button className="portal-menu-link" onClick={()=>go(link.screenId)}><LayoutDashboard size={15}/><span>{link.label}</span></button></div></div>)}
+ <div className="preview-viewport" ref={previewScroll}>{demo&&screen?<><div className="active-screen-title"><strong>{String(demo.screens.findIndex(s=>s.id===screen.id)+1).padStart(2,'0')} · {screen.title}</strong>{selectMode&&<span className="canvas-mode-hint"><GripVertical size={13}/> Drag, select or delete directly on the canvas</span>}</div><div className="preview-stage-layout"><div className="preview-stage-canvas"><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage'+(selectMode?' canvas-zoom-stage':''):'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,...(selectMode?{}:{height:780*zoom/100})}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame'+(selectMode?' canvas-mode-frame':''):'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?(selectMode?{zoom:zoom/100}:{transform:`scale(${zoom/100})`,transformOrigin:'top left'}):undefined}><div className={'demo-shell'+(selectMode?' select-on':'')} onClickCapture={pick}>{project.channel==='portal'&&<nav className="demo-nav"><div data-select-level="header" className={'demo-logo'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<Wallet size={18}/>} {brandName}</div>{navigationMenuLinks(demo).map((link:{id:string;label:string;screenId:string})=><div className="portal-menu-group" key={link.id}><div className="portal-menu-parent"><button className="portal-menu-link" onClick={()=>go(link.screenId)}><LayoutDashboard size={15}/><span>{link.label}</span></button></div></div>)}
  {demo.screens.filter(s=>!s.parentScreenId).map(parent=>{
  const children=demo.screens.filter(child=>child.parentScreenId===parent.id);
  const containsSelected=screen.id===parent.id||children.some(child=>child.id===screen.id);
