@@ -2,9 +2,9 @@ import React,{useEffect,useState} from 'react';
 import {Plus,Trash2,GripVertical,ArrowDown,ArrowUp,Workflow,LayoutTemplate,PanelsTopLeft,Link2,ChevronDown,Palette,Settings2} from 'lucide-react';
 import type {DemoDefinition} from './demo';
 // @ts-ignore This validated editing engine is shared with Node regression tests.
-import {addVisualScreen,renameVisualScreen,addVisualComponent,moveVisualComponent,removeVisualComponent,editVisualComponent,setVisualAppearance,addVisualField,editVisualField,moveVisualField,removeVisualField,setVisualSubmitVisibility,removeVisualButton,connectVisualFlow,visualFlowActions,visualFlowEdges,palette} from './visualEditor.mjs';
+import {addVisualScreen,renameVisualScreen,addVisualComponent,moveVisualComponent,removeVisualComponent,editVisualComponent,setVisualAppearance,addVisualField,editVisualField,moveVisualField,removeVisualField,editVisualItem,setVisualItemAppearance,moveVisualItem,removeVisualItem,setVisualSubmitVisibility,removeVisualButton,connectVisualFlow,visualFlowActions,visualFlowEdges,palette} from './visualEditor.mjs';
 import './visualEditor.css';
-type Selection={level:'screen'|'element'|'field'|'button'|'header';screenId:string;elementId?:string;childId?:string};
+type Selection={level:'screen'|'element'|'field'|'button'|'item'|'header';screenId:string;elementId?:string;childId?:string};
 type Props={demo:DemoDefinition;screenId:string;selected:Selection|null;busy:boolean;onSelectScreen:(id:string)=>void;onSelect:(choice:Selection)=>void;onChange:(next:DemoDefinition,description:string)=>void;onError:(reason:string)=>void};
 const labels:Record<string,string>={hero:'Hero banner',notice:'Text / card',form:'Form',actions:'Buttons',table:'Data table',stats:'Summary cards',composed:'Generated section'};
 const colors=['#F58220','#2563EB','#0E9389','#159447','#4C1D95','#DC2626','#1F2937','#FFFFFF'];
@@ -14,22 +14,24 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
  const[flowFrom,setFlowFrom]=useState('');
  const[flowAction,setFlowAction]=useState('');
  const[drag,setDrag]=useState<{kind:'component'|'field'|'palette';id:string;formId?:string}|null>(null);
- useEffect(()=>{if(selected&&['element','field','button'].includes(selected.level))setMode('components');},[selected?.level,selected?.screenId,selected?.elementId,selected?.childId]);
+ useEffect(()=>{if(selected&&['element','field','button','item'].includes(selected.level))setMode('components');},[selected?.level,selected?.screenId,selected?.elementId,selected?.childId]);
  const screen=demo.screens.find(s=>s.id===screenId)||demo.screens[0];
  const element=screen?.elements.find(e=>e.id===selected?.elementId);
  const field=element?.kind==='form'&&selected?.level==='field'?element.fields.find(f=>f.id===selected.childId):null;
+ const item=element?.kind==='composed'&&selected?.level==='item'?element.items.find(i=>i.id===selected.childId):null;
  const actions:{id:string;label:string;screenId:string}[]=flowFrom?visualFlowActions(demo,flowFrom):[];
  const act=(description:string,fn:()=>DemoDefinition)=>{if(busy)return;try{const next=fn();onChange(next,description);}catch(e){onError(e instanceof Error?e.message:'Unable to edit component.');}};
  const choose=(elementId:string,childId?:string)=>onSelect({level:childId?'field':'element',screenId:screen.id,elementId,...(childId?{childId}:{})});
+ const updateItem=(patch:Record<string,unknown>)=>{if(element?.kind!=='composed'||!item)return;act('Edit generated item',()=>editVisualItem(demo,screen.id,element.id,item.id,patch));};
  const updateField=(patch:Record<string,unknown>)=>{if(element?.kind!=='form'||!field)return;act('Edit field',()=>editVisualField(demo,screen.id,element.id,field.id,patch));};
  const updateElement=(patch:Record<string,unknown>)=>{if(!element)return;act('Edit component',()=>editVisualComponent(demo,screen.id,element.id,patch));};
- const updateAppearance=(patch:Record<string,unknown>)=>{if(!element)return;act('Update appearance',()=>setVisualAppearance(demo,screen.id,element.id,patch,selected?.level==='button'?selected.childId:undefined));};
+ const updateAppearance=(patch:Record<string,unknown>)=>{if(!element)return;act('Update appearance',()=>item?setVisualItemAppearance(demo,screen.id,element.id,item.id,patch):setVisualAppearance(demo,screen.id,element.id,patch,selected?.level==='button'?selected.childId:undefined));};
  const flowEdges:{from:string;to:string;actionId:string;label:string}[]=visualFlowEdges(demo);
  const elTitle=(el:DemoDefinition['screens'][number]['elements'][number])=>('title'in el&&typeof el.title==='string'?el.title:labels[el.kind]||el.kind);
  const navLabel=demo.channel==='mobile'?'Screen':'Page';
  const chosenButton=element?.kind==='actions'&&selected?.level==='button'?element.buttons.find(b=>b.id===selected.childId):null;
  const isSubmit=element?.kind==='form'&&selected?.level==='button'&&selected.childId==='__submit__';
- const appearance=(isSubmit?element.submitAppearance:chosenButton?.appearance||element?.appearance)||{};
+ const appearance=(item?.appearance||(isSubmit?element.submitAppearance:chosenButton?.appearance||element?.appearance))||{};
  return <aside className="ve-panel">
   <div className="ve-top"><div><strong>Visual Studio</strong><small>Design and connect your application</small></div><span className="ve-state">Visual editor</span></div>
   <div className="ve-tabs" role="tablist">
@@ -66,8 +68,14 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
      </div>)}
     </div>
     {element&&<div className="ve-properties" key={screen.id+':'+element.id+':'+(selected?.childId||'')}>
-     <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
-     {field?<div className="ve-fields">
+     <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='item'?'Generated item':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
+     {item?<div className="ve-fields">
+      <div className="ve-field"><label>Item label / heading</label><input key={item.id+':label'} defaultValue={item.label} onBlur={e=>{if(e.target.value!==item.label)updateItem({label:e.target.value});}}/></div>
+      {item.kind!=='divider'&&<div className="ve-field"><label>Body text</label><textarea key={item.id+':text'} defaultValue={item.text||''} onBlur={e=>{if(e.target.value!==item.text)updateItem({text:e.target.value});}}/></div>}
+      <div className="ve-field"><label><Palette size={13}/> Background color</label><div className="ve-colors">{colors.map(color=><button key={color} type="button" aria-label={'Set background '+color} title={color} style={{background:color}} onClick={()=>updateAppearance({backgroundColor:color})}/>)}</div></div>
+      <div className="ve-field"><label>Text color</label><div className="ve-colors">{colors.map(color=><button key={color} type="button" aria-label={'Set text '+color} title={color} style={{background:color}} onClick={()=>updateAppearance({textColor:color})}/>)}</div><label className="ve-color-picker">Custom text color <input aria-label="Choose custom item text color" type="color" value={appearance.textColor||'#203448'} onChange={e=>updateAppearance({textColor:e.target.value})}/><span>{appearance.textColor||'Default'}</span></label></div>
+      <button className="ve-danger" onClick={()=>{act('Remove generated item',()=>removeVisualItem(demo,screen.id,element.id,item.id));onSelect({level:'element',screenId:screen.id,elementId:element.id});}}><Trash2 size={13}/> Remove item</button>
+     </div>:field?<div className="ve-fields">
       <div className="ve-field"><label>Field label</label><input key={field.id+':'+field.label} defaultValue={field.label} onBlur={e=>{if(e.target.value!==field.label)updateField({label:e.target.value});}}/></div>
       <div className="ve-field"><label>Input type</label><select value={field.type} onChange={e=>updateField({type:e.target.value})}>{['text','email','number','date','select','checkbox','file','password'].map(t=><option key={t} value={t}>{t}</option>)}</select></div>
       {field.type==='select'&&<div className="ve-field"><label>Options (one per line)</label><textarea key={field.id} defaultValue={(field.options||[]).join('\n')} onBlur={e=>updateField({options:e.target.value.split('\n').map(x=>x.trim()).filter(Boolean)})}/></div>}
@@ -80,9 +88,11 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
        {'description'in element&&<div className="ve-field"><label>Description</label><textarea key={element.id+':description'} defaultValue={element.description||''} onBlur={e=>updateElement({description:e.target.value})}/></div>}
       </>}
       <div className="ve-field"><label><Palette size={13}/> Background color</label><div className="ve-colors">{colors.map(color=><button key={color} aria-label={'Set background '+color} title={color} style={{background:color}} className={appearance.backgroundColor===color?'active':''} onClick={()=>updateAppearance({backgroundColor:color})}/>)}</div><label className="ve-color-picker">Custom color <input aria-label="Choose custom background color" type="color" value={appearance.backgroundColor||"#0E9389"} onChange={e=>updateAppearance({backgroundColor:e.target.value})}/><span>{appearance.backgroundColor||"Select a color"}</span></label></div>
+      <div className="ve-field"><label>Text color</label><div className="ve-colors">{colors.map(color=><button key={color} type="button" aria-label={'Set text '+color} title={color} style={{background:color}} onClick={()=>updateAppearance({textColor:color})}/>)}</div><label className="ve-color-picker">Custom text color <input aria-label="Choose custom text color" type="color" value={appearance.textColor||'#203448'} onChange={e=>updateAppearance({textColor:e.target.value})}/><span>{appearance.textColor||'Default'}</span></label></div>
       <div className="ve-field"><label>Alignment</label><select value={appearance.alignment||'left'} onChange={e=>updateAppearance({alignment:e.target.value})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
       {!selected?.childId&&<button className="ve-danger" onClick={()=>{act('Remove component',()=>removeVisualComponent(demo,screen.id,element.id));onSelect({level:'screen',screenId:screen.id});}}><Trash2 size={13}/> Remove component</button>}
      </>}
+     {element.kind==='composed'&&<div className="ve-field-list"><div className="ve-section-heading"><b>Generated components</b><span>{element.items.length}</span></div>{element.items.map((child,i)=><div className={'ve-field-row '+(selected?.level==='item'&&selected.childId===child.id?'active':'')} key={child.id} draggable onDragStart={e=>e.dataTransfer.setData('text/plain','item:'+element.id+':'+child.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('item:'+element.id+':'))act('Reorder generated item',()=>moveVisualItem(demo,screen.id,element.id,raw.slice(('item:'+element.id+':').length),i));}}><GripVertical size={13}/><button onClick={()=>onSelect({level:'item',screenId:screen.id,elementId:element.id,childId:child.id})}>{child.label||child.kind}</button></div>)}</div>}
      {element.kind==='form'&&<div className="ve-field-list"><div className="ve-section-heading"><b>Form fields</b><button onClick={()=>{try{const out=addVisualField(demo,screen.id,element.id,'text');onChange(out.definition,'Add field');choose(element.id,out.fieldId);}catch(e){onError(String(e));}}}><Plus size={14}/> Add</button></div>
       {element.fields.map((f,i)=><div key={f.id} draggable onDragStart={e=>{setDrag({kind:'field',id:f.id,formId:element.id});e.dataTransfer.setData('text/plain','field:'+element.id+':'+f.id);}}
        onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('field:'+element.id+':'))act('Reorder field',()=>moveVisualField(demo,screen.id,element.id,raw.split(':')[2],i));setDrag(null);}}
