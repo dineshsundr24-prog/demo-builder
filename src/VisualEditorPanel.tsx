@@ -1,8 +1,8 @@
-import React,{useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import {Plus,Trash2,GripVertical,ArrowDown,ArrowUp,Workflow,LayoutTemplate,PanelsTopLeft,Link2,ChevronDown,Palette,Settings2} from 'lucide-react';
 import type {DemoDefinition} from './demo';
 // @ts-ignore This validated editing engine is shared with Node regression tests.
-import {addVisualScreen,renameVisualScreen,addVisualComponent,moveVisualComponent,removeVisualComponent,editVisualComponent,setVisualAppearance,addVisualField,editVisualField,moveVisualField,removeVisualField,connectVisualFlow,visualFlowActions,visualFlowEdges,palette} from './visualEditor.mjs';
+import {addVisualScreen,renameVisualScreen,addVisualComponent,moveVisualComponent,removeVisualComponent,editVisualComponent,setVisualAppearance,addVisualField,editVisualField,moveVisualField,removeVisualField,setVisualSubmitVisibility,removeVisualButton,connectVisualFlow,visualFlowActions,visualFlowEdges,palette} from './visualEditor.mjs';
 import './visualEditor.css';
 type Selection={level:'screen'|'element'|'field'|'button'|'header';screenId:string;elementId?:string;childId?:string};
 type Props={demo:DemoDefinition;screenId:string;selected:Selection|null;busy:boolean;onSelectScreen:(id:string)=>void;onSelect:(choice:Selection)=>void;onChange:(next:DemoDefinition,description:string)=>void;onError:(reason:string)=>void};
@@ -14,6 +14,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
  const[flowFrom,setFlowFrom]=useState('');
  const[flowAction,setFlowAction]=useState('');
  const[drag,setDrag]=useState<{kind:'component'|'field'|'palette';id:string;formId?:string}|null>(null);
+ useEffect(()=>{if(selected&&['element','field','button'].includes(selected.level))setMode('components');},[selected?.level,selected?.screenId,selected?.elementId,selected?.childId]);
  const screen=demo.screens.find(s=>s.id===screenId)||demo.screens[0];
  const element=screen?.elements.find(e=>e.id===selected?.elementId);
  const field=element?.kind==='form'&&selected?.level==='field'?element.fields.find(f=>f.id===selected.childId):null;
@@ -86,7 +87,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
       {element.fields.map((f,i)=><div key={f.id} draggable onDragStart={e=>{setDrag({kind:'field',id:f.id,formId:element.id});e.dataTransfer.setData('text/plain','field:'+element.id+':'+f.id);}}
        onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const raw=e.dataTransfer.getData('text/plain');if(raw.startsWith('field:'+element.id+':'))act('Reorder field',()=>moveVisualField(demo,screen.id,element.id,raw.split(':')[2],i));setDrag(null);}}
        className={'ve-field-row '+(selected?.childId===f.id?'active':'')}><GripVertical size={13}/><button onClick={()=>choose(element.id,f.id)}>{f.label}</button></div>)}
-      <button className="ve-secondary" onClick={()=>onSelect({level:'button',screenId:screen.id,elementId:element.id,childId:'__submit__'})}>Edit {element.actionLabel} button</button>
+      <button className="ve-secondary" onClick={()=>{if(element.hideSubmit)act('Restore submit button',()=>setVisualSubmitVisibility(demo,screen.id,element.id,true));else onSelect({level:'button',screenId:screen.id,elementId:element.id,childId:'__submit__'});}}>{element.hideSubmit?'Restore submit button':'Edit '+element.actionLabel+' button'}</button>
      </div>}
      {element.kind==='actions'&&element.buttons.map(b=><button key={b.id} className="ve-secondary" onClick={()=>onSelect({level:'button',screenId:screen.id,elementId:element.id,childId:b.id})}>Edit {b.label}</button>)}
     </div>}
