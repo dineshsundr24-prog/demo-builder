@@ -48,3 +48,15 @@ test('Portal project cannot accidentally receive first-class mobile navigation',
  const portal=structuredClone(demo);portal.channel='portal';
  assert.throws(()=>addVisualComponent(portal,'welcome','bottom-nav'),/only for mobile/);
 });
+
+test('Reusable identity template Continue button can connect to a different screen through Flow',()=>{
+ const add=addVisualComponent(demo,'welcome','uaepass-login');
+ const el=add.definition.screens[0].elements.at(-1);
+ const action=visualFlowActions(add.definition,'welcome').find(a=>a.id.startsWith('composed:'));
+ assert.ok(action);
+ const linked=connectVisualFlow(add.definition,'welcome',action.id,'profile');
+ const button=linked.screens[0].elements.at(-1).items.find(i=>i.kind==='button');
+ assert.equal(button.nextScreen,'profile');
+ assert.equal(visualFlowEdges(linked).find(edge=>edge.actionId===action.id).to,'profile');
+ assert.equal(validateStrictDemo(linked,'mobile'),true);
+});
