@@ -1,4 +1,5 @@
 import {validAppearance} from '../src/visualStyle.mjs';
+import {validMobileNavigation} from '../src/mobileComponents.mjs';
 import {validComposed} from '../src/composed.mjs';
 import {validNavigationLinks} from '../src/portalMenuLinks.mjs';
 import {validReportTools} from './reportTools.mjs';
@@ -73,6 +74,7 @@ export function validateStrictDemo(d,channel){
    if(!validAppearance(e.appearance))return false;
    if(e.kind==='actions'&&e.buttons.some(b=>!validAppearance(b.appearance)))return false;
    if(e.kind==='form'&&!validAppearance(e.submitAppearance))return false;
+   if(e.kind==='navigation'&&(channel!=='mobile'||!validMobileNavigation(e,d.screens.map(s=>s.id))))return false;
    if(e.kind==='hero'&&!(typeof e.title==='string'&&typeof e.description==='string'))return false;
    if(e.kind==='stats'&&(!Array.isArray(e.items)||e.items.some(x=>!x||typeof x.id!=='string'||typeof x.label!=='string'||typeof x.value!=='string')))return false;
    if(e.kind==='notice'&&(!['info','success'].includes(e.tone)||typeof e.title!=='string'||typeof e.body!=='string'))return false;
@@ -80,7 +82,7 @@ export function validateStrictDemo(d,channel){
    if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date','checkbox','file'].includes(f.type))))return false;
    if(e.kind==='composed'&&!validComposed(e,d.screens.map(x=>x.id)))return false;
    if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||!validReportTools(e.tools,e.columns)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
-   if(!['hero','stats','notice','actions','form','table','composed'].includes(e.kind))return false;
+   if(!['hero','stats','notice','actions','form','table','composed','navigation'].includes(e.kind))return false;
   }
  }
  if(!validNavigationLinks(d))return false;
