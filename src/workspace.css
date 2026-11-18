@@ -391,3 +391,24 @@
 .canvas-pan-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:3px;width:43px}
 .canvas-pan-buttons button{padding:3px;width:20px;height:26px;display:grid;place-items:center;border:1px solid #c7d7ed;border-radius:5px;background:#fff;color:#315f9c;cursor:pointer}
 .canvas-pan-buttons button:hover{background:#eaf2ff}
+
+/* Editing canvas is NOT a fixed-height simulator. The full document participates
+   in layout and the preview viewport is the only scroll container. Run Preview
+   retains the original 390x780 simulated phone with an internal scroll. */
+.studio .device-zoom-stage.canvas-zoom-stage{height:auto;min-height:0;display:block;align-self:flex-start}
+.studio .device-zoom-stage.canvas-zoom-stage .mobile-frame.canvas-mode-frame{
+  position:relative;left:auto;top:auto;box-sizing:border-box;
+  width:390px!important;min-width:390px!important;max-width:390px!important;
+  height:auto!important;min-height:780px!important;max-height:none!important;
+  overflow:visible;
+}
+.studio .device-zoom-stage.canvas-zoom-stage .mobile-frame.canvas-mode-frame .demo-shell{
+  height:auto!important;min-height:766px!important;overflow:visible;
+}
+.studio .device-zoom-stage.canvas-zoom-stage .mobile-frame.canvas-mode-frame .demo-main{
+  height:auto!important;min-height:0!important;overflow:visible!important;
+  overscroll-behavior:auto;
+}
+.studio .device-zoom-stage.canvas-zoom-stage .mobile-frame.canvas-mode-frame .demo-main .elements{
+  overflow:visible;
+}
