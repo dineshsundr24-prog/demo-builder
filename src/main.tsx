@@ -156,8 +156,10 @@ function App(){
    const addedSubsections=Array.isArray(result.operations)?result.operations.filter((o:{op?:string})=>o.op==='add-subsection'||o.op==='add-screen').length:0;
    if(!validateDemo(next)||next.channel!==before.channel||next.screens.length!==before.screens.length+addedSubsections)throw Error('Plan failed schema validation.');
    const isGlobal=result.scope==='global';
-   verifyEditScope(before,next,target,isGlobal?'global':'screen',result.operations||[]);
-   const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target,scope:isGlobal?'global':'screen',before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
+   const createdScreen=Array.isArray(result.operations)&&result.operations.some((op:{op?:string})=>op.op==='add-screen');
+   const verifiedTarget:Target=createdScreen&&typeof result.target?.screenId==='string'&&before.screens.some(s=>s.id===result.target.screenId)?{level:'screen',screenId:result.target.screenId}:target;
+   verifyEditScope(before,next,verifiedTarget,isGlobal?'global':'screen',result.operations||[]);
+   const draft:PendingEdit={projectId:projectSnapshot.id,instruction,target:verifiedTarget,scope:isGlobal?'global':'screen',before,definition:cloneDemo(next),operations:result.operations||[],checks:result.checks||[],summary:String(result.summary||'Scoped edit prepared.'),label:String(result.label||targetName(target))};
    setPending(draft);setScreenId(typeof result.createdScreenId==='string'?result.createdScreenId:target.screenId);setSelectMode(false);setTab('preview');setFormValues({});setErrors({});
    setToast('Change proposed. Review the preview and choose Apply or Discard.');
   }catch(err){
