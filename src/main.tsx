@@ -7,7 +7,7 @@ import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
 import VisualEditorPanel from './VisualEditorPanel';
 // @ts-ignore Shared browser/Node canvas scroll geometry.
-import {wheelMovement,boundedScroll,edgeDragMovement} from './canvasScroll.mjs';
+import {boundedScroll,edgeDragMovement} from './canvasScroll.mjs';
 // @ts-ignore Shared browser/Node visual mutation engine.
 import {insertVisualComponent,moveVisualComponentBefore,moveVisualComponent,moveVisualField,removeVisualComponent,removeVisualField,removeVisualButton,setVisualSubmitVisibility,moveVisualItem,removeVisualItem} from './visualEditor.mjs';
 // @ts-ignore Validated visual style definitions are shared across app and runtime.
@@ -58,23 +58,6 @@ function App(){
  const demo=pending?.projectId===project.id?pending.definition:project.demo;
  const screen=demo?.screens.find(s=>s.id===screenId)||demo?.screens[0];
  const activeSelection=selected?.screenId===screen?.id?selected:null;
- // React's delegated wheel listener can be passive. Attach one non-passive
- // listener directly to the editor viewport so the phone never steals scrolling.
- useEffect(()=>{
-  const viewport=previewScroll.current;
-  if(!viewport||!selectMode||project.channel!=='mobile'||tab!=='preview')return;
-  const handleWheel=(event:WheelEvent)=>{
-   if(event.ctrlKey)return; // preserve browser zoom gestures
-   const next=boundedScroll(viewport,wheelMovement(event,viewport));
-   if(!next.consumed)return;
-   if(event.cancelable)event.preventDefault();
-   viewport.scrollLeft=next.x;
-   viewport.scrollTop=next.y;
-  };
-  viewport.addEventListener('wheel',handleWheel,{passive:false});
-  return()=>viewport.removeEventListener('wheel',handleWheel);
- },[selectMode,project.channel,tab,project.id]);
-
  const targetName=(t:Target|null)=>{
   if(!t||!demo)return 'Current screen';
   const scr=demo.screens.find(x=>x.id===t.screenId);
