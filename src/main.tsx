@@ -371,7 +371,22 @@ function App(){
   <div className="visual-comment-heading"><MousePointer2 size={15}/><strong>{activeSelection?'Selected: '+targetName(activeSelection):'Select a screen or component'}</strong><span>{activeSelection?'Add a comment below':'Click a component or blank screen area'}</span></div>
   {activeSelection&&<div className="visual-comment-entry"><input autoFocus aria-label="Comment on selected component" placeholder="What should change here?" value={visualComment} onChange={e=>setVisualComment(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();requestVisualEdit();}}}/><button disabled={!visualComment.trim()||aiBusy} onClick={requestVisualEdit}>Preview change</button></div>}
  </div>}
- <div className="preview-viewport">{demo&&screen?<><div className="active-screen-title"><strong>{String(demo.screens.findIndex(s=>s.id===screen.id)+1).padStart(2,'0')} · {screen.title}</strong>{selectMode&&<span className="canvas-mode-hint"><GripVertical size={13}/> Drag, select or delete directly on the canvas</span>}</div><div className="preview-stage-layout"><div className="preview-stage-canvas"><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage':'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,height:780*zoom/100}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame':'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?{transform:`scale(${zoom/100})`,transformOrigin:'top left'}:undefined}><div className={'demo-shell'+(selectMode?' select-on':'')} onClickCapture={pick}>{project.channel==='portal'&&<nav className="demo-nav"><div data-select-level="header" className={'demo-logo'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<Wallet size={18}/>} {brandName}</div>{navigationMenuLinks(demo).map((link:{id:string;label:string;screenId:string})=><div className="portal-menu-group" key={link.id}><div className="portal-menu-parent"><button className="portal-menu-link" onClick={()=>go(link.screenId)}><LayoutDashboard size={15}/><span>{link.label}</span></button></div></div>)}
+ <div className="preview-viewport" onWheelCapture={e=>{
+  if(project.channel!=='mobile'||!selectMode||zoom<=100)return;
+  const outer=e.currentTarget;
+  const maxY=outer.scrollHeight-outer.clientHeight,maxX=outer.scrollWidth-outer.clientWidth;
+  if(maxY<=1&&maxX<=1)return;
+  const dy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*outer.clientHeight:e.deltaY;
+  const dx=e.deltaMode===1?e.deltaX*16:e.deltaMode===2?e.deltaX*outer.clientWidth:e.deltaX;
+  const horizontal=e.shiftKey?dy:dx;
+  const vertical=e.shiftKey?0:dy;
+  const nextY=Math.max(0,Math.min(maxY,outer.scrollTop+vertical));
+  const nextX=Math.max(0,Math.min(maxX,outer.scrollLeft+horizontal));
+  if(Math.abs(nextY-outer.scrollTop)>0.5||Math.abs(nextX-outer.scrollLeft)>0.5){
+   e.preventDefault();
+   outer.scrollTop=nextY;outer.scrollLeft=nextX;
+  }
+ }}>{demo&&screen?<><div className="active-screen-title"><strong>{String(demo.screens.findIndex(s=>s.id===screen.id)+1).padStart(2,'0')} · {screen.title}</strong>{selectMode&&<span className="canvas-mode-hint"><GripVertical size={13}/> Drag, select or delete directly on the canvas</span>}</div><div className="preview-stage-layout"><div className="preview-stage-canvas"><div className={'preview-canvas '+(project.channel==='mobile'?'mobile-canvas':'web-canvas')}><div className={project.channel==='mobile'?'device-zoom-stage':'web-zoom-stage'} style={project.channel==='mobile'?{width:390*zoom/100,height:780*zoom/100}:undefined}><div className={'render-frame '+(project.channel==='mobile'?'mobile-frame':'portal-frame')+' theme-'+demo.theme} style={project.channel==='mobile'?{transform:`scale(${zoom/100})`,transformOrigin:'top left'}:undefined}><div className={'demo-shell'+(selectMode?' select-on':'')} onClickCapture={pick}>{project.channel==='portal'&&<nav className="demo-nav"><div data-select-level="header" className={'demo-logo'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<Wallet size={18}/>} {brandName}</div>{navigationMenuLinks(demo).map((link:{id:string;label:string;screenId:string})=><div className="portal-menu-group" key={link.id}><div className="portal-menu-parent"><button className="portal-menu-link" onClick={()=>go(link.screenId)}><LayoutDashboard size={15}/><span>{link.label}</span></button></div></div>)}
  {demo.screens.filter(s=>!s.parentScreenId).map(parent=>{
  const children=demo.screens.filter(child=>child.parentScreenId===parent.id);
  const containsSelected=screen.id===parent.id||children.some(child=>child.id===screen.id);
