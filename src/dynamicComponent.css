@@ -1,1 +1,14 @@
 .dynamic-surface .composed-items{align-items:stretch}.dynamic-badge{display:inline-flex;width:max-content;max-width:100%;background:#e6f1ff;color:#2757a7;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:650}.dynamic-divider{width:100%;border:0;border-top:1px solid #e0e7f0;margin:5px 0}.dynamic-table-wrap{width:100%;min-width:0;border:1px solid #e0e8f3;border-radius:9px;overflow:hidden;margin:4px 0}.dynamic-table-title{padding:11px 12px;background:#f5f8fc;font-weight:700;font-size:12px;color:#334a68}.dynamic-table-wrap .table-scroll{overflow-x:auto}.dynamic-table-wrap table{width:100%;border-collapse:collapse}.dynamic-table-wrap th,.dynamic-table-wrap td{padding:9px 11px;text-align:left;border-bottom:1px solid #e8eef6;font-size:11px;white-space:nowrap}.dynamic-table-wrap th{color:#61738e;background:#f9fbfd}.dynamic-notice{margin-top:12px}
+/* Generated children are first-class design targets, never a single opaque section. */
+.composed-editable-item{position:relative;border:1px dashed #b7cce9;border-radius:9px;padding:5px;min-width:0}
+.composed-editable-item:hover,.composed-editable-item.composed-item-selected{border-color:#3177de;background:rgba(50,118,219,.035)}
+.composed-editable-item.composed-item-selected{outline:2px solid #3679db;outline-offset:1px}
+.composed-item-toolbar{display:flex;align-items:center;gap:3px;background:#eaf1fc;border-radius:6px;padding:4px 5px;margin-bottom:6px}
+.composed-item-toolbar button{border:0;background:transparent;color:#3c69a7;border-radius:5px;display:grid;place-items:center;padding:3px;min-width:22px;min-height:22px;cursor:pointer}
+.composed-item-toolbar button:disabled{opacity:.3;cursor:default}
+.composed-item-toolbar button:last-child{color:#b93b40}
+.composed-item-toolbar .composed-item-title{display:flex;align-items:center;gap:5px;flex:1;min-width:0;text-align:left;font-size:11px;font-weight:700}
+.composed-item-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.composed-card[style*="color"] strong,.composed-card[style*="color"] p{color:inherit}
+.composed-text[style*="color"]{color:inherit}
+.composed-field[style*="color"] label{color:inherit}
