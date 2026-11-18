@@ -25,3 +25,30 @@
 .mobile-navigation-menu .mobile-navigation-links{display:flex;flex-direction:column}
 .mobile-navigation-menu .mobile-navigation-link{min-height:46px;padding:11px 14px}
 .mobile-navigation-menu .mobile-navigation-link:focus-visible,.mobile-menu-trigger:focus-visible{outline:2px solid #326bcd;outline-offset:2px}
+
+
+/* Shared structural slots for mobile apps. Header is never a reorderable body card. */
+.mobile-app-header{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;margin-bottom:24px;z-index:24;min-height:45px}
+.mobile-app-header .mobile-brand{margin:0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px;gap:6px}
+.mobile-app-header .mobile-brand span:last-child{overflow:hidden;text-overflow:ellipsis}
+.mobile-app-header .mobile-symbol{flex-shrink:0}
+.mobile-layout-slot{position:relative;min-width:0}
+.mobile-layout-header-left,.mobile-layout-header-right{display:flex;align-items:center;gap:3px;min-width:0}
+.mobile-layout-header-right{justify-content:flex-end}
+.mobile-layout-header-left .mobile-menu-trigger,.mobile-layout-header-right .mobile-menu-trigger{min-width:41px;height:41px;min-height:41px;justify-content:center;padding:7px;border-radius:10px}
+.mobile-layout-header-left .mobile-menu-trigger span,.mobile-layout-header-right .mobile-menu-trigger span{display:none}
+.mobile-layout-header-right .mobile-menu-drawer{left:auto;right:0;width:295px;max-width:calc(100vw - 80px)}
+.mobile-layout-header-left .mobile-menu-drawer{left:0;right:auto;width:295px;max-width:calc(100vw - 80px)}
+.mobile-slot-component{position:relative;min-width:0}
+.mobile-slot-selected{outline:2px solid #3679de;border-radius:9px}
+.mobile-slot-edit{position:absolute;top:-10px;right:-6px;z-index:29;border:1px solid #abc6ec;border-radius:5px;background:#edf4ff;color:#3069bb;cursor:pointer;display:grid;place-items:center;min-width:21px;min-height:21px}
+.mobile-layout-header-left .mobile-slot-edit{right:auto;left:-6px}
+.mobile-layout-editing{outline:1px dashed #91b7ea;outline-offset:2px;border-radius:8px}
+.mobile-slot-placeholder{border:1px dashed #b7c9e4;border-radius:7px;color:#6f8bb4;background:#f5f9ff;padding:6px;min-height:38px;min-width:40px;font-size:9px;line-height:1.2;display:grid;place-items:center;text-align:center}
+.mobile-layout-header-left .mobile-slot-placeholder,.mobile-layout-header-right .mobile-slot-placeholder{font-size:0;width:40px;padding:5px}
+.mobile-layout-header-left .mobile-slot-placeholder::before,.mobile-layout-header-right .mobile-slot-placeholder::before{content:'+';font-size:17px}
+.mobile-layout-bottom{margin-top:15px;min-height:0}
+.mobile-layout-bottom.mobile-layout-editing{padding:7px}
+.mobile-frame:not(.canvas-mode-frame) .mobile-layout-bottom{position:sticky;bottom:0;z-index:17;background:#fff}
+.mobile-layout-bottom .mobile-navigation-footer{margin-top:0}
+.mobile-layout-bottom:empty{display:none}
