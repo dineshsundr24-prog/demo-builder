@@ -93,14 +93,18 @@ async function repairGeneratedDefinition(candidate,issues,channel){
 async function repairInvalidScreens(candidate,issues,channel){
  if(!candidate||!Array.isArray(candidate.screens))return null;
  const indexes=[...new Set(issues.map(issue=>/^screens\[(\d+)\]/.exec(issue)?.[1]).filter(x=>x!==undefined).map(Number))];
- if(!indexes.length||indexes.length>4||indexes.some(i=>i>=candidate.screens.length))return null;
+ if(!indexes.length||indexes.some(i=>i>=candidate.screens.length))return null;
  const screenIds=candidate.screens.map(s=>({id:s.id,title:s.title}));
  const instructions='Repair ONE existing '+channel+' application screen using the exact allowed declarative schema. Return only a JSON object with a single \\"screen\\" field, whose value is the complete corrected screen. Preserve screen id and all intended fields, labels, items, buttons, sample data, and existing valid screen destinations. All existing screen IDs are supplied. Every element must be one of hero,stats,form,table,notice,actions,composed. Top-level card is forbidden; use composed items with kind card. A form requires nonempty title, actionLabel, and fields with id,label,type (text,email,password,number,select,date,checkbox,file). Dropdown type is select with options as strings. A composed element requires title and 1–24 items. Every item must have unique ASCII id, supported kind, and string label. Select items require options; progress requires numeric value. Only button items may have nextScreen or actions. Do not invent live identity verification. Do not remove unrelated controls to pass validation.';
- const jobs=indexes.map(async index=>{
+ const jobs=indexes.map(index=>async()=>{
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),70000);
   try{
-   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:JSON.stringify({allScreens:screenIds,screen:candidate.screens[index],issues:issues.filter(x=>x.startsWith('screens['+index+']'))}),text:{format:{type:'json_object'}},max_output_tokens:4000,store:false})});
-   if(!response.ok)return null;
+   const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Return a JSON object containing only the corrected screen, retaining the existing screen ID and valid navigation. '+JSON.stringify({allScreens:screenIds,screen:candidate.screens[index],issues:issues.filter(x=>x.startsWith('screens['+index+']'))}),text:{format:{type:'json_object'}},max_output_tokens:4000,store:false})});
+   if(!response.ok){
+    const err=await response.json().catch(()=>({}));
+    console.warn('Targeted screen repair API rejected',{index,status:response.status,code:String(err?.error?.code||'unknown'),param:String(err?.error?.param||'none'),message:String(err?.error?.message||'').slice(0,280)});
+    return null;
+   }
    const raw=await response.json();
    const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
    const repaired=JSON.parse(output)?.screen;
@@ -108,7 +112,12 @@ async function repairInvalidScreens(candidate,issues,channel){
    return{index,screen:repaired,usage:{inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
   }catch{return null;}finally{clearTimeout(timer);}
  });
- const results=await Promise.all(jobs);
+ // Keep concurrency bounded even when many of the requested screens need repair.
+ const results=[];
+ for(let i=0;i<jobs.length;i+=4){
+  const group=await Promise.all(jobs.slice(i,i+4).map(work=>work()));
+  results.push(...group);
+ }
  if(results.some(x=>!x))return null;
  const merged=structuredClone(candidate);
  let inputTokens=0,outputTokens=0;
@@ -167,7 +176,7 @@ async function generatePlannedDefinition(project,requirement,plan,channel){
  let repaired=false;
  if(!validDemo(definition,channel)){
   const issues=explainGeneratedDemo(definition,channel);
-  console.warn('Planned screens require targeted repair',{count:plan.length,issues:issues.slice(0,10)});
+  console.warn('Planned screens require targeted repair',{count:plan.length,affectedScreens:[...new Set(issues.map(x=>/^screens\\[(\\d+)\\]/.exec(x)?.[1]).filter(Boolean))],issues:issues.slice(0,30)});
   const fixed=await repairInvalidScreens(definition,issues,channel);
   if(!fixed)return{generationFailed:true,errorCode:'INVALID_PLANNED_SCREEN',reason:'The requested screen list was preserved, but one or more generated screens failed component validation. No partial demo was saved.'};
   definition=fixed.definition;repaired=true;
