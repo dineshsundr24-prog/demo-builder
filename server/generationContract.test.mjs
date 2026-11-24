@@ -127,3 +127,39 @@ test('Compiler diagnoses missing form fields explicitly and does not invent cons
  assert.ok(errors.some(e=>e.includes('.actionLabel')));
  assert.equal(form.actionLabel,'');
 });
+
+test('Mobile generation compiler converts top-level text, checkbox, progress and buttons without losing order or actions',()=>{
+ const example={schemaVersion:1,id:'kapiko-mobile',name:'Kapiko Mobile',description:'Demo',channel:'mobile',theme:'navy',screens:[
+  {id:'welcome',title:'Welcome',subtitle:'Welcome to Kapiko Bank',elements:[
+   {id:'banner',kind:'hero',heading:'Start banking'},
+   {id:'intro',kind:'text',label:'About',text:'Sign in to continue'},
+   {id:'consent',kind:'checkbox',label:'I consent to data sharing',required:true},
+   {id:'progress',kind:'progress',label:'Progress',value:'25'},
+   {id:'next',kind:'button',label:'Continue',nextScreen:'dashboard'}
+  ]},
+  {id:'dashboard',title:'Dashboard',subtitle:'Banking overview',elements:[
+   {id:'heading',kind:'hero',title:'Dashboard'},
+   {id:'links',kind:'actions',buttons:[{label:'View Profile',screenId:'welcome'},{id:'settings',text:'Settings',nextScreen:'welcome'}]}
+  ]}
+ ]};
+ const normalized=normalizeGeneratedDemo(example);
+ assert.equal(normalized.screens.length,2);
+ assert.deepEqual(normalized.screens[0].elements.map(x=>x.kind),['hero','composed']);
+ const items=normalized.screens[0].elements[1].items;
+ assert.deepEqual(items.map(x=>x.kind),['text','checkbox','progress','button']);
+ assert.equal(items[1].required,true);
+ assert.equal(items[2].value,25);
+ assert.equal(items[3].nextScreen,'dashboard');
+ assert.equal(normalized.screens[0].elements[0].description,'Welcome to Kapiko Bank');
+ assert.equal(normalized.screens[1].elements[1].buttons[0].nextScreen,'welcome');
+ assert.equal(normalized.screens[1].elements[1].buttons[1].label,'Settings');
+ assert.deepEqual(explainGeneratedDemo(normalized,'mobile'),[]);
+ assert.equal(example.screens[0].elements[1].kind,'text');
+});
+test('All invalid screen indexes are reported, not capped to the first twelve component errors',()=>{
+ const d=structuredClone(generated);
+ for(let i=0;i<18;i++)d.screens[0].elements.push({id:'x'+i,kind:'invalid'});
+ d.screens[1].elements[0].actionLabel='';
+ const issues=explainGeneratedDemo(d,'portal');
+ assert.ok(issues.some(v=>v.startsWith('screens[1].elements[0].actionLabel')));
+});
