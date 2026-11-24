@@ -56,6 +56,8 @@
 .db-app[data-channel="portal"] .db-grid[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .db-app[data-channel="portal"] .db-grid[data-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .db-app[data-channel="mobile"] .db-grid[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* On a phone only compact tiles sit side by side; cards, details and forms stack. */
+.db-app[data-channel="mobile"] .db-grid:has(> :not(.db-stat):not(.db-badge):not(.db-button)) { grid-template-columns: 1fr; }
 .db-section h2 { font-size: 17px; margin: 0 0 4px; }
 .db-section-body { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
 .db-card { background: var(--db-surface); border: 1px solid var(--db-line); border-radius: var(--db-radius); padding: 16px; box-shadow: 0 1px 2px rgb(16 24 40 / 5%); }

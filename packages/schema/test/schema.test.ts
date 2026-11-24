@@ -163,3 +163,21 @@ test('warnings fire for unreachable screens, unwritten state, missing record and
   const codes = validateDocument(d).filter(i => i.severity === 'warning' && i.screenId === 'orphan').map(i => i.code).sort();
   assert.deepEqual(codes, ['binding.no-record', 'binding.state-unwritten', 'flow.dead-end', 'flow.unreachable', 'input.outside-form']);
 });
+
+test('AI schema puts the discriminator first in every component (strict key order)', () => {
+  const schema: any = aiScreenSchema({ channel: 'mobile', screenIds: ['a'], collectionIds: [] });
+  const variants = Object.values(schema.$defs as Record<string, any>)[0].anyOf as any[];
+  assert.ok(variants.length >= 25);
+  for (const v of variants) assert.deepEqual(Object.keys(v.properties).slice(0, 2), ['type', 'id'], JSON.stringify(Object.keys(v.properties)));
+  for (const v of variants) if (v.properties.children) assert.equal(Object.keys(v.properties).at(-1), 'children');
+});
+
+test('degenerate screens (the live Divider collapse) are errors, so repair/fallback runs', () => {
+  const ctx = documentContext(kapiko);
+  const dividers = { id: 'x', title: 'X', shell: 'default', children: [...Array.from({ length: 19 }, (_, i) => ({ type: 'Divider', id: 'd' + i })), { type: 'Button', id: 'b', label: 'Go', variant: 'primary', actions: [] }] };
+  const codes = validateScreen(dividers, ctx).filter(i => i.severity === 'error').map(i => i.code);
+  assert.ok(codes.includes('quality.repetitive'), JSON.stringify(codes));
+  const empty = validateScreen({ id: 'x', title: 'X', shell: 'default', children: [] }, ctx);
+  assert.ok(empty.some(i => i.code === 'quality.empty' && i.severity === 'error'));
+  for (const doc of [kapiko, portal]) for (const s of doc.screens) assert.deepEqual(validateScreen(s, documentContext(doc)).filter(i => i.code.startsWith('quality')), [], s.id);
+});

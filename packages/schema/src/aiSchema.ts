@@ -10,9 +10,12 @@ const UNSUPPORTED = new Set(['$schema', 'default', 'minLength', 'maxLength', 'fo
 export type AiContext = { channel: 'mobile' | 'portal'; screenIds: string[]; collectionIds: string[] };
 
 export function aiScreenSchema(ctx: AiContext) {
-  const raw = z.toJSONSchema(Screen, { io: 'input', unrepresentable: 'throw' }) as any;
   const templateIds = templates.filter(t => t.channels.includes(ctx.channel)).map(t => t.id);
-  return strictify(raw, { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
+  return toStrictSchema(Screen, { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
+}
+/** Any Zod schema -> strict structured-output JSON Schema; `ref` markers become enums. */
+export function toStrictSchema(schema: z.ZodType, refs: Record<string, string[]> = {}) {
+  return strictify(z.toJSONSchema(schema, { io: 'input', unrepresentable: 'throw' }), refs);
 }
 function strictify(node: any, refs: Record<string, string[]>): any {
   if (Array.isArray(node)) return node.map(n => strictify(n, refs));
@@ -23,8 +26,12 @@ function strictify(node: any, refs: Record<string, string[]>): any {
     return { type: 'string', enum: values.length ? values : ['__none__'] };
   }
   const out: any = {};
+  // Strict mode rejects minLength/maxLength, so state limits in the description instead.
+  const limits = [node.minLength && node.minLength > 1 ? 'at least ' + node.minLength : '', node.maxLength ? 'at most ' + node.maxLength : ''].filter(Boolean);
+  if (limits.length) out.description = ((node.description ? node.description + ' ' : '') + '(' + limits.join(', ') + ' characters)').trim();
   for (const [k, v] of Object.entries(node)) {
     if (UNSUPPORTED.has(k)) continue;
+    if (k === 'description' && out.description) continue;
     if (k === 'oneOf') { out.anyOf = strictify(v, refs); continue; }
     if (k === 'properties' || k === '$defs') { out[k] = Object.fromEntries(Object.entries(v as object).map(([pk, pv]) => [pk, strictify(pv, refs)])); continue; }
     out[k] = strictify(v, refs);

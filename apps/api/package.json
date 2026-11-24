@@ -1,0 +1,8 @@
+{
+  "name": "@demo/api",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/main.ts", "test": "node --test test/*.test.ts" },
+  "dependencies": { "@demo/generator": "2.0.0-alpha.0", "@demo/schema": "2.0.0-alpha.0", "fastify": "5.12.8", "@fastify/cors": "11.4.1" }
+}

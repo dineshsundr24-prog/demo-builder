@@ -102,8 +102,12 @@ export const containerTypes = new Set(defs.filter(d => d.container).map(d => d.t
 export const inputTypes = new Set(defs.filter(d => d.category === 'input' && !d.container).map(d => d.type));
 
 // Recursive node union derived from the registry.
+// Key order matters for strict structured output: the model must emit keys in
+// schema order, so the discriminator comes FIRST (then id, props, children last).
+// With type last, a node starting with "type" only matched the prop-less Divider
+// and gpt-4.1-mini produced screens made of Dividers (live run, Phase 2).
 export const Node: z.ZodType<NodeT> = z.lazy(() => z.discriminatedUnion('type',
-  defs.map(d => d.props.extend({ type: z.literal(d.type), id: ID, ...(d.container ? { children: z.array(Node).max(40) } : {}) })) as any)) as any;
+  defs.map(d => z.object({ type: z.literal(d.type), id: ID, ...d.props.shape, ...(d.container ? { children: z.array(Node).max(40) } : {}) })) as any)) as any;
 export type NodeT = { type: string; id: string; children?: NodeT[]; [prop: string]: unknown };
 
 let counter = 0;

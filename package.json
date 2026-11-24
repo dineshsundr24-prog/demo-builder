@@ -8,10 +8,12 @@
     "build": "npm test && tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --check server/index.mjs && node --test server/*.test.mjs",
-    "v2:test": "node --test packages/schema/test/*.test.ts packages/runtime/test/*.test.ts",
-    "v2:typecheck": "tsc -p packages/schema && tsc -p packages/runtime && tsc -p apps/studio",
+    "v2:test": "node --test packages/schema/test/*.test.ts packages/runtime/test/*.test.ts packages/generator/test/*.test.ts apps/api/test/*.test.ts",
+    "v2:typecheck": "tsc -p packages/schema && tsc -p packages/runtime && tsc -p packages/generator && tsc -p apps/api && tsc -p apps/studio",
     "v2:e2e": "npm run e2e -w @demo/studio",
-    "v2:check": "npm run v2:typecheck && npm run v2:test && npm run v2:e2e"
+    "v2:check": "npm run v2:typecheck && npm run v2:test && npm run v2:e2e",
+    "v2:api": "npm start -w @demo/api",
+    "v2:api:fake": "node apps/api/src/dev-fake.ts"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

@@ -4,7 +4,7 @@
 import { DemoDocument, Screen } from './document.ts';
 import { containerTypes, inputTypes, type NodeT } from './registry.ts';
 import { templateById, expandTemplate } from './templates.ts';
-import { bindingsIn } from './bindings.ts';
+import { bindingsIn, ANY_BINDING } from './bindings.ts';
 
 export type Severity = 'error' | 'warning';
 export type Issue = { path: string; code: string; message: string; severity: Severity; screenId?: string };
@@ -64,6 +64,7 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
     // Bindings
     for (const [key, value] of Object.entries(n)) {
       const texts = typeof value === 'string' ? [[key, value]] : key === 'items' && Array.isArray(value) ? value.flatMap((it: any, i: number) => Object.entries(it || {}).filter(([, v]) => typeof v === 'string').map(([k, v]) => [key + '[' + i + '].' + k, v])) : [];
+      for (const [k, text] of texts as [string, string][]) if (/[{}]/.test(text.replace(ANY_BINDING, ''))) out.push(issue(path + '.' + k, 'quality.artifact', 'Text contains stray braces: "' + text.slice(0, 60) + '"'));
       for (const [k, text] of texts as [string, string][]) for (const b of bindingsIn(text)) {
         if (!b.valid) out.push(issue(path + '.' + k, 'binding.syntax', 'Invalid binding ' + b.raw + ' (use {{state.x}}, {{record.x}} or {{params.x}}, optional | aed, date, upper, mask)'));
         else if (b.scope === 'state' && !ctx.stateKeys.has(b.path!)) out.push(issue(path + '.' + k, 'binding.state-unwritten', 'No input or action writes state "' + b.path + '"', 'warning'));
@@ -101,7 +102,27 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
       if (typeof n.next === 'string' && !ctx.screenIds.has(n.next)) out.push(issue(path + '.next', 'route.unknown', 'Template destination "' + n.next + '" is not a screen'));
     }
   });
+  out.push(...screenQuality(s, prefix));
   return out.map(i => ({ ...i, screenId: s.id }));
+}
+
+/** Content-quality floor: catches degenerate output that is structurally valid. */
+export function screenQuality(s: Screen, prefix = 'screen'): Issue[] {
+  const types: string[] = [];
+  walk(s.children as NodeT[], '', n => { types.push(n.type); });
+  const out: Issue[] = [];
+  const meaningful = types.filter(t => !['Divider', 'Stack', 'Grid', 'Card', 'Section', 'Form'].includes(t));
+  const dividers = types.filter(t => t === 'Divider').length;
+  if (!types.length) out.push(issue(prefix + '.children', 'quality.empty', 'The screen has no content'));
+  else if (!meaningful.length) out.push(issue(prefix + '.children', 'quality.empty', 'The screen has only layout components and no content'));
+  if (dividers > 3 && dividers > types.length / 3) out.push(issue(prefix + '.children', 'quality.repetitive', 'The screen is mostly dividers (' + dividers + ' of ' + types.length + ' components); add real content'));
+  let run = 1;
+  for (let i = 1; i < (s.children as NodeT[]).length; i++) {
+    const a = (s.children as NodeT[])[i - 1], b = (s.children as NodeT[])[i];
+    run = a.type === b.type && JSON.stringify({ ...a, id: '' }) === JSON.stringify({ ...b, id: '' }) ? run + 1 : 1;
+    if (run === 4) out.push(issue(prefix + '.children[' + i + ']', 'quality.repetitive', 'Four or more identical ' + b.type + ' components in a row'));
+  }
+  return out;
 }
 
 export function validateDocument(doc: unknown): Issue[] {
