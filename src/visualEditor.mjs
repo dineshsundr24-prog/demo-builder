@@ -1,3 +1,4 @@
+export {configureTableRowAction} from './tableRowActions.mjs';
 import {placeMobileElement} from './mobileLayout.mjs';
 // Pure visual editing operations shared by the Studio and Node regression tests.
 // Edits operate on the single Demo Definition consumed by Preview and Published Viewer.
@@ -231,6 +232,16 @@ export function connectVisualFlow(d,fromId,sourceId,toId){
   if(el?.kind!=='navigation')throw Error('Source navigation component does not exist.');
   const link=el.links.find(l=>l.id===linkId);if(!link)throw Error('Navigation item does not exist.');
   link.screenId=toId;
+ }else if(key.startsWith('table:')){
+  const el=source.elements.find(e=>e.id===key.slice(6));
+  if(el?.kind!=='table')throw Error('Table does not exist.');
+  el.rowAction={type:'navigate',label:el.rowAction?.label||'View',screenId:toId,passRow:el.rowAction?.passRow!==false};
+  el.detailScreen=toId;
+ }else if(key.startsWith('composed-table:')){
+  const [,elementId,itemId]=key.split(':');const el=source.elements.find(e=>e.id===elementId);
+  const item=el?.kind==='composed'?el.items.find(i=>i.id===itemId&&i.kind==='table'):null;
+  if(!item)throw Error('Generated table does not exist.');
+  item.rowAction={type:'navigate',label:item.rowAction?.label||'View',screenId:toId,passRow:item.rowAction?.passRow!==false};
  }else if(key.startsWith('composed:')){
   const [,elementId,itemId]=key.split(':');const el=source.elements.find(e=>e.id===elementId);
   if(el?.kind!=='composed')throw Error('Source reusable template does not exist.');
@@ -245,6 +256,7 @@ export function visualFlowActions(d,screenId){
  return sc.elements.flatMap(el=>el.kind==='form'?(el.hideSubmit?[]:[{id:'form:'+el.id,label:el.actionLabel,screenId:el.nextScreen||''}]):
   el.kind==='actions'?el.buttons.map(b=>({id:'button:'+el.id+':'+b.id,label:b.label,screenId:b.nextScreen||''})):
   el.kind==='navigation'?el.links.map(link=>({id:'nav:'+el.id+':'+link.id,label:link.label,screenId:link.screenId||''})):
-  el.kind==='composed'?el.items.filter(item=>item.kind==='button').map(item=>({id:'composed:'+el.id+':'+item.id,label:item.label,screenId:item.nextScreen||''})):[]);
+  el.kind==='table'?[{id:'table:'+el.id,label:el.rowAction?.label||'View',screenId:el.rowAction?.screenId||el.detailScreen||''}]:
+  el.kind==='composed'?el.items.filter(item=>item.kind==='button'||item.kind==='table').map(item=>item.kind==='table'?{id:'composed-table:'+el.id+':'+item.id,label:item.rowAction?.label||'View',screenId:item.rowAction?.screenId||''}:{id:'composed:'+el.id+':'+item.id,label:item.label,screenId:item.nextScreen||''}):[]);
 }
 export function visualFlowEdges(d){return d.screens.flatMap(s=>visualFlowActions(d,s.id).filter(a=>a.screenId).map(a=>({from:s.id,to:a.screenId,actionId:a.id,label:a.label})));}
