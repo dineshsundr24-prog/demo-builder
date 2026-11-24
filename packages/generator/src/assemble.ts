@@ -49,5 +49,14 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
     }
     if (!changed) break;
   }
+  // 3. Dead ends (no way forward or back) get buttons for their planned links.
+  for (const issue of flowLint(doc).filter(i => i.code === 'flow.dead-end')) {
+    const planned = plan.screens.find(p => p.id === issue.screenId);
+    const screen = doc.screens.find(s => s.id === issue.screenId);
+    if (!planned || !screen || !planned.links.length || screen.children.length >= 38) continue;
+    const buttons: NodeT[] = planned.links.slice(0, 2).map((target, i) => ({ type: 'Button', id: 'link-' + target, label: ('Continue to ' + plan.screens.find(p => p.id === target)!.title).slice(0, 40), variant: i ? 'secondary' : 'primary', actions: [{ type: 'navigate', screen: target }] }));
+    doc = { ...doc, screens: doc.screens.map(s => (s.id === screen.id ? { ...s, children: [...(s.children as NodeT[]), ...buttons] } : s)) };
+    fixes.push('Added ' + buttons.length + ' planned link(s) to "' + screen.title + '", which had no way forward');
+  }
   return { document: doc, issues: validateDocument(doc), fixes };
 }

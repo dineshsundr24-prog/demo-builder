@@ -3,43 +3,48 @@
 ## Current state
 - **Branch:** `v2/foundation` (pushed). The deployed `feat/standalone-foundation` is untouched; v1 still builds and passes its 220 tests on this branch.
 - **Phase 0:** complete, including the live structured-output check.
-- **Phase 1 (schema and runtime):** **complete.** Exit gate passed.
+- **Phase 1 (schema and runtime):** complete.
+- **Phase 2 (generation engine):** **complete except Supabase verification**, which needs migration `supabase/migrations/0001_init.sql` run once in the Supabase SQL editor.
 - **Owner decisions:** v2 rewrite · Supabase (DB, auth, storage) · no v1 hotfix · USD 50/month for AI and hosting combined.
 
 ## Run everything
 ```bash
 npm install
-npm run v2:check   # type checks + 21 unit/contract tests + 9 Playwright journeys
+npm run v2:check   # type checks + 38 unit/contract/API tests + 11 Playwright tests
+npm run v2:api:fake   # local API with a zero-cost fake AI (token: e2e-token, port 8788)
 npm test           # v1 suite (unchanged)
 npm run dev -w @demo/studio   # preview at http://localhost:5173
 ```
 
-## Phase 1 deliverables
-| Package | What it is | Evidence |
-|---|---|---|
-| `packages/schema` | 25-component registry (single source of truth), document model (app shell, keyed collections, bindings), one validator with exact paths, strict AI screen schema, 7 deterministic journey templates, v1 to v2 migrator | 14 tests: both fixtures error-free; 60 screens validate; every v1/live failure shape rejected with path; template routes; v1 starters migrate with routes preserved |
-| `packages/runtime` | Framework-free engine (navigation, history, forms, record passing, maker/checker updates, simulated steps) plus one React renderer and shell (mobile app bar, tabs or drawer; portal sidebar with sub-items) | 7 engine tests: journey A, income flow, two rows open their own record, maker to checker updates only the selected row, back restores record, simulated failure stops the chain, CSV injection safety |
-| `apps/studio` | Preview harness: sample projects, v1/v2 JSON import (migrates v1), screen list with per-screen issue markers, live validation panel, phone (390x844) and portal device frames | Playwright, 9/9, no console errors: Kapiko journeys A and B, UAE PASS, income update to service requests, tabs; portal row details for two customers, maker to checker to Completed, search, filter, sidebar sub-navigation; v1 import that runs end to end |
+## Phase 2: generation engine (live evidence, 24 Nov 2026, gpt-4.1-mini-2025-04-14)
 
-## Contract changes since Phase 0
-- `submit` may name a form (`{type:'submit', form:'income'}`), the layout gpt-4.1-mini produced in the live check.
-- Forms no longer carry a built-in submit button; buttons submit them.
-- Table columns take an optional `format` (`aed`, `date`, `status` pill).
+| Run | Brief | Result | Screens | Time | Cost |
+|---|---|---|---|---|---|
+| Kapiko mobile (final) | `packages/generator/fixtures/kapiko-brief.md` (handover format) | completed, 0 errors | 12 (11 valid, 1 repaired) | 27 s | USD 0.024 |
+| Staff Portal (final) | `packages/generator/fixtures/staff-portal-brief.md` | completed, 0 errors, 0 warnings | 7 (all valid) | 17 s | USD 0.015 |
 
-## Known limitations (planned)
-- No editor yet: Phase 3 integrates Puck on top of this runtime.
-- No AI generation in v2 yet: Phase 2 builds the job-based generator on `aiScreenSchema`.
-- Kapiko "View details" on service requests has no detail screen within the fixed 12 screens, so the list is display-only.
-- Theme fonts are referenced, not self-hosted, so offline or self-hosted fonts are a Phase 7 item.
+Generated documents are kept as replay fixtures in `packages/generator/fixtures/live/` (fictional data). Total live AI spend so far: about USD 0.20 across 8 runs.
 
-## Next: Phase 2 (generation engine)
-1. API service (Fastify) with a provider adapter, budget guard and usage logging.
-2. Planner: deterministic screen-list parser plus a structured plan call; editable plan review.
-3. Per-screen generation with the strict schema, validation, one targeted repair, marked fallback; bounded concurrency.
-4. Jobs persisted (Supabase), progress streaming, retry and single-screen regeneration.
+### What live runs found (and what was fixed)
+1. **Divider collapse.** Strict mode emits keys in schema order, and `type` was last, so a node that started with `"type"` only matched the prop-less Divider. Fix: discriminator first in every component; a schema test enforces it.
+2. **Structurally valid but empty or repetitive screens passed.** Fix: quality checks (`quality.empty`, `quality.repetitive`, `quality.artifact`) are errors, so repair or fallback runs.
+3. **Over-long labels.** Strict mode cannot carry length limits. Fix: limits go into descriptions, plus deterministic shortening before any paid repair.
+4. **Cross-screen bindings** (unwritten state, wrong record fields). Fix: a post-assembly refinement pass (at most 6 calls) told which keys and fields exist, plus a validator check for record fields.
+5. **Inconsistent sample data between screens.** Fix: the plan defines shared `sampleFacts`.
+6. **Dead-end or unreachable screens.** Fix: deterministic links from the plan, reported.
+7. **Stray `},{` artifacts.** Fix: a deep check plus deterministic clean-up.
 
-Exit gate: one controlled real Kapiko 12-screen run producing exactly 12 valid screens, plus a synthetic 30-screen plan, with cost and latency recorded.
+### Components
+- `packages/generator`: brief parser, planner, per-screen generation, repair, fallback, assembly, orchestrator (budgets, retries, regenerate, retry-failed), `MemoryStore` and `SupabaseStore`, `scripts/live-run.ts`.
+- `apps/api`: Fastify API (`/api/v2/jobs`, approve, status, document, retry, regenerate, cancel, SSE events). `.env.example` lists the variables.
+- `apps/studio`: "Generate with AI" panel (brief, editable plan, live progress with cost, per-screen regenerate, retry failed).
+
+### Remaining Phase 2 step (owner)
+Run `supabase/migrations/0001_init.sql` in the Supabase SQL editor. Then `packages/generator/test/supabase.int.test.ts` (zero AI cost) verifies persistence, a fresh-store reload and single-screen regeneration, and one live run with `--supabase` records real usage.
+
+## Next: Phase 3 (Visual Studio editor)
+Puck on top of the shared runtime; config generated from the registry; select, edit, drag and drop of nested components; inspector; undo; screens panel; mobile header and footer placement. Exit gate: Playwright editing tests.
 
 ## Environment notes
-- Cloud environment `demo-builder`: only `api.openai.com` is added; the OpenAI key is a proxy-injected network secret.
-- Node fetch there needs `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt OPENAI_API_KEY=proxy-injected`.
+- Cloud environment `demo-builder`: `api.openai.com` and the Supabase project host are reachable; keys are proxy-injected network secrets (OpenAI as Bearer, Supabase as `apikey`).
+- Node fetch there needs `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt` with placeholder values `OPENAI_API_KEY=proxy-injected SUPABASE_SECRET_KEY=proxy-injected`.

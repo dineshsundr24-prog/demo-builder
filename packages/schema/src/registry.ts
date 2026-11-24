@@ -84,7 +84,7 @@ define({ type: 'Button', label: 'Button', category: 'action', ai: 'Runs declarat
   create: () => ({ label: 'Continue', variant: 'primary', actions: [] }) });
 // ---------- Data ----------
 const Column = z.object({ field: z.string().min(1).max(40), label: z.string().min(1).max(40), format: z.enum(['text', 'aed', 'date', 'status']).optional() });
-define({ type: 'Table', label: 'Table', category: 'data', ai: 'Rows from a data collection; rowAction opens a screen with the clicked record.',
+define({ type: 'Table', label: 'Table', category: 'data', ai: 'Rows from a data collection with BUILT-IN search (searchable), status filter (filterField) and CSV export (exportCsv): never add separate search/filter inputs for it. Column format: aed for amounts, date for dates, status for statuses. rowAction opens a screen with the clicked record.',
   props: z.object({ collection: CollectionRef, title: z.string().max(80).optional(), columns: z.array(Column).min(1).max(8), searchable: z.boolean(),
     filterField: z.string().max(40).optional(), rowAction: z.object({ label: z.string().min(1).max(20), screen: ScreenRef }).optional(), exportCsv: z.boolean().optional() }),
   create: () => ({ collection: '', columns: [], searchable: true }) });

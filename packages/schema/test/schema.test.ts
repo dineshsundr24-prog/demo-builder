@@ -181,3 +181,12 @@ test('degenerate screens (the live Divider collapse) are errors, so repair/fallb
   assert.ok(empty.some(i => i.code === 'quality.empty' && i.severity === 'error'));
   for (const doc of [kapiko, portal]) for (const s of doc.screens) assert.deepEqual(validateScreen(s, documentContext(doc)).filter(i => i.code.startsWith('quality')), [], s.id);
 });
+
+test('record bindings must use fields of the collection whose rows open the screen', () => {
+  const d = structuredClone(portal);
+  const details = d.screens.find(s => s.id === 'application-details')!;
+  (details.children as any[]).push({ type: 'Text', id: 'bad', text: 'Mobile: {{record.mobileNumber}}' });
+  const hit = validateDocument(d).find(i => i.code === 'binding.record-field');
+  assert.ok(hit && hit.message.includes('mobileNumber') && hit.message.includes('customer'), JSON.stringify(hit));
+  assert.deepEqual(validateDocument(portal).filter(i => i.code === 'binding.record-field'), [], 'maker/checker receive fields via passRecord');
+});

@@ -136,7 +136,7 @@ export class Generator {
     if (missing.length) throw new JobError('incomplete', missing.length + ' screen(s) have no result: ' + missing.map(r => r.title).join(', '));
     let { document, issues, fixes } = assemble(job.plan, rows.map(r => r.screen as Screen));
     // Cross-screen pass: one targeted call per screen whose bindings nothing satisfies (bounded).
-    const bindingCodes = ['binding.state-unwritten', 'binding.no-record'];
+    const bindingCodes = ['binding.state-unwritten', 'binding.no-record', 'binding.record-field'];
     const affected = [...new Set(issues.filter(i => bindingCodes.includes(i.code) && i.screenId).map(i => i.screenId!))].slice(0, this.config.maxBindingRefinements);
     if (affected.length) {
       const ctx = documentContext(document);

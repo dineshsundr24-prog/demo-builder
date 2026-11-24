@@ -1,0 +1,756 @@
+{
+ "schemaVersion": 2,
+ "id": "kapiko-staff-portal",
+ "name": "Kapiko Staff Portal",
+ "channel": "portal",
+ "theme": {
+  "primary": "#17365D",
+  "secondary": "#0E9389",
+  "accent": "#F58220",
+  "radius": "md",
+  "font": "inter"
+ },
+ "shell": {
+  "kind": "sidebar",
+  "brand": "Kapiko Staff Portal",
+  "showBack": true,
+  "items": [
+   {
+    "id": "menu-1",
+    "label": "Dashboard",
+    "icon": "layout-dashboard",
+    "screen": "dashboard"
+   },
+   {
+    "id": "menu-2",
+    "label": "Customer Applications",
+    "icon": "list",
+    "screen": "customer-applications"
+   },
+   {
+    "id": "menu-3",
+    "label": "Completed Applications",
+    "icon": "check",
+    "screen": "completed-applications"
+   },
+   {
+    "id": "menu-4",
+    "label": "Reports",
+    "icon": "bar-chart",
+    "screen": "reports"
+   }
+  ]
+ },
+ "collections": [
+  {
+   "id": "applications",
+   "label": "Customer Finance Applications",
+   "key": "reference",
+   "fields": [
+    {
+     "id": "reference",
+     "label": "Reference Number"
+    },
+    {
+     "id": "customer",
+     "label": "Customer Name"
+    },
+    {
+     "id": "product",
+     "label": "Product Type"
+    },
+    {
+     "id": "amount",
+     "label": "Amount (AED)"
+    },
+    {
+     "id": "emirate",
+     "label": "Emirate"
+    },
+    {
+     "id": "status",
+     "label": "Status"
+    },
+    {
+     "id": "submitted",
+     "label": "Submitted Date"
+    }
+   ],
+   "rows": [
+    {
+     "reference": "KA12345",
+     "customer": "Fatima Al Mansoori",
+     "product": "Personal Loan",
+     "amount": "50000",
+     "emirate": "Abu Dhabi",
+     "status": "Pending maker",
+     "submitted": "2024-06-01"
+    },
+    {
+     "reference": "KA12346",
+     "customer": "Ahmed Al Hammadi",
+     "product": "Car Loan",
+     "amount": "75000",
+     "emirate": "Dubai",
+     "status": "Pending checker",
+     "submitted": "2024-06-03"
+    },
+    {
+     "reference": "KA12347",
+     "customer": "Noor Al Mazrouei",
+     "product": "Home Loan",
+     "amount": "350000",
+     "emirate": "Sharjah",
+     "status": "Approved",
+     "submitted": "2024-05-20"
+    },
+    {
+     "reference": "KA12348",
+     "customer": "Salim Al Nuaimi",
+     "product": "Business Loan",
+     "amount": "150000",
+     "emirate": "Ajman",
+     "status": "Rejected",
+     "submitted": "2024-05-25"
+    },
+    {
+     "reference": "KA12349",
+     "customer": "Aisha Al Balushi",
+     "product": "Education Loan",
+     "amount": "40000",
+     "emirate": "Ras Al Khaimah",
+     "status": "Pending maker",
+     "submitted": "2024-06-08"
+    },
+    {
+     "reference": "KA12350",
+     "customer": "Khalid Al Farsi",
+     "product": "Personal Loan",
+     "amount": "30000",
+     "emirate": "Fujairah",
+     "status": "Pending checker",
+     "submitted": "2024-06-10"
+    },
+    {
+     "reference": "KA12351",
+     "customer": "Laila Al Suwaidi",
+     "product": "Car Loan",
+     "amount": "60000",
+     "emirate": "Dubai",
+     "status": "Approved",
+     "submitted": "2024-05-15"
+    },
+    {
+     "reference": "KA12352",
+     "customer": "Hassan Al Qassimi",
+     "product": "Home Loan",
+     "amount": "250000",
+     "emirate": "Abu Dhabi",
+     "status": "Rejected",
+     "submitted": "2024-05-30"
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "id": "dashboard",
+   "title": "Dashboard",
+   "subtitle": "Overview of KPIs and recent customer finance applications",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Grid",
+     "id": "kpi-grid",
+     "columns": "4",
+     "gap": "md",
+     "children": [
+      {
+       "type": "Card",
+       "id": "card-open-applications",
+       "title": "Open Applications",
+       "tone": "brand",
+       "children": [
+        {
+         "type": "Stat",
+         "id": "stat-open-apps",
+         "label": "Open Applications",
+         "value": "42",
+         "delta": "+5 vs last week"
+        }
+       ]
+      },
+      {
+       "type": "Card",
+       "id": "card-pending-maker",
+       "title": "Pending Maker Tasks",
+       "tone": "brand",
+       "children": [
+        {
+         "type": "Stat",
+         "id": "stat-pending-maker",
+         "label": "Pending Maker",
+         "value": "11",
+         "delta": "-2 vs last week"
+        }
+       ]
+      },
+      {
+       "type": "Card",
+       "id": "card-pending-checker",
+       "title": "Pending Checker Tasks",
+       "tone": "brand",
+       "children": [
+        {
+         "type": "Stat",
+         "id": "stat-pending-checker",
+         "label": "Pending Checker",
+         "value": "7",
+         "delta": "+1 vs last week"
+        }
+       ]
+      },
+      {
+       "type": "Card",
+       "id": "card-approved-month",
+       "title": "Approved This Month",
+       "tone": "brand",
+       "children": [
+        {
+         "type": "Stat",
+         "id": "stat-approved-month",
+         "label": "Approved Applications",
+         "value": "28",
+         "delta": "+10 vs last month"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Section",
+     "id": "section-recent-applications",
+     "title": "Recent Applications",
+     "description": "Most recent customer finance applications with quick access to details.",
+     "children": [
+      {
+       "type": "Table",
+       "id": "table-recent-applications",
+       "collection": "applications",
+       "columns": [
+        {
+         "field": "reference",
+         "label": "Reference#"
+        },
+        {
+         "field": "customer",
+         "label": "Customer"
+        },
+        {
+         "field": "product",
+         "label": "Product"
+        },
+        {
+         "field": "amount",
+         "label": "Amount",
+         "format": "aed"
+        },
+        {
+         "field": "emirate",
+         "label": "Emirate"
+        },
+        {
+         "field": "status",
+         "label": "Status",
+         "format": "status"
+        },
+        {
+         "field": "submitted",
+         "label": "Submitted",
+         "format": "date"
+        }
+       ],
+       "searchable": true,
+       "filterField": "status",
+       "rowAction": {
+        "label": "View",
+        "screen": "application-details"
+       },
+       "exportCsv": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "customer-applications",
+   "title": "Customer Applications",
+   "subtitle": "Searchable table of all customer finance applications with status filter and CSV export.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Table",
+     "id": "applicationsTable",
+     "collection": "applications",
+     "title": "Customer Applications",
+     "columns": [
+      {
+       "field": "reference",
+       "label": "Reference #},{",
+       "format": "text"
+      },
+      {
+       "field": "customer",
+       "label": "Customer Name",
+       "format": "text"
+      },
+      {
+       "field": "product",
+       "label": "Product",
+       "format": "text"
+      },
+      {
+       "field": "amount",
+       "label": "Amount (AED)",
+       "format": "aed"
+      },
+      {
+       "field": "emirate",
+       "label": "Emirate",
+       "format": "text"
+      },
+      {
+       "field": "status",
+       "label": "Status",
+       "format": "text"
+      },
+      {
+       "field": "submitted",
+       "label": "Submitted Date",
+       "format": "date"
+      }
+     ],
+     "searchable": true,
+     "filterField": "status",
+     "rowAction": {
+      "label": "View",
+      "screen": "application-details"
+     },
+     "exportCsv": true
+    }
+   ]
+  },
+  {
+   "id": "application-details",
+   "title": "Application Details",
+   "subtitle": "View and manage customer application details, documents, and review steps.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Stack",
+     "id": "main-vertical-stack",
+     "direction": "vertical",
+     "gap": "lg",
+     "align": "start",
+     "children": [
+      {
+       "type": "Stack",
+       "id": "top-horizontal-stack",
+       "direction": "horizontal",
+       "gap": "lg",
+       "align": "start",
+       "children": [
+        {
+         "type": "Section",
+         "id": "customer-info-section",
+         "title": "Customer Information",
+         "description": "Details of the applicant's personal information and request.",
+         "children": [
+          {
+           "type": "RecordFields",
+           "id": "customer-basic-details",
+           "items": [
+            {
+             "label": "Customer Name",
+             "value": "{{record.customer}}"
+            },
+            {
+             "label": "Application Reference",
+             "value": "{{record.reference}}"
+            },
+            {
+             "label": "Emirate",
+             "value": "{{record.emirate}}"
+            },
+            {
+             "label": "Submitted Date",
+             "value": "{{record.submitted | date}}"
+            },
+            {
+             "label": "Current Status",
+             "value": "{{record.status}}"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "Section",
+         "id": "finance-request-section",
+         "title": "Requested Product & Amount",
+         "description": "Details of the product and financial request.",
+         "children": [
+          {
+           "type": "RecordFields",
+           "id": "product-request-details",
+           "items": [
+            {
+             "label": "Product Type",
+             "value": "{{record.product}}"
+            },
+            {
+             "label": "Requested Amount",
+             "value": "{{record.amount | aed}}"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "Section",
+       "id": "documents-status-section",
+       "title": "Document Upload Status",
+       "description": "Check which documents the customer has uploaded.",
+       "children": [
+        {
+         "type": "RecordFields",
+         "id": "documents-uploaded",
+         "items": [
+          {
+           "label": "Emirates ID",
+           "value": "Uploaded"
+          },
+          {
+           "label": "Proof of Income",
+           "value": "Uploaded"
+          },
+          {
+           "label": "Residence Visa",
+           "value": "Pending"
+          },
+          {
+           "label": "Salary Certificate",
+           "value": "Uploaded"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "Stack",
+       "id": "actions-horizontal-stack",
+       "direction": "horizontal",
+       "gap": "md",
+       "align": "start",
+       "children": [
+        {
+         "type": "Button",
+         "id": "maker-review-button",
+         "label": "Start Maker Review",
+         "variant": "primary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "maker-review",
+           "passRecord": true
+          }
+         ]
+        },
+        {
+         "type": "Button",
+         "id": "checker-approval-button",
+         "label": "Start Checker Approval",
+         "variant": "secondary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "checker-approval",
+           "passRecord": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "maker-review",
+   "title": "Maker Review",
+   "subtitle": "Form to recommend application approval, request info, or reject, sending status to Pending checker",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Form",
+     "id": "makerReviewForm",
+     "title": "Maker Review Form",
+     "children": [
+      {
+       "type": "Radio",
+       "id": "recommendationRadio",
+       "field": "review.recommendation",
+       "label": "Your Recommendation",
+       "required": true,
+       "options": [
+        "Approve",
+        "Request Information",
+        "Reject"
+       ]
+      },
+      {
+       "type": "Input",
+       "id": "commentsInput",
+       "field": "review.comments",
+       "label": "Comments (optional)",
+       "required": false,
+       "inputType": "text",
+       "placeholder": "Add any comments or notes here"
+      },
+      {
+       "type": "Button",
+       "id": "submitReviewBtn",
+       "label": "Submit to Checker",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "form": "makerReviewForm",
+         "validate": true
+        },
+        {
+         "type": "updateRecord",
+         "field": "status",
+         "value": "Pending checker"
+        },
+        {
+         "type": "navigate",
+         "screen": "checker-approval",
+         "passRecord": true
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "checker-approval",
+   "title": "Checker Approval",
+   "subtitle": "Review maker's recommendation and comments; choose to Approve, Return or Reject the application.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Template",
+     "id": "checkerApprovalTemplate",
+     "template": "checker-approval",
+     "next": "application-details"
+    }
+   ]
+  },
+  {
+   "id": "completed-applications",
+   "title": "Completed Applications",
+   "subtitle": "Table listing all completed finance applications with their status and a View action for details.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Table",
+     "id": "completedApplicationsTable",
+     "collection": "applications",
+     "title": "Completed Applications",
+     "columns": [
+      {
+       "field": "reference",
+       "label": "Reference No.",
+       "format": "text"
+      },
+      {
+       "field": "customer",
+       "label": "Customer",
+       "format": "text"
+      },
+      {
+       "field": "product",
+       "label": "Product",
+       "format": "text"
+      },
+      {
+       "field": "amount",
+       "label": "Amount (AED)",
+       "format": "aed"
+      },
+      {
+       "field": "emirate",
+       "label": "Emirate",
+       "format": "text"
+      },
+      {
+       "field": "status",
+       "label": "Status",
+       "format": "text"
+      },
+      {
+       "field": "submitted",
+       "label": "Submitted Date",
+       "format": "date"
+      }
+     ],
+     "searchable": true,
+     "filterField": "status",
+     "rowAction": {
+      "label": "View",
+      "screen": "application-details"
+     },
+     "exportCsv": true
+    }
+   ]
+  },
+  {
+   "id": "reports",
+   "title": "Reports",
+   "subtitle": "Monthly turnaround times, approval rates, and finance volumes summarized with KPIs and charts.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Stack",
+     "id": "main-stack",
+     "direction": "vertical",
+     "gap": "lg",
+     "align": "stretch",
+     "children": [
+      {
+       "type": "Heading",
+       "id": "page-title",
+       "text": "Monthly Operational Reports",
+       "level": "1"
+      },
+      {
+       "type": "Grid",
+       "id": "kpi-grid",
+       "columns": "3",
+       "gap": "md",
+       "children": [
+        {
+         "type": "Card",
+         "id": "turnaround-card",
+         "title": "Average Turnaround Time",
+         "tone": "default",
+         "children": [
+          {
+           "type": "Stat",
+           "id": "stat-turnaround",
+           "label": "Days",
+           "value": "3.5",
+           "delta": "-10% this month"
+          }
+         ]
+        },
+        {
+         "type": "Card",
+         "id": "approval-rate-card",
+         "title": "Approval Rate",
+         "tone": "default",
+         "children": [
+          {
+           "type": "Stat",
+           "id": "stat-approval-rate",
+           "label": "Percent",
+           "value": "78%",
+           "delta": "+5% this month"
+          }
+         ]
+        },
+        {
+         "type": "Card",
+         "id": "finance-volume-card",
+         "title": "Finance Volume",
+         "tone": "default",
+         "children": [
+          {
+           "type": "Stat",
+           "id": "stat-finance-volume",
+           "label": "AED (million)",
+           "value": "12.4",
+           "delta": "+8% this month"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "Section",
+       "id": "charts-section",
+       "title": "Detailed Visuals",
+       "description": "Graphs show monthly trends for key metrics. All figures are fictional and for demo purposes only.",
+       "children": [
+        {
+         "type": "Grid",
+         "id": "charts-grid",
+         "columns": "2",
+         "gap": "lg",
+         "children": [
+          {
+           "type": "Card",
+           "id": "chart-turnaround",
+           "title": "Monthly Turnaround Time (days)",
+           "tone": "muted",
+           "children": [
+            {
+             "type": "Image",
+             "id": "img-turnaround-chart",
+             "kind": "illustration",
+             "alt": "Graph showing monthly average turnaround time for applications over six months"
+            }
+           ]
+          },
+          {
+           "type": "Card",
+           "id": "chart-approval-rate",
+           "title": "Approval Rate (%)",
+           "tone": "muted",
+           "children": [
+            {
+             "type": "Image",
+             "id": "img-approval-chart",
+             "kind": "illustration",
+             "alt": "Graph showing monthly approval rates for applications over six months"
+            }
+           ]
+          },
+          {
+           "type": "Card",
+           "id": "chart-finance-volume",
+           "title": "Monthly Finance Volume (million AED)",
+           "tone": "muted",
+           "children": [
+            {
+             "type": "Image",
+             "id": "img-finance-volume-chart",
+             "kind": "illustration",
+             "alt": "Graph showing monthly finance volume in million AED over six months"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

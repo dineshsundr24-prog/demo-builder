@@ -14,6 +14,7 @@ export type DocContext = {
   collections: Map<string, { key: string; fields: Set<string> }>;
   stateKeys: Set<string>;           // keys written by any input anywhere
   recordScreens: Set<string>;       // screens that receive a record
+  recordFields: Map<string, Set<string>>; // screen -> fields of the collections whose rows open it
 };
 
 const issue = (path: string, code: string, message: string, severity: Severity = 'error'): Issue => ({ path, code, message, severity });
@@ -30,10 +31,26 @@ export function walk(nodes: NodeT[], path: string, visit: (n: NodeT, path: strin
     if (n.type === 'Template') walk(expandTemplate(n), p + '.expanded', visit, [...ancestors, n]);
   });
 }
+/** [path, string] pairs for every string inside a property value. */
+export function stringsIn(value: unknown, path: string): [string, string][] {
+  if (typeof value === 'string') return [[path, value]];
+  if (Array.isArray(value)) return value.flatMap((v, i) => stringsIn(v, path + '[' + i + ']'));
+  if (value && typeof value === 'object') return Object.entries(value).flatMap(([k, v]) => stringsIn(v, path + '.' + k));
+  return [];
+}
 function actionsOf(n: NodeT): any[] { return Array.isArray(n.actions) ? n.actions as any[] : []; }
 
 export function documentContext(doc: DemoDocument): DocContext {
-  const stateKeys = new Set<string>(), recordScreens = new Set<string>();
+  const stateKeys = new Set<string>(), recordScreens = new Set<string>(), recordFields = new Map<string, Set<string>>();
+  const fieldsOf = (c: unknown) => new Set(doc.collections.find(x => x.id === c)?.fields.map(f => f.id) ?? []);
+  for (const s of doc.screens) walk(s.children as NodeT[], '', n => {
+    const opens = (n.rowAction as any)?.screen ?? (n.itemAction as any)?.screen;
+    if (opens) recordFields.set(opens, new Set([...(recordFields.get(opens) ?? []), ...fieldsOf(n.collection)]));
+  });
+  // Records passed on with navigate(passRecord) keep the fields of the screen they came from.
+  for (let pass = 0; pass < 3; pass++) for (const s of doc.screens) walk(s.children as NodeT[], '', n => {
+    for (const a of actionsOf(n)) if (a.type === 'navigate' && a.passRecord && recordFields.has(s.id)) recordFields.set(a.screen, new Set([...(recordFields.get(a.screen) ?? []), ...recordFields.get(s.id)!]));
+  });
   for (const s of doc.screens) walk(s.children as NodeT[], '', n => {
     if (inputTypes.has(n.type) && typeof n.field === 'string') stateKeys.add(n.field);
     for (const a of actionsOf(n)) {
@@ -44,7 +61,7 @@ export function documentContext(doc: DemoDocument): DocContext {
     if (ra) recordScreens.add(ra);
   });
   return {
-    channel: doc.channel, screenIds: new Set(doc.screens.map(s => s.id)), stateKeys, recordScreens,
+    channel: doc.channel, screenIds: new Set(doc.screens.map(s => s.id)), stateKeys, recordScreens, recordFields,
     collections: new Map(doc.collections.map(c => [c.id, { key: c.key, fields: new Set(c.fields.map(f => f.id)) }])),
   };
 }
@@ -61,14 +78,16 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
     if (ids.has(n.id)) out.push(issue(path + '.id', 'id.duplicate', 'Component id "' + n.id + '" is used twice on this screen (also at ' + ids.get(n.id) + ')'));
     else ids.set(n.id, path);
     const inForm = ancestors.some(a => a.type === 'Form');
-    // Bindings
+    // Every string in the component (labels, columns, options, items...), excluding children.
     for (const [key, value] of Object.entries(n)) {
-      const texts = typeof value === 'string' ? [[key, value]] : key === 'items' && Array.isArray(value) ? value.flatMap((it: any, i: number) => Object.entries(it || {}).filter(([, v]) => typeof v === 'string').map(([k, v]) => [key + '[' + i + '].' + k, v])) : [];
-      for (const [k, text] of texts as [string, string][]) if (/[{}]/.test(text.replace(ANY_BINDING, ''))) out.push(issue(path + '.' + k, 'quality.artifact', 'Text contains stray braces: "' + text.slice(0, 60) + '"'));
+      if (key === 'children') continue;
+      const texts = stringsIn(value, key);
+      for (const [k, text] of texts) if (/[{}]/.test(text.replace(ANY_BINDING, ''))) out.push(issue(path + '.' + k, 'quality.artifact', 'Text contains stray braces: "' + text.slice(0, 60) + '"'));
       for (const [k, text] of texts as [string, string][]) for (const b of bindingsIn(text)) {
         if (!b.valid) out.push(issue(path + '.' + k, 'binding.syntax', 'Invalid binding ' + b.raw + ' (use {{state.x}}, {{record.x}} or {{params.x}}, optional | aed, date, upper, mask)'));
         else if (b.scope === 'state' && !ctx.stateKeys.has(b.path!)) out.push(issue(path + '.' + k, 'binding.state-unwritten', 'No input or action writes state "' + b.path + '"', 'warning'));
         else if (b.scope === 'record' && !ctx.recordScreens.has(s.id)) out.push(issue(path + '.' + k, 'binding.no-record', 'This screen shows {{record.' + b.path + '}} but nothing opens it with a record', 'warning'));
+        else if (b.scope === 'record' && ctx.recordFields.get(s.id)?.size && !ctx.recordFields.get(s.id)!.has(b.path!)) out.push(issue(path + '.' + k, 'binding.record-field', 'Records opening this screen have no field "' + b.path + '" (fields: ' + [...ctx.recordFields.get(s.id)!].join(', ') + ')', 'warning'));
       }
     }
     // Actions

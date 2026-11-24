@@ -24,7 +24,7 @@
    {
     "id": "menu-2",
     "label": "Service Requests",
-    "icon": "folder",
+    "icon": "list",
     "screen": "my-service-requests"
    },
    {
@@ -38,7 +38,7 @@
  "collections": [
   {
    "id": "service-requests",
-   "label": "Service Requests",
+   "label": "My Service Requests",
    "key": "requestId",
    "fields": [
     {
@@ -47,14 +47,14 @@
     },
     {
      "id": "type",
-     "label": "Type"
+     "label": "Request Type"
     },
     {
      "id": "status",
      "label": "Status"
     },
     {
-     "id": "dateSubmitted",
+     "id": "submittedDate",
      "label": "Date Submitted"
     }
    ],
@@ -62,81 +62,14 @@
     {
      "requestId": "KPK-INC-2026-00125",
      "type": "Income Update",
-     "status": "Pending Verification",
-     "dateSubmitted": "2024-05-01"
+     "status": "In Review",
+     "submittedDate": "2026-04-10"
     },
     {
-     "requestId": "KPK-ACC-2026-00120",
-     "type": "Account Update",
-     "status": "Completed",
-     "dateSubmitted": "2024-04-10"
-    },
-    {
-     "requestId": "KPK-LOAN-2026-00105",
+     "requestId": "KPK-LOAN-2025-00999",
      "type": "Loan Application",
-     "status": "Under Review",
-     "dateSubmitted": "2024-03-22"
-    }
-   ]
-  },
-  {
-   "id": "customer-profile",
-   "label": "Customer Profile Data",
-   "key": "fieldId",
-   "fields": [
-    {
-     "id": "fieldId",
-     "label": "Field ID"
-    },
-    {
-     "id": "label",
-     "label": "Label"
-    },
-    {
-     "id": "value",
-     "label": "Value"
-    }
-   ],
-   "rows": [
-    {
-     "fieldId": "identityNumber",
-     "label": "Identity Number",
-     "value": "784-1983746-1234"
-    },
-    {
-     "fieldId": "fullName",
-     "label": "Full Name",
-     "value": "Ahmed Al Hammadi"
-    },
-    {
-     "fieldId": "mobileNumber",
-     "label": "Mobile Number",
-     "value": "+971 50 123 4567"
-    },
-    {
-     "fieldId": "emailAddress",
-     "label": "Email Address",
-     "value": "ahmed.alhammadi@example.com"
-    },
-    {
-     "fieldId": "employmentStatus",
-     "label": "Employment Status",
-     "value": "Full-time"
-    },
-    {
-     "fieldId": "employer",
-     "label": "Employer",
-     "value": "Kapiko Technologies"
-    },
-    {
-     "fieldId": "monthlyIncome",
-     "label": "Monthly Income",
-     "value": "AED 18,000"
-    },
-    {
-     "fieldId": "accountNumber",
-     "label": "Account Number",
-     "value": "123-456789-001"
+     "status": "Approved",
+     "submittedDate": "2025-12-15"
     }
    ]
   }
@@ -145,66 +78,66 @@
   {
    "id": "welcome",
    "title": "Welcome",
-   "subtitle": "Access your Kapiko Bank account or create a new one to start banking securely.",
+   "subtitle": "Welcome to Kapiko Bank Mobile, your trusted digital banking partner.",
    "shell": "hidden",
    "children": [
     {
      "type": "Stack",
-     "id": "brand-intro-stack",
+     "id": "welcome-stack",
      "direction": "vertical",
      "gap": "lg",
      "align": "center",
      "children": [
       {
        "type": "Image",
-       "id": "kapiko-logo",
+       "id": "welcome-logo",
        "kind": "logo",
-       "alt": "Kapiko Bank Logo"
+       "alt": "Kapiko Bank logo"
       },
       {
        "type": "Heading",
-       "id": "welcome-heading",
+       "id": "welcome-title",
        "text": "Welcome to Kapiko Bank",
        "level": "1"
       },
       {
        "type": "Text",
-       "id": "welcome-text",
-       "text": "Kapiko Bank — your trusted partner for seamless mobile banking. Manage your finances securely and easily on the go.",
-       "tone": "default"
-      }
-     ]
-    },
-    {
-     "type": "Stack",
-     "id": "auth-buttons-stack",
-     "direction": "vertical",
-     "gap": "md",
-     "align": "stretch",
-     "children": [
-      {
-       "type": "Button",
-       "id": "sign-in-button",
-       "label": "Sign In",
-       "variant": "primary",
-       "actions": [
-        {
-         "type": "navigate",
-         "screen": "sign-in",
-         "passRecord": false
-        }
-       ]
+       "id": "welcome-description",
+       "text": "Secure, convenient and fast banking at your fingertips. Manage your finances with ease and confidence using our mobile app.",
+       "tone": "muted"
       },
       {
-       "type": "Button",
-       "id": "sign-up-button",
-       "label": "Create Account",
-       "variant": "secondary",
-       "actions": [
+       "type": "Stack",
+       "id": "welcome-buttons",
+       "direction": "vertical",
+       "gap": "md",
+       "align": "stretch",
+       "children": [
         {
-         "type": "navigate",
-         "screen": "sign-up",
-         "passRecord": false
+         "type": "Button",
+         "id": "btn-sign-in",
+         "label": "Sign In",
+         "variant": "primary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "sign-in",
+           "passRecord": false
+          }
+         ]
+        },
+        {
+         "type": "Button",
+         "id": "btn-create-account",
+         "label": "Create Account",
+         "variant": "secondary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "sign-up",
+           "passRecord": false
+          }
+         ]
         }
        ]
       }
@@ -215,101 +148,126 @@
   {
    "id": "sign-in",
    "title": "Sign In",
-   "subtitle": "Enter mobile/email and password to access your Kapiko Bank account.",
+   "subtitle": "Access your account with mobile/email and password or UAE PASS.",
    "shell": "hidden",
    "children": [
     {
      "type": "Form",
-     "id": "signInForm",
-     "title": "Sign In",
+     "id": "form-sign-in",
+     "title": "Sign In to Kapiko Bank",
      "children": [
       {
-       "type": "Input",
-       "id": "inputMobileEmail",
-       "field": "auth.mobileEmail",
-       "label": "Mobile Number or Email",
-       "required": true,
-       "inputType": "text",
-       "placeholder": "e.g. +971501234567 or user@example.com"
-      },
-      {
-       "type": "Input",
-       "id": "inputPassword",
-       "field": "auth.password",
-       "label": "Password",
-       "required": true,
-       "inputType": "password",
-       "placeholder": "Enter your password"
-      },
-      {
-       "type": "Checkbox",
-       "id": "showPasswordToggle",
-       "field": "auth.showPassword",
-       "label": "Show password (toggle will update input type)",
-       "required": false
-      },
-      {
-       "type": "Button",
-       "id": "btnSubmitSignIn",
-       "label": "Sign In",
-       "variant": "primary",
-       "actions": [
+       "type": "Stack",
+       "id": "stack-inputs",
+       "direction": "vertical",
+       "gap": "md",
+       "align": "stretch",
+       "children": [
         {
-         "type": "submit",
-         "form": "signInForm",
-         "validate": true
+         "type": "Input",
+         "id": "input-mobile-email",
+         "field": "customer.mobileOrEmail",
+         "label": "Mobile Number or Email",
+         "required": true,
+         "inputType": "text",
+         "placeholder": "e.g. +971501234567 or email@example.com"
         },
         {
-         "type": "navigate",
-         "screen": "dashboard",
-         "passRecord": false
+         "type": "Stack",
+         "id": "stack-password-row",
+         "direction": "horizontal",
+         "gap": "sm",
+         "align": "stretch",
+         "children": [
+          {
+           "type": "Input",
+           "id": "input-password",
+           "field": "customer.password",
+           "label": "Password",
+           "required": true,
+           "inputType": "password",
+           "placeholder": "Enter your password"
+          },
+          {
+           "type": "Toggle",
+           "id": "toggle-show-password",
+           "field": "customer.showPassword",
+           "label": "Show Password"
+          }
+         ]
         }
        ]
       },
       {
-       "type": "Button",
-       "id": "btnForgotPassword",
-       "label": "Forgot Password?",
-       "variant": "link",
-       "actions": [
+       "type": "Stack",
+       "id": "stack-links-and-buttons",
+       "direction": "vertical",
+       "gap": "sm",
+       "align": "stretch",
+       "children": [
         {
-         "type": "toast",
-         "message": "Feature not implemented in demo."
+         "type": "Button",
+         "id": "btn-forgot-password",
+         "label": "Forgot Password?",
+         "variant": "link",
+         "actions": [
+          {
+           "type": "toast",
+           "message": "Forgot password flow is not implemented in this demo."
+          }
+         ]
+        },
+        {
+         "type": "Button",
+         "id": "btn-submit-sign-in",
+         "label": "Sign In",
+         "variant": "primary",
+         "actions": [
+          {
+           "type": "submit",
+           "form": "form-sign-in",
+           "validate": true
+          },
+          {
+           "type": "navigate",
+           "screen": "dashboard",
+           "passRecord": false
+          }
+         ]
+        },
+        {
+         "type": "Button",
+         "id": "btn-uaepass-signin",
+         "label": "Sign In with UAE PASS",
+         "variant": "secondary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "ekyc-using-uae-pass",
+           "passRecord": false
+          }
+         ]
         }
        ]
       }
      ]
     },
     {
-     "type": "Divider",
-     "id": "divider1"
-    },
-    {
-     "type": "Template",
-     "id": "uaePassLoginDemo",
-     "template": "uaepass-login",
-     "next": "dashboard"
-    },
-    {
-     "type": "Divider",
-     "id": "divider2"
-    },
-    {
      "type": "Stack",
-     "id": "signInLinks",
+     "id": "stack-bottom-links",
      "direction": "horizontal",
-     "gap": "md",
+     "gap": "sm",
      "align": "center",
      "children": [
       {
        "type": "Text",
-       "id": "textNoAccount",
+       "id": "text-no-account",
        "text": "Don't have an account?",
        "tone": "muted"
       },
       {
        "type": "Button",
-       "id": "btnGoSignUp",
+       "id": "btn-sign-up-link",
        "label": "Sign Up",
        "variant": "link",
        "actions": [
@@ -327,24 +285,24 @@
   {
    "id": "sign-up",
    "title": "Sign Up",
-   "subtitle": "Create your Kapiko Bank account",
+   "subtitle": "Create your Kapiko Bank account by providing your details below.",
    "shell": "hidden",
    "children": [
     {
      "type": "Form",
      "id": "signUpForm",
-     "title": "Sign Up",
+     "title": "Sign Up Form",
      "children": [
       {
        "type": "Stack",
-       "id": "inputStack",
+       "id": "inputsStack",
        "direction": "vertical",
        "gap": "md",
        "align": "stretch",
        "children": [
         {
          "type": "Input",
-         "id": "fullNameInput",
+         "id": "inputFullName",
          "field": "customer.fullName",
          "label": "Full Name",
          "required": true,
@@ -353,25 +311,25 @@
         },
         {
          "type": "Input",
-         "id": "mobileInput",
+         "id": "inputMobile",
          "field": "customer.mobile",
          "label": "Mobile Number (+971)",
          "required": true,
          "inputType": "phone",
-         "placeholder": "+971 5XX XXX XXX"
+         "placeholder": "+971 50 123 4567"
         },
         {
          "type": "Input",
-         "id": "emailInput",
+         "id": "inputEmail",
          "field": "customer.email",
          "label": "Email Address",
          "required": true,
          "inputType": "email",
-         "placeholder": "example@mail.com"
+         "placeholder": "you@example.com"
         },
         {
          "type": "Input",
-         "id": "passwordInput",
+         "id": "inputPassword",
          "field": "customer.password",
          "label": "Password",
          "required": true,
@@ -380,7 +338,7 @@
         },
         {
          "type": "Input",
-         "id": "confirmPasswordInput",
+         "id": "inputConfirmPassword",
          "field": "customer.confirmPassword",
          "label": "Confirm Password",
          "required": true,
@@ -389,9 +347,9 @@
         },
         {
          "type": "Checkbox",
-         "id": "termsConsent",
+         "id": "checkboxTerms",
          "field": "customer.termsConsent",
-         "label": "I agree to Kapiko Bank Terms and Conditions",
+         "label": "I agree to the Terms and Conditions",
          "required": true
         }
        ]
@@ -400,13 +358,19 @@
     },
     {
      "type": "Button",
-     "id": "link-mobile-otp-verification",
-     "label": "Open Mobile OTP Verification",
-     "variant": "secondary",
+     "id": "btnContinue",
+     "label": "Continue",
+     "variant": "primary",
      "actions": [
       {
+       "type": "submit",
+       "form": "signUpForm",
+       "validate": true
+      },
+      {
        "type": "navigate",
-       "screen": "mobile-otp-verification"
+       "screen": "mobile-otp-verification",
+       "passRecord": false
       }
      ]
     }
@@ -415,12 +379,12 @@
   {
    "id": "mobile-otp-verification",
    "title": "Mobile OTP Verification",
-   "subtitle": "Enter the 6-digit code sent to +971-5XX-XXX-123 (masked). Code expires in 00:59.",
+   "subtitle": "Enter the six-digit OTP sent to +971 **** **** 4567. Time remaining to resend: 01:59",
    "shell": "hidden",
    "children": [
     {
      "type": "Template",
-     "id": "otp1",
+     "id": "otp-template-001",
      "template": "otp-entry",
      "next": "ekyc-using-uae-pass"
     }
@@ -429,26 +393,113 @@
   {
    "id": "ekyc-using-uae-pass",
    "title": "eKYC using UAE PASS",
-   "subtitle": "Simulated Digital Vault retrieval and user consent with Emirates ID preview for confirmation.",
+   "subtitle": "Simulated UAE PASS authentication, identity data retrieval, and consent confirmation.",
    "shell": "hidden",
    "children": [
     {
      "type": "Template",
-     "id": "uaepassEkycTemplate",
+     "id": "uaepass-ekyc-1",
      "template": "uaepass-ekyc",
      "next": "face-verification"
+    },
+    {
+     "type": "Section",
+     "id": "section-identity-review",
+     "title": "Identity Details Review",
+     "description": "Review your Emirates ID and identity information retrieved securely from UAE PASS Digital Vault.",
+     "children": [
+      {
+       "type": "Card",
+       "id": "card-emirates-id",
+       "title": "Emirates ID Details",
+       "tone": "default",
+       "children": [
+        {
+         "type": "RecordFields",
+         "id": "rf-emirates-id",
+         "items": [
+          {
+           "label": "Customer Name",
+           "value": "Ahmed Al Hammadi"
+          },
+          {
+           "label": "Emirates ID",
+           "value": "784-1987-1234567-8"
+          },
+          {
+           "label": "Employment Status",
+           "value": "Full-time"
+          },
+          {
+           "label": "Account Number",
+           "value": "1234567890"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "Card",
+       "id": "card-contact-info",
+       "title": "Contact Information",
+       "tone": "default",
+       "children": [
+        {
+         "type": "RecordFields",
+         "id": "rf-contact-info",
+         "items": [
+          {
+           "label": "Mobile Number",
+           "value": "+971 50 123 4567"
+          },
+          {
+           "label": "Email Address",
+           "value": "ahmed.hammadi@example.com"
+          }
+         ]
+        }
+       ]
+      }
+     ]
     }
    ]
   },
   {
    "id": "face-verification",
    "title": "Face Verification",
-   "subtitle": "Simulated face verification using a camera frame placeholder and lighting guidance. No actual camera used.",
+   "subtitle": "Simulated camera frame and lighting guidance to verify your identity",
    "shell": "hidden",
    "children": [
     {
+     "type": "Section",
+     "id": "sec1",
+     "title": "Face Verification",
+     "description": "Follow the lighting guidance and position your face inside the frame to proceed.",
+     "children": [
+      {
+       "type": "Card",
+       "id": "card1",
+       "tone": "muted",
+       "children": [
+        {
+         "type": "Image",
+         "id": "img1",
+         "kind": "camera-frame",
+         "alt": "Camera frame placeholder for face verification"
+        },
+        {
+         "type": "Text",
+         "id": "text1",
+         "text": "Make sure you are in a well-lit environment.\nKeep your face centered in the frame.\nAvoid wearing hats or sunglasses.",
+         "tone": "muted"
+        }
+       ]
+      }
+     ]
+    },
+    {
      "type": "Template",
-     "id": "face-verify-1",
+     "id": "template1",
      "template": "face-verification",
      "next": "dashboard"
     }
@@ -457,170 +508,139 @@
   {
    "id": "dashboard",
    "title": "Dashboard",
-   "subtitle": "Welcome Ahmed Al Hammadi, here is your account overview and recent activity.",
+   "subtitle": "Overview of your account and recent activity",
    "shell": "default",
    "children": [
     {
      "type": "Stack",
-     "id": "header-stack",
+     "id": "main-stack",
      "direction": "vertical",
      "gap": "md",
-     "align": "start",
+     "align": "stretch",
      "children": [
       {
-       "type": "Heading",
-       "id": "heading-welcome",
-       "text": "Hello, Ahmed Al Hammadi!",
-       "level": "1"
-      },
-      {
        "type": "Card",
-       "id": "balance-card",
-       "title": "Current Balance",
-       "tone": "brand",
+       "id": "welcome-card",
+       "title": "Welcome, Ahmed Al Hammadi",
+       "tone": "default",
        "children": [
         {
          "type": "Stat",
-         "id": "balance-stat",
-         "label": "Available Balance",
+         "id": "account-balance-stat",
+         "label": "Current Balance",
          "value": "AED 48,750"
         }
        ]
-      }
-     ]
-    },
-    {
-     "type": "Section",
-     "id": "account-summary-section",
-     "title": "Account Summary",
-     "description": "Summary of your accounts and recent notifications.",
-     "children": [
+      },
       {
-       "type": "Card",
-       "id": "account-summary-card",
+       "type": "Section",
+       "id": "account-summary-section",
        "title": "Account Summary",
-       "tone": "default",
        "children": [
         {
          "type": "RecordFields",
          "id": "account-summary-fields",
          "items": [
           {
-           "label": "Total Accounts",
-           "value": "3"
+           "label": "Account Number",
+           "value": "1234567890"
           },
           {
-           "label": "Savings Account",
-           "value": "AED 25,000"
+           "label": "Current Employer",
+           "value": "Emirates Tech Solutions"
           },
           {
-           "label": "Current Account",
-           "value": "AED 23,750"
+           "label": "Employment Status",
+           "value": "Full-time"
+          },
+          {
+           "label": "Current Salary",
+           "value": "AED 18,000 monthly"
           }
          ]
         }
        ]
       },
       {
-       "type": "Card",
-       "id": "notifications-card",
+       "type": "Notice",
+       "id": "notifications-notice",
+       "tone": "info",
        "title": "Notifications",
-       "tone": "muted",
+       "body": "You have 2 new messages"
+      },
+      {
+       "type": "Section",
+       "id": "recent-activity-section",
+       "title": "Recent Service Requests",
+       "description": "Your latest requests and their status",
        "children": [
         {
-         "type": "Text",
-         "id": "notifications-text",
-         "text": "You have 2 new notifications. Tap 'My Service Requests' for details.",
-         "tone": "default"
-        },
-        {
-         "type": "Button",
-         "id": "btn-service-requests",
-         "label": "My Service Requests",
-         "variant": "primary",
-         "actions": [
-          {
-           "type": "navigate",
-           "screen": "my-service-requests",
-           "passRecord": false
-          }
-         ]
+         "type": "List",
+         "id": "service-requests-list",
+         "collection": "service-requests",
+         "titleField": "type",
+         "subtitleField": "submittedDate",
+         "badgeField": "status",
+         "itemAction": {
+          "screen": "my-service-requests"
+         }
         }
        ]
-      }
-     ]
-    },
-    {
-     "type": "Section",
-     "id": "recent-activity-section",
-     "title": "Recent Activity",
-     "description": "Your latest transactions and activity",
-     "children": [
+      },
       {
-       "type": "Table",
-       "id": "activity-table",
-       "collection": "service-requests",
-       "columns": [
-        {
-         "field": "dateSubmitted",
-         "label": "Date Submitted},{",
-         "format": "date"
-        },
-        {
-         "field": "type",
-         "label": "Type",
-         "format": "text"
-        },
-        {
-         "field": "status",
-         "label": "Status",
-         "format": "text"
-        }
-       ],
-       "searchable": false,
-       "rowAction": {
-        "label": "View",
-        "screen": "my-service-requests"
-       }
-      }
-     ]
-    },
-    {
-     "type": "Section",
-     "id": "quick-actions-section",
-     "title": "Quick Actions",
-     "description": "Perform common tasks quickly.",
-     "children": [
+       "type": "Divider",
+       "id": "divider1"
+      },
       {
-       "type": "Stack",
-       "id": "quick-actions-stack",
-       "direction": "horizontal",
-       "gap": "md",
-       "align": "center",
+       "type": "Section",
+       "id": "quick-actions-section",
+       "title": "Quick Actions",
        "children": [
         {
-         "type": "Button",
-         "id": "btn-income-update",
-         "label": "Update Income",
-         "variant": "secondary",
-         "actions": [
+         "type": "Stack",
+         "id": "quick-actions-stack",
+         "direction": "horizontal",
+         "gap": "sm",
+         "align": "center",
+         "children": [
           {
-           "type": "navigate",
-           "screen": "income-update",
-           "passRecord": false
-          }
-         ]
-        },
-        {
-         "type": "Button",
-         "id": "btn-profile",
-         "label": "Profile",
-         "variant": "secondary",
-         "actions": [
+           "type": "Button",
+           "id": "btn-income-update",
+           "label": "Update Income",
+           "variant": "primary",
+           "actions": [
+            {
+             "type": "navigate",
+             "screen": "income-update",
+             "passRecord": false
+            }
+           ]
+          },
           {
-           "type": "navigate",
-           "screen": "customer-profile",
-           "passRecord": false
+           "type": "Button",
+           "id": "btn-my-requests",
+           "label": "My Service Requests",
+           "variant": "secondary",
+           "actions": [
+            {
+             "type": "navigate",
+             "screen": "my-service-requests",
+             "passRecord": false
+            }
+           ]
+          },
+          {
+           "type": "Button",
+           "id": "btn-profile",
+           "label": "Profile",
+           "variant": "secondary",
+           "actions": [
+            {
+             "type": "navigate",
+             "screen": "customer-profile",
+             "passRecord": false
+            }
+           ]
           }
          ]
         }
@@ -633,35 +653,158 @@
   {
    "id": "income-update",
    "title": "Income Update",
-   "subtitle": "Update your employment and income details accurately. Upload supporting documents if available.",
+   "subtitle": "Update your employment income details and upload necessary documents.",
    "shell": "default",
    "children": [
     {
      "type": "Form",
      "id": "incomeUpdateForm",
-     "title": "Income Update Form",
+     "title": "Update Employment Income",
      "children": [
       {
-       "type": "Section",
-       "id": "existingEmployerSection",
-       "title": "Existing Employer and Income",
-       "description": "Review your current employer and income details.",
+       "type": "Stack",
+       "id": "currentEmploymentStack",
+       "direction": "vertical",
+       "gap": "md",
+       "align": "start",
        "children": [
         {
          "type": "RecordFields",
-         "id": "currentEmployerIncome",
+         "id": "existingEmployerData",
          "items": [
           {
            "label": "Current Employer",
-           "value": "Al Futtaim Group"
+           "value": "Emirates Tech Solutions"
           },
           {
-           "label": "Current Monthly Salary",
-           "value": "AED 20,000"
+           "label": "Current Salary",
+           "value": "AED 18,000 monthly"
           },
           {
-           "label": "Current Allowances",
-           "value": "AED 3,000"
+           "label": "Employment Status",
+           "value": "Full-time"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "Input",
+       "id": "newSalaryInput",
+       "field": "incomeUpdate.newSalary",
+       "label": "New Monthly Salary (AED)",
+       "required": true,
+       "inputType": "currency",
+       "placeholder": "Enter your updated monthly salary"
+      },
+      {
+       "type": "Input",
+       "id": "allowancesInput",
+       "field": "incomeUpdate.allowances",
+       "label": "Allowances (AED)",
+       "required": false,
+       "inputType": "currency",
+       "placeholder": "Enter allowances if any"
+      },
+      {
+       "type": "Input",
+       "id": "additionalIncomeInput",
+       "field": "incomeUpdate.additionalIncome",
+       "label": "Additional Income (AED)",
+       "required": false,
+       "inputType": "currency",
+       "placeholder": "Enter additional income source amount"
+      },
+      {
+       "type": "Select",
+       "id": "employmentStatusSelect",
+       "field": "incomeUpdate.employmentStatus",
+       "label": "Employment Status",
+       "required": true,
+       "options": [
+        "Full-time",
+        "Part-time",
+        "Self-employed",
+        "Unemployed",
+        "Contractor"
+       ]
+      },
+      {
+       "type": "Input",
+       "id": "effectiveDateInput",
+       "field": "incomeUpdate.effectiveDate",
+       "label": "Income Effective Date",
+       "required": true,
+       "inputType": "date",
+       "placeholder": "Select effective date of new income"
+      }
+     ]
+    },
+    {
+     "type": "Divider",
+     "id": "dividerUpload"
+    },
+    {
+     "type": "Section",
+     "id": "documentUploadSection",
+     "title": "Upload Supporting Documents",
+     "description": "Please upload your latest salary slip or contract document.",
+     "children": [
+      {
+       "type": "Upload",
+       "id": "incomeDocumentUpload",
+       "field": "incomeUpdate.supportingDocument",
+       "label": "Upload Document (PDF, JPG, PNG)",
+       "required": true
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "link-income-verification-review",
+     "label": "Open Income Verification & Review",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "income-verification-review"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "income-verification-review",
+   "title": "Income Verification & Review",
+   "subtitle": "Review your income details, verify supporting documents, and provide consent before submitting.",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Form",
+     "id": "incomeReviewForm",
+     "title": "Income Verification & Review",
+     "children": [
+      {
+       "type": "Section",
+       "id": "previousIncomeSection",
+       "title": "Previous Income Details",
+       "description": "Your currently registered income information.",
+       "children": [
+        {
+         "type": "RecordFields",
+         "id": "previousIncomeDetails",
+         "items": [
+          {
+           "label": "Employer",
+           "value": "Emirates Tech Solutions"
+          },
+          {
+           "label": "Salary",
+           "value": "AED 18,000 monthly"
+          },
+          {
+           "label": "Employment Status",
+           "value": "Full-time"
           }
          ]
         }
@@ -669,115 +812,80 @@
       },
       {
        "type": "Section",
-       "id": "updateIncomeSection",
-       "title": "Update Income Information",
-       "description": "Enter your new salary, allowances, employment status, and effective date.",
+       "id": "updatedIncomeSection",
+       "title": "Updated Income Details",
+       "description": "Your updated income information to be verified.",
        "children": [
         {
-         "type": "Input",
-         "id": "newSalaryInput",
-         "field": "incomeUpdate.newSalary",
-         "label": "New Monthly Salary (AED)",
-         "required": true,
-         "inputType": "currency",
-         "placeholder": "e.g., 23000"
-        },
-        {
-         "type": "Input",
-         "id": "newAllowancesInput",
-         "field": "incomeUpdate.newAllowances",
-         "label": "New Allowances (AED)",
-         "required": false,
-         "inputType": "currency",
-         "placeholder": "e.g., 3500"
-        },
-        {
-         "type": "Select",
-         "id": "employmentStatusSelect",
-         "field": "incomeUpdate.employmentStatus",
-         "label": "Employment Status",
-         "required": true,
-         "options": [
-          "Employed",
-          "Self-Employed",
-          "Unemployed",
-          "Retired"
+         "type": "RecordFields",
+         "id": "updatedIncomeDetails",
+         "items": [
+          {
+           "label": "Employer",
+           "value": "{{state.incomeUpdate.employer}}"
+          },
+          {
+           "label": "Salary",
+           "value": "AED {{state.incomeUpdate.newSalary}} monthly"
+          },
+          {
+           "label": "Employment Status",
+           "value": "{{state.incomeUpdate.employmentStatus}}"
+          }
          ]
-        },
-        {
-         "type": "Input",
-         "id": "effectiveDateInput",
-         "field": "incomeUpdate.effectiveDate",
-         "label": "Effective Date",
-         "required": true,
-         "inputType": "date",
-         "placeholder": "Select date"
         }
        ]
       },
       {
        "type": "Section",
-       "id": "uploadDocumentsSection",
-       "title": "Upload Supporting Documents",
-       "description": "Upload payslip or employment letter for verification.",
+       "id": "documentStatusSection",
+       "title": "Supporting Document Status",
+       "description": "Your uploaded income document status and verification steps.",
        "children": [
         {
-         "type": "Upload",
-         "id": "incomeDocumentUpload",
-         "field": "incomeUpdate.document",
-         "label": "Upload Document (Payslip, Employment Letter)",
-         "required": true
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "type": "Stack",
-     "id": "actionButtonsStack",
-     "direction": "horizontal",
-     "gap": "md",
-     "align": "center",
-     "children": [
-      {
-       "type": "Button",
-       "id": "saveDraftButton",
-       "label": "Save Draft",
-       "variant": "secondary",
-       "actions": [
+         "type": "RecordFields",
+         "id": "documentStatusFields",
+         "items": [
+          {
+           "label": "Document Uploaded",
+           "value": "Yes"
+          },
+          {
+           "label": "Verification Status",
+           "value": "Pending verification"
+          }
+         ]
+        },
         {
-         "type": "toast",
-         "message": "Draft saved locally."
+         "type": "Notice",
+         "id": "verificationNotice",
+         "tone": "info",
+         "title": "Verification process",
+         "body": "Verification is simulated and does not contact real services. Please provide your consent below to proceed."
         }
        ]
       },
       {
-       "type": "Button",
-       "id": "cancelButton",
-       "label": "Cancel",
-       "variant": "link",
-       "actions": [
-        {
-         "type": "navigate",
-         "screen": "dashboard",
-         "passRecord": false
-        }
-       ]
+       "type": "Checkbox",
+       "id": "consentCheckbox",
+       "field": "incomeVerification.consent",
+       "label": "I consent to the verification of my income information and supporting documents.",
+       "required": true
       },
       {
        "type": "Button",
-       "id": "continueButton",
-       "label": "Continue",
+       "id": "submitVerificationButton",
+       "label": "Submit Income Update",
        "variant": "primary",
        "actions": [
         {
          "type": "submit",
-         "form": "incomeUpdateForm",
+         "form": "incomeReviewForm",
          "validate": true
         },
         {
          "type": "navigate",
-         "screen": "income-verification-review",
+         "screen": "income-update-confirmation",
          "passRecord": false
         }
        ]
@@ -787,9 +895,9 @@
    ]
   },
   {
-   "id": "income-verification-review",
-   "title": "Income Verification & Review",
-   "subtitle": "Compare your previous and updated income details, verify uploaded documents, provide consent, and submit your update request.",
+   "id": "income-update-confirmation",
+   "title": "Income Update Confirmation",
+   "subtitle": "Your income update request has been successfully submitted.",
    "shell": "default",
    "children": [
     {
@@ -801,164 +909,10 @@
      "children": [
       {
        "type": "Heading",
-       "id": "page-heading",
-       "text": "Income Verification & Review",
-       "level": "1"
+       "id": "heading-confirmation",
+       "text": "Income Update Submitted",
+       "level": "2"
       },
-      {
-       "type": "Section",
-       "id": "comparison-section",
-       "title": "Income Details Comparison",
-       "description": "Review your previously submitted income and the updated amounts for accuracy.",
-       "children": [
-        {
-         "type": "Grid",
-         "id": "income-grid",
-         "columns": "2",
-         "gap": "md",
-         "children": [
-          {
-           "type": "Card",
-           "id": "previous-income-card",
-           "title": "Previous Income",
-           "tone": "muted",
-           "children": [
-            {
-             "type": "RecordFields",
-             "id": "previous-income-fields",
-             "items": [
-              {
-               "label": "Employer Name",
-               "value": "Dubai Tech Solutions"
-              },
-              {
-               "label": "Monthly Salary (AED)",
-               "value": "24,000"
-              },
-              {
-               "label": "Other Income (AED)",
-               "value": "3,000"
-              },
-              {
-               "label": "Total Income (AED)",
-               "value": "27,000"
-              }
-             ]
-            }
-           ]
-          },
-          {
-           "type": "Card",
-           "id": "updated-income-card",
-           "title": "Updated Income",
-           "tone": "default",
-           "children": [
-            {
-             "type": "RecordFields",
-             "id": "updated-income-fields",
-             "items": [
-              {
-               "label": "Employer Name",
-               "value": "{{state.customer.employer}}"
-              },
-              {
-               "label": "Monthly Salary (AED)",
-               "value": "{{state.customer.monthlySalary}}"
-              },
-              {
-               "label": "Other Income (AED)",
-               "value": "{{state.customer.additionalIncome}}"
-              },
-              {
-               "label": "Total Income (AED)",
-               "value": "{{state.incomeUpdate.newSalary}}"
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        }
-       ]
-      },
-      {
-       "type": "Divider",
-       "id": "divider-1"
-      },
-      {
-       "type": "Section",
-       "id": "document-upload-status-section",
-       "title": "Document Upload Status",
-       "description": "Check the status of your uploaded income verification documents.",
-       "children": [
-        {
-         "type": "Card",
-         "id": "document-status-card",
-         "tone": "default",
-         "children": [
-          {
-           "type": "RecordFields",
-           "id": "document-status-fields",
-           "items": [
-            {
-             "label": "Document Type",
-             "value": "Salary Certificate"
-            },
-            {
-             "label": "Status",
-             "value": "Received"
-            },
-            {
-             "label": "Reviewed By Kapiko Team",
-             "value": "Pending Verification"
-            }
-           ]
-          }
-         ]
-        }
-       ]
-      },
-      {
-       "type": "Divider",
-       "id": "divider-2"
-      },
-      {
-       "type": "Form",
-       "id": "verification-consent-form",
-       "title": "Verification & Consent",
-       "children": [
-        {
-         "type": "Notice",
-         "id": "verification-info-notice",
-         "tone": "info",
-         "title": "Important",
-         "body": "By submitting, you consent to Kapiko Bank verifying your income details and documents using our secure internal processes."
-        },
-        {
-         "type": "Checkbox",
-         "id": "consent-checkbox",
-         "field": "incomeVerificationConsent.consentGiven",
-         "label": "I consent to the income verification process and confirm that the information provided is accurate.",
-         "required": true
-        }
-       ]
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "income-update-confirmation",
-   "title": "Income Update Confirmation",
-   "subtitle": "Your income update request was successfully submitted.",
-   "shell": "default",
-   "children": [
-    {
-     "type": "Section",
-     "id": "section-success-message",
-     "title": "Income Update Submitted",
-     "description": "Your income update request has been received successfully. You can track the status of your request below.",
-     "children": [
       {
        "type": "Card",
        "id": "card-confirmation-details",
@@ -966,10 +920,10 @@
        "children": [
         {
          "type": "RecordFields",
-         "id": "recordfields-sr-details",
+         "id": "recordfields-request-summary",
          "items": [
           {
-           "label": "Service Request ID",
+           "label": "Service Request Number",
            "value": "KPK-INC-2026-00125"
           },
           {
@@ -977,45 +931,51 @@
            "value": "Submitted"
           },
           {
-           "label": "Date Submitted",
-           "value": "2024-06-12"
+           "label": "Submission Date",
+           "value": "27-Apr-2024"
           }
          ]
         }
        ]
-      }
-     ]
-    },
-    {
-     "type": "Stack",
-     "id": "stack-actions",
-     "direction": "horizontal",
-     "gap": "md",
-     "align": "center",
-     "children": [
-      {
-       "type": "Button",
-       "id": "btn-view-request",
-       "label": "View Request",
-       "variant": "primary",
-       "actions": [
-        {
-         "type": "navigate",
-         "screen": "my-service-requests",
-         "passRecord": true
-        }
-       ]
       },
       {
-       "type": "Button",
-       "id": "btn-return-dashboard",
-       "label": "Return to Dashboard",
-       "variant": "secondary",
-       "actions": [
+       "type": "Text",
+       "id": "text-success-note",
+       "text": "Thank you, Ahmed Al Hammadi. We have received your updated income information and will verify it shortly. You will be notified once the process is complete.",
+       "tone": "muted"
+      },
+      {
+       "type": "Stack",
+       "id": "action-buttons",
+       "direction": "horizontal",
+       "gap": "sm",
+       "align": "center",
+       "children": [
         {
-         "type": "navigate",
-         "screen": "dashboard",
-         "passRecord": false
+         "type": "Button",
+         "id": "btn-view-request",
+         "label": "View Request Details",
+         "variant": "primary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "my-service-requests",
+           "passRecord": true
+          }
+         ]
+        },
+        {
+         "type": "Button",
+         "id": "btn-return-dashboard",
+         "label": "Return to Dashboard",
+         "variant": "secondary",
+         "actions": [
+          {
+           "type": "navigate",
+           "screen": "dashboard",
+           "passRecord": false
+          }
+         ]
         }
        ]
       }
@@ -1026,15 +986,15 @@
   {
    "id": "my-service-requests",
    "title": "My Service Requests",
-   "subtitle": "List of your service requests with current status. Tap to view details.",
+   "subtitle": "View and manage all your submitted service requests including income updates.",
    "shell": "default",
    "children": [
     {
      "type": "List",
-     "id": "serviceRequestsList",
+     "id": "service-requests-list",
      "collection": "service-requests",
-     "titleField": "type",
-     "subtitleField": "dateSubmitted",
+     "titleField": "requestId",
+     "subtitleField": "type",
      "badgeField": "status",
      "itemAction": {
       "screen": "income-update-confirmation"
@@ -1045,34 +1005,29 @@
   {
    "id": "customer-profile",
    "title": "Customer Profile",
-   "subtitle": "View and edit your identity, contact, employment, income, and account information.",
+   "subtitle": "View and edit your identity, contact, employment, income, and account details.",
    "shell": "default",
    "children": [
     {
      "type": "Section",
      "id": "section-identity",
-     "title": "Identity Information",
-     "description": "Your basic personal details.",
+     "title": "Identity Details",
      "children": [
       {
        "type": "RecordFields",
        "id": "identity-fields",
        "items": [
         {
-         "label": "Full Name",
-         "value": "Ahmed Al Mansoori"
+         "label": "Customer Name",
+         "value": "Ahmed Al Hammadi"
         },
         {
-         "label": "Date of Birth",
-         "value": "1985-07-15"
+         "label": "Emirates ID",
+         "value": "784-1987-1234567-8"
         },
         {
-         "label": "Nationality",
-         "value": "Emirati"
-        },
-        {
-         "label": "Emirates ID Number",
-         "value": "784-1998-1234567-8"
+         "label": "Verification Status",
+         "value": "Verified"
         }
        ]
       }
@@ -1082,7 +1037,6 @@
      "type": "Section",
      "id": "section-contact",
      "title": "Contact Details",
-     "description": "How we can reach you.",
      "children": [
       {
        "type": "RecordFields",
@@ -1094,11 +1048,7 @@
         },
         {
          "label": "Email Address",
-         "value": "ahmed.almansoori@example.ae"
-        },
-        {
-         "label": "Residential Address",
-         "value": "Villa 23, Al Qusais, Dubai, UAE"
+         "value": "ahmed.hammadi@example.com"
         }
        ]
       }
@@ -1107,24 +1057,23 @@
     {
      "type": "Section",
      "id": "section-employment",
-     "title": "Employment",
-     "description": "Your current employment information.",
+     "title": "Employment & Income",
      "children": [
       {
        "type": "RecordFields",
        "id": "employment-fields",
        "items": [
         {
-         "label": "Employer",
-         "value": "Al Falah Trading LLC"
+         "label": "Current Employer",
+         "value": "Emirates Tech Solutions"
         },
         {
-         "label": "Job Title",
-         "value": "Operations Manager"
+         "label": "Employment Status",
+         "value": "Full-time"
         },
         {
-         "label": "Work Phone",
-         "value": "+971 4 556 7890"
+         "label": "Current Salary",
+         "value": "AED 18,000 monthly"
         }
        ]
       }
@@ -1132,190 +1081,24 @@
     },
     {
      "type": "Section",
-     "id": "section-income",
-     "title": "Income",
-     "description": "Monthly income and source details.",
-     "children": [
-      {
-       "type": "RecordFields",
-       "id": "income-fields",
-       "items": [
-        {
-         "label": "Monthly Salary",
-         "value": "AED 25,000"
-        },
-        {
-         "label": "Additional Income",
-         "value": "AED 2,000 (Rental Property)"
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "type": "Section",
-     "id": "section-accounts",
-     "title": "Accounts",
-     "description": "Your linked accounts with Kapiko Bank.",
+     "id": "section-account",
+     "title": "Account Information",
      "children": [
       {
        "type": "RecordFields",
        "id": "account-fields",
        "items": [
         {
-         "label": "Savings Account",
-         "value": "123-456789-001 (AED 50,000)"
+         "label": "Account Number",
+         "value": "1234567890"
         },
         {
-         "label": "Current Account",
-         "value": "123-456789-002 (AED 12,350)"
+         "label": "Account Balance",
+         "value": "AED 48,750"
         },
         {
-         "label": "Credit Card",
-         "value": "Visa Platinum (Limit AED 40,000, Balance AED 5,200)"
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "type": "Form",
-     "id": "edit-profile-form",
-     "title": "Edit Profile",
-     "children": [
-      {
-       "type": "Section",
-       "id": "edit-identity",
-       "title": "Edit Identity",
-       "children": [
-        {
-         "type": "Input",
-         "id": "input-fullname",
-         "field": "customer.fullName",
-         "label": "Full Name",
-         "required": true,
-         "inputType": "text",
-         "placeholder": "Ahmed Al Mansoori"
-        },
-        {
-         "type": "Input",
-         "id": "input-dob",
-         "field": "customer.dateOfBirth",
-         "label": "Date of Birth",
-         "required": true,
-         "inputType": "date",
-         "placeholder": "1985-07-15"
-        },
-        {
-         "type": "Input",
-         "id": "input-nationality",
-         "field": "customer.nationality",
-         "label": "Nationality",
-         "required": true,
-         "inputType": "text",
-         "placeholder": "Emirati"
-        },
-        {
-         "type": "Input",
-         "id": "input-emiratesid",
-         "field": "customer.emiratesId",
-         "label": "Emirates ID Number",
-         "required": true,
-         "inputType": "text",
-         "placeholder": "784-1998-1234567-8"
-        }
-       ]
-      },
-      {
-       "type": "Section",
-       "id": "edit-contact",
-       "title": "Edit Contact",
-       "children": [
-        {
-         "type": "Input",
-         "id": "input-mobile",
-         "field": "customer.mobile",
-         "label": "Mobile Number",
-         "required": true,
-         "inputType": "phone",
-         "placeholder": "+971 50 123 4567"
-        },
-        {
-         "type": "Input",
-         "id": "input-email",
-         "field": "customer.email",
-         "label": "Email Address",
-         "required": true,
-         "inputType": "email",
-         "placeholder": "ahmed.almansoori@example.ae"
-        },
-        {
-         "type": "Input",
-         "id": "input-address",
-         "field": "customer.address",
-         "label": "Residential Address",
-         "required": true,
-         "inputType": "text",
-         "placeholder": "Villa 23, Al Qusais, Dubai, UAE"
-        }
-       ]
-      },
-      {
-       "type": "Section",
-       "id": "edit-employment",
-       "title": "Edit Employment",
-       "children": [
-        {
-         "type": "Input",
-         "id": "input-employer",
-         "field": "customer.employer",
-         "label": "Employer",
-         "required": false,
-         "inputType": "text",
-         "placeholder": "Al Falah Trading LLC"
-        },
-        {
-         "type": "Input",
-         "id": "input-jobtitle",
-         "field": "customer.jobTitle",
-         "label": "Job Title",
-         "required": false,
-         "inputType": "text",
-         "placeholder": "Operations Manager"
-        },
-        {
-         "type": "Input",
-         "id": "input-workphone",
-         "field": "customer.workPhone",
-         "label": "Work Phone",
-         "required": false,
-         "inputType": "phone",
-         "placeholder": "+971 4 556 7890"
-        }
-       ]
-      },
-      {
-       "type": "Section",
-       "id": "edit-income",
-       "title": "Edit Income",
-       "children": [
-        {
-         "type": "Input",
-         "id": "input-monthlysalary",
-         "field": "customer.monthlySalary",
-         "label": "Monthly Salary (AED)",
-         "required": false,
-         "inputType": "currency",
-         "placeholder": "25000"
-        },
-        {
-         "type": "Input",
-         "id": "input-additionalincome",
-         "field": "customer.additionalIncome",
-         "label": "Additional Income (AED)",
-         "required": false,
-         "inputType": "currency",
-         "placeholder": "2000"
+         "label": "Notifications",
+         "value": "2 new messages"
         }
        ]
       }
@@ -1323,15 +1106,15 @@
     },
     {
      "type": "Stack",
-     "id": "profile-actions",
+     "id": "actions-stack",
      "direction": "horizontal",
      "gap": "md",
      "align": "center",
      "children": [
       {
        "type": "Button",
-       "id": "btn-cancel",
-       "label": "Cancel",
+       "id": "btn-back",
+       "label": "Back to Dashboard",
        "variant": "secondary",
        "actions": [
         {
@@ -1343,18 +1126,14 @@
       },
       {
        "type": "Button",
-       "id": "btn-save",
-       "label": "Save Changes",
+       "id": "btn-edit-profile",
+       "label": "Edit Profile",
        "variant": "primary",
        "actions": [
         {
-         "type": "submit",
-         "form": "edit-profile-form",
-         "validate": true
-        },
-        {
-         "type": "toast",
-         "message": "Profile changes saved successfully."
+         "type": "navigate",
+         "screen": "income-update",
+         "passRecord": false
         }
        ]
       }

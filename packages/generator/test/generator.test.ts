@@ -180,3 +180,17 @@ test('stray braces in generated text are errors (live artifact "20,000 AED},{")'
   assert.ok(issues.some(i => i.code === 'quality.artifact' && i.severity === 'error'));
   assert.deepEqual(validateScreen({ id: 'x', title: 'X', shell: 'default', children: [{ type: 'Text', id: 't', text: 'Salary {{state.income.salary | aed}}' }] }, documentContext(kapikoDoc)).filter(i => i.code === 'quality.artifact'), []);
 });
+
+test('stray-brace artifacts anywhere in a component are cleaned without a paid repair', async () => {
+  const provider = new FakeProvider(req => {
+    if (req.purpose === 'plan') return fakePlan(req);
+    const s = kapikoScreen(screenIdOf(req));
+    if (s.id === 'my-service-requests') s.children = [{ type: 'Table', id: 'requests', collection: 'service-requests', searchable: true, columns: [{ field: 'ref', label: 'Reference #},{' }, { field: 'status', label: 'Status' }] }];
+    return s;
+  });
+  const job = await runToEnd(new Generator(new MemoryStore(), provider, cfg));
+  assert.equal(provider.calls.filter(c => c.purpose === 'repair').length, 0);
+  const table = job.document.screens.find((s: any) => s.id === 'my-service-requests').children[0];
+  assert.equal(table.columns[0].label, 'Reference #');
+  assert.equal(job.status, 'completed');
+});
