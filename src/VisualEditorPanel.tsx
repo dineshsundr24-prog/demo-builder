@@ -1,6 +1,8 @@
 import React,{useEffect,useState} from 'react';
 import {Plus,Trash2,GripVertical,ArrowDown,ArrowUp,Workflow,LayoutTemplate,PanelsTopLeft,Link2,ChevronDown,Palette,Settings2} from 'lucide-react';
 import type {DemoDefinition} from './demo';
+// @ts-ignore Shared table row action contract.
+import {configureTableRowAction,effectiveTableAction} from './tableRowActions.mjs';
 // @ts-ignore Mobile layout is shared with renderer and tests.
 import {effectiveMobilePlacement,placeMobileElement} from './mobileLayout.mjs';
 // @ts-ignore Shared navigation labels and pure editor mutation.
@@ -83,6 +85,21 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
     </div>
     {element&&<div className="ve-properties" key={screen.id+':'+element.id+':'+(selected?.childId||'')}>
      <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='item'?'Generated item':selected?.level==='nav-link'?'Menu item':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
+     {(element.kind==='table'||(element.kind==='composed'&&item?.kind==='table'))&&<div className="ve-table-action-config">
+       <div className="ve-section-heading"><b>Row Actions</b><span>On click</span></div>
+       <div className="ve-field"><label>Action</label><select value={effectiveTableAction(item?.kind==='table'?item:element)?.type||''}
+        onChange={e=>act('Configure table row action',()=>configureTableRowAction(demo,screen.id,element.id,e.target.value?demo.screens.find(s=>s.id!==screen.id)?.id||'':'',{itemId:item?.kind==='table'?item.id:undefined}))}>
+        <option value="">Not connected</option><option value="navigate">Navigate to page</option></select></div>
+       <div className="ve-field"><label>Destination page</label><select value={effectiveTableAction(item?.kind==='table'?item:element)?.screenId||''}
+        onChange={e=>act('Link table View action',()=>configureTableRowAction(demo,screen.id,element.id,e.target.value,{label:effectiveTableAction(item?.kind==='table'?item:element)?.label||'View',itemId:item?.kind==='table'?item.id:undefined}))}>
+        <option value="">Choose a page</option>{demo.screens.filter(s=>s.id!==screen.id).map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
+       {effectiveTableAction(item?.kind==='table'?item:element)&&<>
+        <div className="ve-field"><label>Action button label</label><input key={element.id+':rowActionLabel'} defaultValue={effectiveTableAction(item?.kind==='table'?item:element)?.label||'View'}
+          onBlur={e=>{const current=effectiveTableAction(item?.kind==='table'?item:element);if(current?.screenId&&e.target.value!==current.label)act('Rename row action',()=>configureTableRowAction(demo,screen.id,element.id,current.screenId,{label:e.target.value,passRow:current.passRow!==false,itemId:item?.kind==='table'?item.id:undefined}));}}/></div>
+        <label className="ve-check"><input type="checkbox" checked={effectiveTableAction(item?.kind==='table'?item:element)?.passRow!==false} onChange={e=>{const current=effectiveTableAction(item?.kind==='table'?item:element);if(current?.screenId)act('Pass selected row',()=>configureTableRowAction(demo,screen.id,element.id,current.screenId,{label:current.label,passRow:e.target.checked,itemId:item?.kind==='table'?item.id:undefined}));}}/> Pass selected row data to destination</label>
+       </>}
+       <small className="ve-help">In Run Preview, clicking View opens the selected page with the chosen application's sample data.</small>
+     </div>}
      {navLink&&element?.kind==='navigation'?<div className="ve-fields">
        <div className="ve-field"><label>Menu item label</label><input key={element.id+':'+navLink.id+':label'} defaultValue={navLink.label} onBlur={e=>{if(e.target.value!==navLink.label)act('Rename menu item',()=>editNavigationItem(demo,screen.id,element.id,navLink.id,{label:e.target.value}));}}/></div>
        <div className="ve-field"><label>Destination screen</label><select value={navLink.screenId||''} onChange={e=>act('Connect menu destination',()=>editNavigationItem(demo,screen.id,element.id,navLink.id,{screenId:e.target.value}))}><option value="">Not connected</option>{demo.screens.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
