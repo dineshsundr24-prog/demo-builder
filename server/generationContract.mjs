@@ -38,6 +38,66 @@ function normalizeCard(e){
  return {id:e.id,kind:'composed',title:label,appearance:e.appearance,
   items:[{id:'card-content',kind:'card',label,text:body}]};
 }
+// Canonicalize the model's ordinary UI control vocabulary into the supported
+// top-level screen representation, without discarding labels or routes.
+const nestedKinds=new Set(['text','card','input','checkbox','select','button','progress','badge','divider']);
+const safeId=(v,fallback)=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v)?v:fallback;
+function normalizeNestedItem(value,index){
+ const x=structuredClone(value);
+ x.id=safeId(x.id,'item-'+index);
+ if(typeof x.label!=='string')x.label=typeof x.title==='string'?x.title:typeof x.text==='string'?x.text:typeof x.description==='string'?x.description:x.kind;
+ if(x.kind==='button'&&x.text===undefined&&typeof x.description==='string')x.text=x.description;
+ if(x.kind==='progress'&&x.value===undefined&&typeof x.progress==='number')x.value=x.progress;
+ if(x.kind==='progress'&&x.value===undefined&&typeof x.percentage==='number')x.value=x.percentage;
+ if(x.kind==='progress'&&x.value===undefined)x.value=0; // presentational default, not workflow decision
+ if(x.kind==='input'&&!x.inputType&&x.type)x.inputType=x.type;
+ normalizeComposed({items:[x]});
+ return x;
+}
+function normalizeActions(e){
+ if(typeof e.title==='string'&&!Array.isArray(e.buttons)&&Array.isArray(e.actions))e.buttons=e.actions;
+ if(!Array.isArray(e.buttons))return;
+ e.buttons=e.buttons.map((b,i)=>{
+  if(typeof b==='string')return{id:'action-'+i,label:b};
+  if(!object(b))return b;
+  const x={...b};
+  x.id=safeId(x.id,'action-'+i);
+  if(typeof x.label!=='string'&&typeof x.text==='string')x.label=x.text;
+  if(typeof x.label!=='string'&&typeof x.title==='string')x.label=x.title;
+  if(typeof x.nextScreen!=='string'&&typeof x.screenId==='string')x.nextScreen=x.screenId;
+  return x;
+ });
+}
+function normalizeHero(e){
+ if(typeof e.title!=='string'&&typeof e.heading==='string')e.title=e.heading;
+ if(typeof e.title!=='string'&&typeof e.label==='string')e.title=e.label;
+ if(typeof e.description!=='string'&&typeof e.subtitle==='string')e.description=e.subtitle;
+ if(typeof e.description!=='string'&&typeof e.text==='string')e.description=e.text;
+ if(typeof e.description!=='string'&&typeof e.body==='string')e.description=e.body;
+ if(e.description===undefined)e.description='';
+}
+function normalizeStandaloneItems(screen){
+ const original=screen.elements;
+ const result=[];let pending=[];
+ const flush=()=>{
+  if(!pending.length)return;
+  const first=pending[0],raw='composed-'+String(first.id||'section');
+  const used=new Set(result.map(x=>x.id).concat(original.map(x=>x?.id)));
+  let id=safeId(raw,'composed-controls'),suffix=2;while(used.has(id))id=safeId(raw+'-'+suffix++,'composed-'+suffix);
+  result.push({id,kind:'composed',title:'Screen controls',items:pending});
+  pending=[];
+ };
+ for(let i=0;i<original.length;i++){
+  const e=original[i];
+  if(object(e)&&nestedKinds.has(e.kind)){
+   // Preserve original IDs and interaction destinations; group only adjacent
+   // supported controls so their relative order remains intact.
+   pending.push(normalizeNestedItem(e,i));continue;
+  }
+  flush();result.push(e);
+ }
+ flush();screen.elements=result;
+}
 export function normalizeGeneratedDemo(input){
  if(!object(input))return input;
  const d=structuredClone(input);
@@ -48,10 +108,13 @@ export function normalizeGeneratedDemo(input){
   if(!object(s))continue;
   if(s.subtitle===undefined||s.subtitle==='')s.subtitle='Explore '+String(s.title||'this screen').slice(0,100);
   if(!Array.isArray(s.elements))continue;
+  normalizeStandaloneItems(s);
   for(let index=0;index<s.elements.length;index++){
    let e=s.elements[index];
    if(!object(e))continue;
    if(e.kind==='card'){s.elements[index]=normalizeCard(e);e=s.elements[index];}
+   if(e.kind==='hero')normalizeHero(e);
+   if(e.kind==='actions')normalizeActions(e);
    if(e.kind==='form')normalizeForm(e);
    if(e.kind==='composed')normalizeComposed(e);
    if(e.kind==='table'&&Array.isArray(e.rows)){
@@ -75,7 +138,7 @@ export function normalizeGeneratedDemo(input){
 }
 export function explainGeneratedDemo(d,channel){
  const errors=[];
- const bad=(path,reason)=>{if(errors.length<12)errors.push(path+': '+reason);};
+ const bad=(path,reason)=>{if(errors.length<120)errors.push(path+': '+reason);};
  if(!object(d))return ['root: expected a JSON object'];
  if(d.schemaVersion!==1)bad('schemaVersion','must be 1');
  for(const key of ['id','name'])if(!text(d[key]))bad(key,'must be a nonempty string');
