@@ -1,0 +1,1 @@
+A staff portal for the HR team of a mid-size company. HR officers see a dashboard of pending leave requests and team availability, open a request to review the employee's balance and dates, approve or reject it with a comment, and browse the leave history and an employee directory. Managers can export a monthly leave report.

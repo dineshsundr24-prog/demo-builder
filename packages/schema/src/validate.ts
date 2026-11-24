@@ -92,7 +92,7 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
       const texts = stringsIn(value, key);
       for (const [k, text] of texts) if (/[{}]/.test(text.replace(ANY_BINDING, ''))) out.push(issue(path + '.' + k, 'quality.artifact', 'Text contains stray braces: "' + text.slice(0, 60) + '"'));
       for (const [k, text] of texts as [string, string][]) for (const b of bindingsIn(text)) {
-        if (!b.valid) out.push(issue(path + '.' + k, 'binding.syntax', 'Invalid binding ' + b.raw + ' (use {{state.x}}, {{record.x}} or {{params.x}}, optional | aed, date, upper, mask)'));
+        if (!b.valid) out.push(issue(path + '.' + k, 'binding.syntax', 'Invalid binding ' + b.raw + ' (use {{state.x}}, {{record.x}} or {{params.x}}, optional | aed, date, upper, lower, title, mask)'));
         else if (b.scope === 'state' && !ctx.stateKeys.has(b.path!)) out.push(issue(path + '.' + k, 'binding.state-unwritten', 'No input or action writes state "' + b.path + '"', 'warning'));
         else if (b.scope === 'record' && !ctx.recordScreens.has(s.id)) out.push(issue(path + '.' + k, 'binding.no-record', 'This screen shows {{record.' + b.path + '}} but nothing opens it with a record', 'warning'));
         else if (b.scope === 'record' && ctx.recordFields.get(s.id)?.size && !ctx.recordFields.get(s.id)!.has(b.path!)) out.push(issue(path + '.' + k, 'binding.record-field', 'Records opening this screen have no field "' + b.path + '" (fields: ' + [...ctx.recordFields.get(s.id)!].join(', ') + ')', 'warning'));

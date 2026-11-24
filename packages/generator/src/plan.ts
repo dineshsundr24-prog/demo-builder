@@ -1,6 +1,6 @@
 // Planning: brief -> reviewable plan (screens, shell, data, templates, links).
 import { z } from 'zod';
-import { toStrictSchema, templates, allowedTemplates, ScreenRef, TemplateRef, type Collection, type Shell } from '@demo/schema';
+import { toStrictSchema, clampToSchema, templates, allowedTemplates, ScreenRef, TemplateRef, type Collection, type Shell } from '@demo/schema';
 import { parseBrief, briefColours, type ParsedBrief } from './briefParser.ts';
 import type { LlmProvider, CompletionResult } from './provider.ts';
 
@@ -49,7 +49,7 @@ Return the plan only. Rules:
 - shell: "hidden" for focused flows (welcome, sign-in/up, OTP, verification); "default" where the app menu (tabs/sidebar) shows.
 - shellKind: mobile -> tabs (or drawer); portal -> sidebar. menu: 3-5 main destinations.
 - template: only from the provided templates list, and only when the screen IS that step: a standard sign-in screen -> "sign-in", registration -> "sign-up". Never replace a requested standard form with an identity-provider template. Otherwise null.
-- mustInclude: 3-8 short items that MUST appear on the screen: everything in its requirement PLUS what a real, regulated product of this type would need even if the brief is short. Forms list at least 5 concrete fields/actions, e.g. an income update needs ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload", "submit"]; a dashboard needs ["balance", "quick actions", "recent transactions"].
+- mustInclude: 3-8 short items (2-6 words each) that MUST appear on the screen: everything in its requirement PLUS what a real, regulated product of this type would need even if the brief is short. Forms list at least 5 concrete fields/actions, e.g. an income update needs ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload", "submit"]; a dashboard needs ["balance", "quick actions", "recent transactions"].
 - purpose: describe the content concretely (sections, fields, actions) the way a product designer would brief a UI designer.
 - collections: sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows align with fields.
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
@@ -71,7 +71,8 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   });
   const call = await provider.complete({ purpose: 'plan', instructions: PLAN_INSTRUCTIONS, input, schemaName: 'plan', schema, maxOutputTokens: 8000 });
   // The plan schema has no optional fields; null is meaningful (e.g. template: null), so do not strip it.
-  const result = planModel(locked).safeParse(call.json);
+  const model = planModel(locked);
+  const result = model.safeParse(clampToSchema(model, call.json));
   if (!result.success) throw Object.assign(Error('The plan did not match the plan schema at ' + (result.error.issues[0]?.path ?? []).join('.') + ': ' + result.error.issues[0]?.message), { category: 'parse' });
   return { plan: normalizePlan(result.data, req, brief, parsed, allowed), call };
 }

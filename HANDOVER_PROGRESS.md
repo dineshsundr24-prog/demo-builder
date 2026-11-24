@@ -48,6 +48,9 @@ Generated documents are kept as replay fixtures in `packages/generator/fixtures/
 - Security model and open gaps: `docs/v2/SECURITY.md`.
 - **Owner action:** revoke the Supabase personal access token used for the migration, and delete it from the `demo-builder` cloud environment's network secrets.
 
+## Generation quality (branch `v2/quality`, awaiting owner review)
+RCA of UAT job 8ac2784f and fixes: see `docs/v2/QUALITY.md` (pattern library, requirement fidelity, design clean-up, coverage check, optional brand assets, benchmark).
+
 ## Next: Phase 3 (Visual Studio editor)
 Puck on top of the shared runtime; config generated from the registry; select, edit, drag and drop of nested components; inspector; undo; screens panel; mobile header and footer placement. Exit gate: Playwright editing tests.
 

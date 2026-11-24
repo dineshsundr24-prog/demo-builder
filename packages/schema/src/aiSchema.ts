@@ -87,3 +87,25 @@ export function componentGuide(channel: 'mobile' | 'portal', templateIds?: strin
   return 'Components:\n' + comps + '\nTemplates (use a Template node; set next):\n' + tmpl +
     '\nBindings: {{state.key}} for values entered earlier, {{record.field}} on screens opened from a table/list row, optional | aed | date | upper | mask.';
 }
+
+/**
+ * Strict structured output cannot enforce string lengths, so models sometimes exceed them.
+ * Shorten every too-long string to its schema limit (with an ellipsis) and re-validate.
+ * Deterministic, no AI call; other errors are left for the caller.
+ */
+export function clampToSchema<T>(schema: z.ZodType<T>, value: unknown, passes = 4): unknown {
+  let v: any = structuredClone(value);
+  for (let i = 0; i < passes; i++) {
+    const r = schema.safeParse(v);
+    if (r.success) return v;
+    const long = r.error.issues.filter((x: any) => x.code === 'too_big' && x.origin === 'string' && typeof x.maximum === 'number');
+    if (!long.length) return v;
+    for (const x of long as any[]) {
+      let parent = v;
+      for (const k of x.path.slice(0, -1)) parent = parent?.[k as any];
+      const key = x.path[x.path.length - 1];
+      if (parent && typeof parent[key] === 'string') parent[key] = parent[key].slice(0, Math.max(1, x.maximum - 1)).trimEnd() + '…';
+    }
+  }
+  return v;
+}

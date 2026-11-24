@@ -86,11 +86,24 @@ export async function generateScreen(provider: LlmProvider, plan: Plan, target: 
     const fix = await provider.complete({ purpose: 'repair', instructions, input: repairInput, schemaName: 'screen', schema, maxOutputTokens: 6000 });
     calls.push(fix); await onCall('repair', fix);
     const second = check(fix.json);
+    const reason: Issue = { path: 'screen', code: 'repair.reason', severity: 'warning', message: 'Repaired: ' + [...new Set(errorsOf(first.issues).map(i => i.code))].join(', ') };
+    second.issues.push(reason);
     if (!errorsOf(second.issues).length) return { screen: second.screen, status: 'repaired', issues: second.issues, calls };
     if (!errorsOf(accept(second.issues)).length) return { screen: second.screen, status: 'repaired', issues: accept(second.issues), calls };
     if (!errorsOf(accept(first.issues)).length) return { screen: first.screen, status: 'valid', issues: accept(first.issues), calls };
     failure = 'Still invalid after one repair: ' + errorsOf(second.issues).slice(0, 3).map(i => i.code + ' at ' + i.path).join('; ');
   } catch (e) {
+    if (e instanceof ProviderError && e.category === 'truncated' && !first) {
+      // A cut-off answer is usually a runaway list: ask once for a concise screen.
+      try {
+        const retry = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ task: 'Your previous answer was too long and was cut off. Produce a CONCISE screen: at most 10 top-level components, lists of at most 6 items.', context: JSON.parse(screenInput(plan, target)) }), schemaName: 'screen', schema, maxOutputTokens: 6000 });
+        calls.push(retry); await onCall('repair', retry);
+        const again = check(retry.json);
+        if (!errorsOf(accept(again.issues)).length) return { screen: again.screen, status: 'repaired', issues: accept(again.issues), calls };
+        failure = 'Still invalid after a concise retry: ' + errorsOf(again.issues).slice(0, 3).map(i => i.code + ' at ' + i.path).join('; ');
+        return { screen: fallbackScreen(plan, target, failure), status: 'fallback', issues: errorsOf(again.issues), calls, failure };
+      } catch (e2) { e = e2; }
+    }
     if (e instanceof ProviderError && !['truncated', 'parse', 'refusal'].includes(e.category)) throw e; // let the orchestrator retry/stop
     failure = e instanceof Error ? e.message : String(e);
   }

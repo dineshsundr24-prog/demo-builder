@@ -1,0 +1,1 @@
+A patient app for CareWell Clinics. Patients sign in, see upcoming appointments on a home screen, book a new appointment by choosing a specialty, doctor, date and time slot, confirm the booking, view their prescriptions and lab results, and manage their profile and insurance card. Show reminders and allow cancelling or rescheduling an appointment.

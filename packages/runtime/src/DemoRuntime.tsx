@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Menu, X } from 'lucide-react';
-import { resolveText, type Action, type DemoDocument, type NodeT } from '@demo/schema';
+import { resolveText, walk, type Action, type DemoDocument, type NodeT } from '@demo/schema';
 import { createSession, dismissToast, openRecord as openRecordFn, runActions, setField as setFieldFn, type Session } from './engine.ts';
 import { Nodes, RuntimeContext, type RuntimeApi } from './nodes.tsx';
 import { Icon as BrandIcon } from './icons.tsx';
@@ -53,6 +53,18 @@ export function DemoRuntime({ doc, screenId, onScreenChange, interactive = true,
     return () => clearTimeout(t);
   }, [session.toasts]);
 
+  // Preview convenience: a details screen opened without a selected row (e.g. from the studio's
+  // screen list) shows the first sample record of the table/list that normally opens it.
+  useEffect(() => {
+    if (session.record) return;
+    const sources: string[] = [];
+    for (const s of doc.screens) walk(s.children as NodeT[], '', n => {
+      if ((n.type === 'Table' || n.type === 'List') && ((n.rowAction as any)?.screen === session.screenId || (n.itemAction as any)?.screen === session.screenId)) sources.push(String(n.collection));
+    });
+    const c = sources.length ? doc.collections.find(x => x.id === sources[0]) : undefined;
+    const row = c && (session.collections[c.id] ?? c.rows)[0];
+    if (c && row) setSession(s => (s.record ? s : { ...s, record: { collection: c.id, key: row[c.key], row: { ...row } } }));
+  }, [session.screenId]);
   const screen = doc.screens.find(s => s.id === session.screenId) ?? doc.screens[0];
   const text = (t: string) => resolveText(t, { state: session.state, record: session.record?.row ?? null, params: {} });
   const showShell = screen.shell !== 'hidden' && doc.shell.kind !== 'none';

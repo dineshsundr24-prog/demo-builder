@@ -246,3 +246,16 @@ test('IDIDI brief (UAT): exact 5 screens, standard sign-in/up allowed, no UAE PA
 test('ordinary numbered requirements are not mistaken for a screen list', () => {
   assert.equal(parseBrief('Business rules:\n1. Users must log in\n2. Data must be encrypted\n3. Monthly reports'), null);
 });
+
+test('over-long plan strings are shortened instead of failing the job (benchmark: 4 of 12 plans failed)', async () => {
+  const provider = new FakeProvider(req => {
+    const plan = fakePlan(req) as any;
+    plan.screens[0].mustInclude = ['a very long must include item that goes on and on beyond the forty eight character limit'];
+    plan.screens[1].purpose = 'x'.repeat(600);
+    return plan;
+  });
+  const { createPlan } = await import('../src/plan.ts');
+  const { plan } = await createPlan(provider, { name: 'K', channel: 'mobile' }, kapikoBrief, { maxScreens: 40 });
+  assert.ok(plan.screens[0].mustInclude![0].length <= 48 && plan.screens[0].mustInclude![0].endsWith('…'));
+  assert.ok(plan.screens[1].purpose.length <= 400);
+});

@@ -1,0 +1,1 @@
+Mobile app for SafeDrive Insurance customers in the UAE to report a car accident and track the claim. The customer signs in, sees their policies, starts a new claim with accident date, location and description, uploads photos and the police report (simulated), chooses a garage, reviews and submits, then tracks claim status and messages from the adjuster. Fictional data only.

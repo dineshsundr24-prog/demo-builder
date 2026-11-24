@@ -6,6 +6,8 @@ export const formatters: Record<string, (v: string) => string> = {
   aed: v => { const n = Number(String(v).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) && String(v).trim() !== '' ? 'AED ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; },
   date: v => { const d = new Date(v); return isNaN(+d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); },
   upper: v => String(v).toUpperCase(),
+  lower: v => String(v).toLowerCase(),
+  title: v => String(v).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
   mask: v => String(v).replace(/.(?=.{3})/g, '•'),
 };
 export type Scope = { state: Record<string, unknown>; record?: Record<string, string> | null; params?: Record<string, unknown> };

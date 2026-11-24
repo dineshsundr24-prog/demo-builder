@@ -41,6 +41,21 @@ export function normalizeDesign(input: Screen): { screen: Screen; changes: strin
     return [n];
   });
   screen.children = fix(screen.children as NodeT[]);
+  // 5. Single-brace references like {record.name} are meant as bindings: make them {{record.name}}.
+  // Unknown formatters ({{state.x | shout}}) are dropped rather than failing the screen.
+  const known = ['aed', 'date', 'upper', 'lower', 'title', 'mask'];
+  const rebrace = (s: string) => s.replace(/\{\{\s*((?:state|record|params)\.[A-Za-z0-9_.]+)\s*\|\s*([a-z]+)\s*\}\}/g, (m, ref, f) => (known.includes(f) ? m : (changes.push('Dropped unknown formatter | ' + f), '{{' + ref + '}}'))).replace(/(^|[^{])\{\s*((?:state|record|params)\.[A-Za-z0-9_.]+)\s*\}(?!\})/g, (_m, pre, ref) => { changes.push('Fixed binding {' + ref + '}'); return pre + '{{' + ref + '}}'; });
+  const visitStrings = (v: any): any => typeof v === 'string' ? rebrace(v) : Array.isArray(v) ? v.map(visitStrings) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === 'type' || k === 'id' ? x : visitStrings(x)])) : v;
+  screen.children = visitStrings(screen.children);
+  // 6. A submit that names a form that does not exist: use the screen's only form (e.g. a template's form).
+  const forms: string[] = [];
+  walk(screen.children as NodeT[], '', n => { if (n.type === 'Form') forms.push(n.id); });
+  walk(screen.children as NodeT[], '', n => {
+    const fixForm = (actions: any[] | undefined) => actions?.forEach(a => { if ((a?.type === 'submit' || a?.type === 'reset') && a.form && !forms.includes(a.form) && forms.length === 1) { changes.push('Submit form "' + a.form + '" → "' + forms[0] + '"'); a.form = forms[0]; } });
+    fixForm(n.actions as any[]);
+    for (const key of ['primary', 'secondary', 'cta', 'viewAll'] as const) fixForm((n[key] as any)?.actions);
+    for (const it of (n.items as any[]) ?? []) fixForm(it?.actions);
+  });
   // 4. Actions that "navigate" to the current screen do nothing visible: say what they would do.
   walk(screen.children as NodeT[], '', n => {
     const relabel = (actions: any[] | undefined, label: string) => actions?.forEach((a, i) => {
@@ -55,12 +70,21 @@ export function normalizeDesign(input: Screen): { screen: Screen; changes: strin
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'your', 'their', 'option', 'options', 'screen', 'page', 'customer', 'user', 'users', 'details', 'detail', 'information', 'info', 'show', 'shows', 'view', 'allow', 'allows']);
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w.length >= 3 && !STOP.has(w));
+// What each component means to a reader, so "quick actions" or "recent transactions" match
+// a QuickActions / TransactionList pattern even when it has no visible title.
+const MEANING: Record<string, string> = {
+  QuickActions: 'quick actions shortcuts', TransactionList: 'recent transactions activity history payments list', BalanceCard: 'balance account summary',
+  Upload: 'upload document attachment', ActionBar: 'submit save continue confirm action button', Button: 'button action', Table: 'table list records search filter',
+  List: 'list items', MenuList: 'settings menu options', ProfileHeader: 'profile avatar name', StatusTimeline: 'status timeline progress tracking',
+  Steps: 'steps progress', Checkbox: 'consent agree terms', Promo: 'offer promotion banner', Hero: 'welcome brand logo', Grid: 'kpi summary', Stat: 'kpi metric figure',
+  Select: 'choose select dropdown', Radio: 'choose option', Form: 'form fields', Notice: 'notice alert message', Template: 'template',
+};
 /** All text a user would see on the screen, including expanded templates. */
 export function screenText(screen: Screen) {
   const parts: string[] = [screen.title, screen.subtitle ?? ''];
   const collect = (v: unknown) => { if (typeof v === 'string') parts.push(v); else if (Array.isArray(v)) v.forEach(collect); else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => { if (k !== 'children' && k !== 'id' && k !== 'type') collect(x); }); };
-  walk(screen.children as NodeT[], '', n => collect(n));
-  for (const t of (screen.children as NodeT[]).filter(n => n.type === 'Template')) walk(expandTemplate(t), '', n => collect(n));
+  walk(screen.children as NodeT[], '', n => { collect(n); parts.push(MEANING[n.type] ?? ''); if (n.type === 'Input' && n.inputType === 'otp') parts.push('otp code'); });
+  walk(screen.children as NodeT[], '', n => { if (n.type === 'Template') walk(expandTemplate(n), '', m => { collect(m); parts.push(MEANING[m.type] ?? ''); }); });
   return parts.join(' ').toLowerCase();
 }
 /** Must-include items (from the plan) that do not appear on the screen. */

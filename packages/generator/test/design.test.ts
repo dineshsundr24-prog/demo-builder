@@ -55,3 +55,12 @@ test('actions inside designed patterns are validated (routes and forms)', () => 
   const codes = validateScreen(bad, ctx).filter(i => i.severity === 'error').map(i => i.code);
   assert.ok(codes.includes('route.unknown') && codes.includes('form.missing'), JSON.stringify(codes));
 });
+
+test('unknown binding formatters are dropped and single-brace bindings fixed (benchmark fallbacks)', () => {
+  const s = { id: 'x', title: 'X', shell: 'default', children: [
+    { type: 'Text', id: 't1', text: 'Decision: {{state.leave.decision | lower}} / {{state.leave.decision | shout}}' },
+    { type: 'RecordFields', id: 'r', items: [{ label: 'Name', value: '{record.name}' }] }] } as any;
+  const out = normalizeDesign(s).screen.children as any[];
+  assert.equal(out[0].text, 'Decision: {{state.leave.decision | lower}} / {{state.leave.decision}}');
+  assert.equal(out[1].items[0].value, '{{record.name}}');
+});
