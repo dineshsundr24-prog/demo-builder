@@ -92,7 +92,7 @@ async function repairGeneratedDefinition(candidate,issues,channel){
 // 12-screen application or accidentally changing already valid screens and routes.
 async function repairInvalidScreens(candidate,issues,channel){
  if(!candidate||!Array.isArray(candidate.screens))return null;
- const indexes=[...new Set(issues.map(issue=>/^screens\\[(\\d+)\\]/.exec(issue)?.[1]).filter(x=>x!==undefined).map(Number))];
+ const indexes=[...new Set(issues.map(issue=>/^screens\[(\d+)\]/.exec(issue)?.[1]).filter(x=>x!==undefined).map(Number))];
  if(!indexes.length||indexes.length>4||indexes.some(i=>i>=candidate.screens.length))return null;
  const screenIds=candidate.screens.map(s=>({id:s.id,title:s.title}));
  const instructions='Repair ONE existing '+channel+' application screen using the exact allowed declarative schema. Return only a JSON object with a single \\"screen\\" field, whose value is the complete corrected screen. Preserve screen id and all intended fields, labels, items, buttons, sample data, and existing valid screen destinations. All existing screen IDs are supplied. Every element must be one of hero,stats,form,table,notice,actions,composed. Top-level card is forbidden; use composed items with kind card. A form requires nonempty title, actionLabel, and fields with id,label,type (text,email,password,number,select,date,checkbox,file). Dropdown type is select with options as strings. A composed element requires title and 1–24 items. Every item must have unique ASCII id, supported kind, and string label. Select items require options; progress requires numeric value. Only button items may have nextScreen or actions. Do not invent live identity verification. Do not remove unrelated controls to pass validation.';
