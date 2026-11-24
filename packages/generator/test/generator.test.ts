@@ -194,3 +194,14 @@ test('stray-brace artifacts anywhere in a component are cleaned without a paid r
   assert.equal(table.columns[0].label, 'Reference #');
   assert.equal(job.status, 'completed');
 });
+
+test('job totals equal the sum of usage rows when screens run in parallel (no lost updates)', async () => {
+  class SlowStore extends MemoryStore { async getJob(id: string) { const j = await super.getJob(id); await new Promise(r => setTimeout(r, 2)); return j; } }
+  const store = new SlowStore();
+  const provider = new FakeProvider(async req => { await new Promise(r => setTimeout(r, 1)); return req.purpose === 'plan' ? fakePlan(req) : kapikoScreen(screenIdOf(req)); });
+  const job = await runToEnd(new Generator(store, provider, cfg));
+  const rows = store.usage.filter(u => u.job_id === job.id);
+  assert.equal(rows.length, 13);
+  assert.equal(job.input_tokens, rows.reduce((s, u) => s + u.input_tokens, 0));
+  assert.ok(Math.abs(Number(job.cost_usd) - rows.reduce((s, u) => s + u.cost_usd, 0)) < 1e-9);
+});

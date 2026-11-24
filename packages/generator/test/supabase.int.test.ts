@@ -41,4 +41,16 @@ test('Supabase: a job, its 12 screens and usage are persisted and readable by a 
   assert.equal(rows.find(r => r.screen_id === 'dashboard')!.attempts, 2);
   assert.equal(rows.filter(r => r.attempts === 1).length, 11);
   assert.equal(again.document.screens.length, 12);
+  // Clean up so test usage never counts against the real monthly AI budget.
+  await deleteTestJob(job.id);
+  assert.equal(await fresh.getJob(job.id), null);
+  assert.equal((await fresh.listScreens(job.id)).length, 0);
 });
+
+async function deleteTestJob(id: string) {
+  const headers = { apikey: key!, ...(key!.startsWith('eyJ') ? { Authorization: 'Bearer ' + key } : {}) };
+  for (const path of ['usage_events?job_id=eq.' + id, 'generation_jobs?id=eq.' + id]) {
+    const r = await fetch(url + '/rest/v1/' + path, { method: 'DELETE', headers });
+    assert.ok(r.ok, 'cleanup ' + path + ' -> ' + r.status);
+  }
+}

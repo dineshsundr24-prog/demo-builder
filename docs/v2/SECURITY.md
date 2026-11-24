@@ -1,5 +1,7 @@
 # Demo Builder v2 — data security model (as of migration 0001)
 
+Migration 0001 was applied to `meyon-demo-builder` on 24 Nov 2026 after identity and empty-schema checks. The security suite passed on the live project.
+
 ## Database (Supabase project `meyon-demo-builder`, ref `cmmpmakaozsghampempl`)
 - Six tables, all with row-level security: `projects`, `project_versions`, `generation_jobs`, `generation_screens`, `publications`, `usage_events`.
 - `anon`: **no privileges** on any of them (revoked explicitly; Supabase grants them by default).

@@ -31,11 +31,19 @@ export class Generator {
     if (fresh.input_tokens + fresh.output_tokens >= fresh.token_budget) throw new ProviderError('budget', 'This job reached its token budget (' + fresh.token_budget + '). Completed screens are kept.', false);
     if (fresh.status === 'cancelled') throw new JobError('cancelled', 'Job was cancelled');
   }
-  private async record(jobId: string, kind: 'plan' | 'screen' | 'repair', call: CompletionResult) {
-    const cost = costUsd(call.model, call.usage);
-    await this.store.addUsage({ job_id: jobId, kind, model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: cost });
-    const j = (await this.store.getJob(jobId))!;
-    await this.store.updateJob(jobId, { input_tokens: j.input_tokens + call.usage.inputTokens, output_tokens: j.output_tokens + call.usage.outputTokens, cost_usd: Number(j.cost_usd) + cost, model: call.model });
+  private accounting = new Map<string, Promise<void>>();
+  /** Record usage. Job totals are read-modify-write, so updates for one job are serialised
+   *  (parallel screens previously lost updates: live run showed job cost < sum of usage rows). */
+  private record(jobId: string, kind: 'plan' | 'screen' | 'repair', call: CompletionResult): Promise<void> {
+    const next = (this.accounting.get(jobId) ?? Promise.resolve()).catch(() => {}).then(async () => {
+      const cost = costUsd(call.model, call.usage);
+      await this.store.addUsage({ job_id: jobId, kind, model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: cost });
+      const j = (await this.store.getJob(jobId))!;
+      await this.store.updateJob(jobId, { input_tokens: j.input_tokens + call.usage.inputTokens, output_tokens: j.output_tokens + call.usage.outputTokens, cost_usd: Number(j.cost_usd) + cost, model: call.model });
+    });
+    this.accounting.set(jobId, next);
+    void next.finally(() => { if (this.accounting.get(jobId) === next) this.accounting.delete(jobId); }).catch(() => {});
+    return next;
   }
   /** Retry transient provider failures with backoff; never retry invalid requests. */
   private async withRetry<T>(job: JobRow, work: () => Promise<T>): Promise<T> {
