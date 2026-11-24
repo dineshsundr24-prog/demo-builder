@@ -19,7 +19,10 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
   }
   const id = input.screen?.id ?? input.context?.screen?.id;
   const channel = (input.app ?? input.context?.app)?.channel === 'portal' ? 'portal' : 'mobile';
-  return screens[channel].get(id) ?? { id, title: input.screen.title, shell: 'default', children: [{ type: 'Heading', id: 'h', text: input.screen.title, level: '2' }, { type: 'Text', id: 't', text: 'Generated content' }] };
+  const isFirst = input.allScreens?.[0]?.id === id;
+  return screens[channel].get(id) ?? { id, title: input.screen.title, shell: isFirst ? 'hidden' : 'default', children: isFirst
+    ? [{ type: 'Hero', id: 'hero', title: input.screen.title, subtitle: 'Generated content', showLogo: true, illustration: 'none' }]
+    : [{ type: 'Heading', id: 'h', text: input.screen.title, level: '2' }, { type: 'Text', id: 't', text: 'Generated content' }] };
 });
 const app = await buildServer({ generator: new Generator(new MemoryStore(), provider, { ...defaultConfig, retryDelaysMs: [10] }), accessToken: 'e2e-token', model: 'fake', origins: ['http://localhost:5174', 'http://localhost:5173'] });
 await app.listen({ port: Number(process.env.PORT || 8788), host: '127.0.0.1' });

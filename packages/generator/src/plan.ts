@@ -4,13 +4,15 @@ import { toStrictSchema, templates, allowedTemplates, ScreenRef, TemplateRef, ty
 import { parseBrief, briefColours, type ParsedBrief } from './briefParser.ts';
 import type { LlmProvider, CompletionResult } from './provider.ts';
 
-export type GenerationRequest = { name: string; company?: string; channel: 'mobile' | 'portal'; guidelines?: string };
+export type Brand = { logo?: string; primary?: string; secondary?: string; accent?: string; font?: 'system' | 'inter' | 'serif' | 'rounded' };
+export type GenerationRequest = { name: string; company?: string; channel: 'mobile' | 'portal'; guidelines?: string; brand?: Brand };
 export type PlanScreen = { id: string; title: string; requirement: string; purpose: string; template: string | null; links: string[]; shell: 'default' | 'hidden'; locked: boolean; mustInclude?: string[] };
 export type Plan = {
   appName: string; channel: 'mobile' | 'portal';
   theme: { primary: string; secondary: string; accent: string };
   shell: Shell; collections: Collection[]; screens: PlanScreen[];
   sampleFacts: { label: string; value: string }[];
+  brand?: { logo?: string; font?: Brand['font'] }; // applied to the document, never sent to the AI
   templates: string[];               // templates allowed for this brief (journey templates need a mention)
   globalContext: string; notes: string[];
 };
@@ -47,7 +49,7 @@ Return the plan only. Rules:
 - shell: "hidden" for focused flows (welcome, sign-in/up, OTP, verification); "default" where the app menu (tabs/sidebar) shows.
 - shellKind: mobile -> tabs (or drawer); portal -> sidebar. menu: 3-5 main destinations.
 - template: only from the provided templates list, and only when the screen IS that step: a standard sign-in screen -> "sign-in", registration -> "sign-up". Never replace a requested standard form with an identity-provider template. Otherwise null.
-- mustInclude: 3-8 short items that MUST appear on the screen, taken from its requirement plus what a real product needs (fields, data shown, actions), e.g. ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload", "save"].
+- mustInclude: 3-8 short items that MUST appear on the screen: everything in its requirement PLUS what a real, regulated product of this type would need even if the brief is short. Forms list at least 5 concrete fields/actions, e.g. an income update needs ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload", "submit"]; a dashboard needs ["balance", "quick actions", "recent transactions"].
 - purpose: describe the content concretely (sections, fields, actions) the way a product designer would brief a UI designer.
 - collections: sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows align with fields.
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
@@ -96,8 +98,10 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
   for (const s of screens) if (s.template && !allowed.includes(s.template)) { notes.push('Ignored template "' + s.template + '" for "' + s.title + '" (not requested in the brief)'); s.template = null; }
   const ids = new Set(screens.map(s => s.id));
   for (const s of screens) s.links = [...new Set(s.links.filter(l => ids.has(l) && l !== s.id))];
+  // Colour priority: uploaded brand > colours written in the brief > the planner's palette.
   const colours = briefColours(brief + ' ' + (req.guidelines ?? ''));
-  const theme = { primary: (colours[0] ?? p.theme.primary).toUpperCase(), secondary: (colours[1] ?? p.theme.secondary).toUpperCase(), accent: (colours[2] ?? p.theme.accent).toUpperCase() };
+  const b = req.brand ?? {};
+  const theme = { primary: (b.primary ?? colours[0] ?? p.theme.primary).toUpperCase(), secondary: (b.secondary ?? colours[1] ?? p.theme.secondary).toUpperCase(), accent: (b.accent ?? colours[2] ?? p.theme.accent).toUpperCase() };
   let kind = p.shellKind;
   if (req.channel === 'mobile' && kind === 'sidebar') kind = 'tabs';
   if (req.channel === 'portal' && (kind === 'tabs' || kind === 'drawer')) kind = 'sidebar';
@@ -111,5 +115,5 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     return { id: c.id, label: c.label, key, fields, rows };
   });
   return { appName: req.name, channel: req.channel, theme, shell: { kind: items.length ? kind : 'none', brand: (req.company || req.name).slice(0, 60), showBack: true, items },
-    collections, screens, sampleFacts: p.sampleFacts, templates: allowed, globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
+    collections, screens, sampleFacts: p.sampleFacts, templates: allowed, ...(b.logo || b.font ? { brand: { ...(b.logo ? { logo: b.logo } : {}), ...(b.font ? { font: b.font } : {}) } } : {}), globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
 }

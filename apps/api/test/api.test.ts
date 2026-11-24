@@ -90,3 +90,20 @@ test('public status reports storage problems without leaking database details', 
   assert.equal(s.ready, false);
   assert.ok(!JSON.stringify(s).includes('Invalid API key'));
 });
+
+test('optional brand assets are validated and applied to the generated app', async () => {
+  const app = await server();
+  const logo = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>').toString('base64');
+  const bad = await app.inject({ method: 'POST', url: '/api/v2/jobs', headers: auth, payload: { request: { name: 'X', channel: 'mobile', brand: { logo: 'javascript:alert(1)' } }, brief } });
+  assert.equal(bad.statusCode, 400);
+  const badColour = await app.inject({ method: 'POST', url: '/api/v2/jobs', headers: auth, payload: { request: { name: 'X', channel: 'mobile', brand: { primary: 'red' } }, brief } });
+  assert.equal(badColour.statusCode, 400);
+  const id = (await app.inject({ method: 'POST', url: '/api/v2/jobs', headers: auth, payload: { request: { name: 'Branded', channel: 'mobile', brand: { logo, primary: '#7a1f3d', font: 'rounded' } }, brief } })).json().id;
+  await until(app, id, ['awaiting_plan_approval']);
+  await app.inject({ method: 'POST', url: '/api/v2/jobs/' + id + '/approve', headers: auth, payload: {} });
+  await until(app, id, ['completed', 'completed_with_warnings']);
+  const doc = (await app.inject({ url: '/api/v2/jobs/' + id + '/document', headers: auth })).json();
+  assert.equal(doc.theme.primary, '#7A1F3D', 'brand colour beats the colours in the brief');
+  assert.equal(doc.theme.font, 'rounded');
+  assert.equal(doc.theme.logo, logo);
+});

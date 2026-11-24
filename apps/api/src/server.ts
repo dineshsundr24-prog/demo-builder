@@ -2,7 +2,8 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { timingSafeEqual } from 'node:crypto';
-import { Generator, JobError, ProviderError, StoreError, type GenerationRequest, type Plan } from '@demo/generator';
+import { Generator, JobError, ProviderError, StoreError, type GenerationRequest, type Plan, type Brand } from '@demo/generator';
+import { LogoDataUrl } from '@demo/schema';
 
 export type ServerOptions = { generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean };
 
@@ -10,6 +11,16 @@ function tokenOk(given: unknown, expected: string) {
   if (!expected || typeof given !== 'string') return false;
   const a = Buffer.from(given), b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+/** Optional brand assets: validated logo data URL, hex colours and a known font. Returns an error message on bad input. */
+function parseBrand(b: unknown): Brand | undefined | string {
+  if (b === undefined || b === null) return undefined;
+  if (typeof b !== 'object') return 'brand must be an object';
+  const x = b as Record<string, unknown>, out: Brand = {};
+  if (x.logo !== undefined && x.logo !== '') { const ok = LogoDataUrl.safeParse(x.logo); if (!ok.success) return 'Logo must be a PNG, JPEG, WebP or SVG image under 300 KB'; out.logo = ok.data; }
+  for (const k of ['primary', 'secondary', 'accent'] as const) if (x[k] !== undefined && x[k] !== '') { if (typeof x[k] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(x[k] as string)) return k + ' colour must look like #17365D'; out[k] = (x[k] as string).toUpperCase(); }
+  if (x.font !== undefined && x.font !== '') { if (!['system', 'inter', 'serif', 'rounded'].includes(String(x.font))) return 'Unknown font'; out.font = x.font as Brand['font']; }
+  return Object.keys(out).length ? out : undefined;
 }
 function sendError(reply: FastifyReply, e: unknown) {
   if (e instanceof JobError) return reply.code(e.status).send({ error: e.message, category: e.category });
@@ -25,7 +36,7 @@ function sendError(reply: FastifyReply, e: unknown) {
 }
 
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 256 * 1024 });
+  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 1024 * 1024 }); // room for an optional logo
   const gen = opts.generator;
   await app.register(cors, { origin: opts.origins, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['content-type', 'x-builder-access'] });
 
@@ -65,11 +76,17 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const body = req.body as { request?: GenerationRequest; brief?: string } | undefined;
     if (!body?.request || typeof body.brief !== 'string') return reply.code(400).send({ error: 'Send {request:{name, channel, company?, guidelines?}, brief}', category: 'bad_request' });
     const r = body.request;
-    const request: GenerationRequest = { name: String(r.name ?? '').slice(0, 120) || 'Demo', company: String(r.company ?? '').slice(0, 120), channel: r.channel, guidelines: String(r.guidelines ?? '').slice(0, 3000) };
+    const brand = parseBrand((r as any).brand);
+    if (typeof brand === 'string') return reply.code(400).send({ error: brand, category: 'bad_request' });
+    const request: GenerationRequest = { name: String(r.name ?? '').slice(0, 120) || 'Demo', company: String(r.company ?? '').slice(0, 120), channel: r.channel, guidelines: String(r.guidelines ?? '').slice(0, 3000), ...(brand ? { brand } : {}) };
     try { return reply.code(202).send(await gen.startPlan(request, body.brief)); } catch (e) { return sendError(reply, e); }
   });
   app.get('/api/v2/jobs', async (req, reply) => {
-    try { return { jobs: await gen.store.listJobs(Number((req.query as any)?.limit) || 20) }; } catch (e) { return sendError(reply, e); }
+    try {
+      const jobs = await gen.store.listJobs(Number((req.query as any)?.limit) || 20);
+      // Keep the list light: logos are not needed to pick a job.
+      return { jobs: jobs.map(j => ({ ...j, request: { ...j.request, brand: undefined } })) };
+    } catch (e) { return sendError(reply, e); }
   });
   app.get('/api/v2/jobs/:id', async (req, reply) => {
     try { return await gen.snapshot((req.params as any).id); } catch (e) { return sendError(reply, e); }

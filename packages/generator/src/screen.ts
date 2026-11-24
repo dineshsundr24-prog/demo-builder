@@ -21,12 +21,13 @@ Rules:
 DESIGN: you choose designed patterns and write their content; the renderer owns the visual design. Compose like a senior product designer:
 - Welcome/onboarding: Hero (showLogo true) + optional Promo or short value points + ActionBar (primary "Sign in" / secondary "Create account").
 - Sign in / sign up: the sign-in / sign-up Template (next + alt), optionally a small Hero above it (showLogo true, illustration none).
-- Dashboard/home: Heading greeting or ProfileHeader, BalanceCard, QuickActions (3-4 most relevant shortcuts), TransactionList (3-5 recent items), optional Promo.
+- Dashboard/home: Heading greeting or ProfileHeader, BalanceCard, QuickActions (4 most relevant shortcuts, including links to the app's other key screens), TransactionList (4-5 recent items), optional Promo. No ActionBar on dashboards: QuickActions already lead onward.
 - Update/edit forms: a Section with current values (RecordFields), then a Form with ALL fields the requirement needs (grouped logically) and an ActionBar inside the Form (primary submit+navigate, secondary back/cancel).
 - Review/confirmation: Hero (illustration success, showLogo false) or Notice, RecordFields summary, ActionBar.
 - Profile/settings: ProfileHeader + MenuList sections (personal details, security, notifications, help) with a danger "Sign out" item.
 - Requests/history: TransactionList or List; details screens: StatusTimeline + RecordFields.
 - Portal pages: Grid of Stat KPIs, Table with built-in search/filter, Cards with RecordFields, ActionBar.
+- Sample people and companies get realistic, locale-appropriate fictional names (e.g. "Sara Al Mansoori", "Gulf Logistics LLC"), never "John Doe" or "Lorem ipsum".
 - Never place buttons side by side yourself (use ActionBar), never wrap a single Stat in a Card, one logo per screen, one ActionBar per screen at the end, no empty sections.
 - Cover every item in mustInclude.
 - Use a Template node only from the listed templates and only when the screen is that step (set next, and alt for the secondary link). A requested "standard" sign-in/sign-up uses the sign-in/sign-up templates, never an identity-provider template.
@@ -46,7 +47,8 @@ function screenInput(plan: Plan, s: PlanScreen) {
   });
 }
 export function planDocument(plan: Plan, screens: Screen[] = []): DemoDocument {
-  return { schemaVersion: 2, id: 'generated', name: plan.appName, channel: plan.channel, theme: { ...plan.theme, radius: plan.channel === 'mobile' ? 'lg' : 'md', font: 'inter' },
+  return { schemaVersion: 2, id: 'generated', name: plan.appName, channel: plan.channel,
+    theme: { ...plan.theme, radius: plan.channel === 'mobile' ? 'lg' : 'md', font: plan.brand?.font ?? 'inter', ...(plan.brand?.logo ? { logo: plan.brand.logo } : {}) },
     shell: plan.shell, collections: plan.collections,
     screens: screens.length ? screens : plan.screens.map(s => ({ id: s.id, title: s.title, shell: s.shell, children: [] })) };
 }

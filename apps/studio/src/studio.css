@@ -83,3 +83,21 @@ body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: 
 .studio-crash { max-width: 640px; margin: 15vh auto; padding: 24px; background: var(--s-panel); border: 1px solid var(--s-line); border-radius: 12px; }
 .studio-crash h1 { font-size: 20px; margin: 0 0 8px; } .studio-crash p { color: var(--s-muted); }
 .studio-crash button { border: 0; background: var(--s-accent); color: #fff; padding: 9px 16px; border-radius: 8px; font: inherit; cursor: pointer; }
+
+.brand-fields { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--s-line); border-radius: 10px; padding: 12px; }
+.brand-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.brand-label { width: 64px; font-size: 12px; font-weight: 600; color: var(--s-muted); }
+.brand-upload { display: inline-flex; align-items: center; gap: 6px; border: 1px dashed #b6c2d1; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; color: var(--s-accent); }
+.brand-upload input { display: none; }
+.brand-logo { display: inline-flex; align-items: center; gap: 6px; } .brand-logo img { max-height: 36px; max-width: 120px; object-fit: contain; border: 1px solid var(--s-line); border-radius: 6px; padding: 2px; background: #fff; }
+.brand-logo button { border: 0; background: #f1f4f8; border-radius: 99px; width: 22px; height: 22px; display: grid; place-items: center; cursor: pointer; }
+.brand-swatch { display: inline-flex; border: 2px solid transparent; border-radius: 8px; padding: 2px; background: none; cursor: pointer; }
+.brand-swatch span { width: 12px; height: 22px; } .brand-swatch span:first-child { border-radius: 4px 0 0 4px; } .brand-swatch span:last-child { border-radius: 0 4px 4px 0; }
+.brand-swatch[aria-checked="true"], .brand-auto[aria-checked="true"] { border-color: var(--s-accent); }
+.brand-auto { border: 2px solid var(--s-line); background: none; border-radius: 8px; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.brand-color { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--s-muted); text-transform: capitalize; }
+.brand-color input { width: 28px; height: 24px; border: 0; padding: 0; background: none; }
+.brand-fields select { font: inherit; font-size: 13px; border: 1px solid #cfd7e2; border-radius: 6px; padding: 4px 6px; }
+.brand-fields.compact .brand-label { width: 52px; }
+.gen-brand summary, .studio-brand-edit summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--s-accent); padding: 4px 0; }
+.studio-brand-edit { border: 1px solid var(--s-line); border-radius: 8px; padding: 6px 10px; }

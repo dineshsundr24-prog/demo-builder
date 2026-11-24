@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AlertTriangle, CheckCircle2, Download, FolderOpen, Monitor, Plus, Smartphone, Sparkles, Upload, XCircle } from 'lucide-react';
 import { GeneratePanel } from './GeneratePanel.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
+import { BrandFields } from './BrandFields.tsx';
 import { DemoRuntime, type Session } from '@demo/runtime';
 import '@demo/runtime/runtime.css';
 import { validateDocument, migrateV1, DemoDocument, type Issue, type MigrationNote } from '@demo/schema';
@@ -74,6 +75,10 @@ function Studio() {
         <p className="studio-current">{doc.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}<strong>{doc.name}</strong></p>
         <button type="button" onClick={() => { setDoc(null); setNotes([]); }}><Plus size={15} />New demo</button>
         <button type="button" onClick={download}><Download size={15} />Download JSON</button>
+        <details className="studio-brand-edit"><summary>Brand</summary>
+          <BrandFields compact value={{ logo: doc.theme.logo, primary: doc.theme.primary, secondary: doc.theme.secondary, accent: doc.theme.accent, font: doc.theme.font }}
+            onChange={b => setDoc({ ...doc, theme: { ...doc.theme, primary: b.primary ?? doc.theme.primary, secondary: b.secondary ?? doc.theme.secondary, accent: b.accent ?? doc.theme.accent, font: b.font ?? doc.theme.font, ...(b.logo ? { logo: b.logo } : { logo: undefined }) } })} />
+        </details>
         {importInput}
       </div>
       {importError ? <p className="studio-error" role="alert">{importError}</p> : null}

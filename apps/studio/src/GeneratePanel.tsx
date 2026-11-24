@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, Plus, RefreshCw, Sparkles, Trash2, X, XCircle, AlertTriangle } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
+import { BrandFields, type BrandValue } from './BrandFields.tsx';
 
 const env = import.meta.env as Record<string, string | undefined>;
 export const API = env.VITE_API_URL || (env.VITE_API_HOST ? 'https://' + env.VITE_API_HOST : 'http://localhost:8787');
@@ -23,6 +24,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: { onLoad: (d: DemoDocument, notes: string[]) => void; onClose: () => void; defaultChannel: 'mobile' | 'portal'; resumeJobId?: string }) {
   const [access, setAccess] = useState(token());
   const [form, setForm] = useState({ name: '', company: '', channel: defaultChannel as 'mobile' | 'portal', brief: '' });
+  const [brand, setBrand] = useState<BrandValue>(() => { try { return JSON.parse(localStorage.getItem('db-brand') || '{}'); } catch { return {}; } });
+  useEffect(() => { try { localStorage.setItem('db-brand', JSON.stringify(brand)); } catch { /* storage unavailable or logo too large */ } }, [brand]);
   const [job, setJob] = useState<Job | null>(resumeJobId ? ({ id: resumeJobId, status: 'loading', plan: null, warnings: [], error: null, cost_usd: 0, input_tokens: 0, output_tokens: 0, trace_id: '' }) : null);
   const [status, setStatus] = useState<Status | null>(null);
   const [recent, setRecent] = useState<JobSummary[] | null>(null);
@@ -78,7 +81,7 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
   }, [jobId, poll]);
 
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); setError(''); try { await fn(); setPoll(n => n + 1); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); } finally { setBusy(false); } };
-  const start = () => run(async () => { setPlan([]); setScreens([]); setJob(await call<Job>('/api/v2/jobs', { method: 'POST', body: JSON.stringify({ request: { name: form.name || 'Demo', company: form.company, channel: form.channel }, brief: form.brief }) })); });
+  const start = () => run(async () => { setPlan([]); setScreens([]); setJob(await call<Job>('/api/v2/jobs', { method: 'POST', body: JSON.stringify({ request: { name: form.name || 'Demo', company: form.company, channel: form.channel, ...(Object.values(brand).some(Boolean) ? { brand } : {}) }, brief: form.brief }) })); });
   const cancel = () => run(async () => { setJob(await call<Job>('/api/v2/jobs/' + job!.id + '/cancel', { method: 'POST', body: '{}' })); });
   const addScreen = () => setPlan(p => {
     const used = new Set(p.map(s => s.id)); let id = 'new-screen', n = 2; while (used.has(id)) id = 'new-screen-' + n++;
@@ -100,6 +103,7 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
           <label>Company<input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} /></label>
           <label>Channel<select value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value as 'mobile' | 'portal' })}><option value="mobile">Mobile app</option><option value="portal">Staff portal</option></select></label></div>
         <label>Business requirements<textarea rows={12} value={form.brief} onChange={e => setForm({ ...form, brief: e.target.value })} placeholder={'Describe the app. Numbered screens are kept exactly, e.g.\n1. **Welcome:** brand, Sign In and Create Account\n2. **Sign In:** ...'} /></label>
+        <details className="gen-brand"><summary>Brand (optional): logo, colours, font</summary><BrandFields value={brand} onChange={setBrand} /></details>
         <p className="gen-note">Step 1 drafts a plan you can edit (about a cent). Nothing is generated until you approve it.</p>
         <button type="button" className="gen-primary" disabled={busy || !access || form.brief.trim().length < 15} onClick={start}>{busy ? 'Starting…' : 'Draft plan'}</button>
         {recent?.length ? <div className="gen-recent"><p className="studio-label">Recent generations</p><ul>{recent.map(j => <li key={j.id}>
