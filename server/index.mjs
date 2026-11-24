@@ -1,6 +1,6 @@
 import {validComposed} from '../src/composed.mjs';
 import {normalizeGeneratedDemo,explainGeneratedDemo,generationFailure,MAX_GENERATED_SCREENS,MAX_GENERATED_ELEMENTS} from './generationContract.mjs';
-import {explicitScreenPlan,plannedScreenGroups,mergePlannedScreens,plannedBatchInput} from './screenPlan.mjs';
+import {explicitScreenPlan,plannedScreenGroups,mergePlannedScreens,plannedBatchInput,plannedBatchPayload} from './screenPlan.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -132,10 +132,10 @@ async function generatePlannedDefinition(project,requirement,plan,channel){
   for(let attempt=0;attempt<2;attempt++){
    const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),90000);
    try{
-    const request={projectName:meta.name,company:project.company,channel,designGuidelines:project.guidelines,
-     originalRequirement:requirement,fullScreenList:listing,batchToCreate:group,strictScreenCount:group.length,
-     previousAttemptFailed:attempt>0?'Return exactly the requested screens and conform to schema; no extras.':undefined};
-    const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,
+    const request=plannedBatchPayload(requirement,plan,group,{name:meta.name,company:project.company,channel,designGuidelines:project.guidelines});
+    if(attempt>0)request.retryGuidance='Previous output was rejected. Return exactly these screen IDs and valid JSON; do not create extra screens.';
+    console.info('Submitting scoped screen batch',{index,screenIds:group.map(x=>x.id),requirementsLength:request.screensToGenerate.reduce((n,x)=>n+x.requirements.length,0)});
+        const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,
      headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},
      body:JSON.stringify({model,instructions,input:plannedBatchInput(request),text:{format:{type:'json_object'}},max_output_tokens:6500,store:false})});
     if(!response.ok){
