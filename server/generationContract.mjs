@@ -68,13 +68,14 @@ function normalizeActions(e){
   return x;
  });
 }
-function normalizeHero(e){
+function normalizeHero(e,screen){
  if(typeof e.title!=='string'&&typeof e.heading==='string')e.title=e.heading;
  if(typeof e.title!=='string'&&typeof e.label==='string')e.title=e.label;
  if(typeof e.description!=='string'&&typeof e.subtitle==='string')e.description=e.subtitle;
  if(typeof e.description!=='string'&&typeof e.text==='string')e.description=e.text;
  if(typeof e.description!=='string'&&typeof e.body==='string')e.description=e.body;
- if(e.description===undefined)e.description='';
+ if(typeof e.title!=='string'||!e.title.trim())e.title=String(screen?.title||'Welcome');
+ if(typeof e.description!=='string'||!e.description.trim())e.description=String(screen?.subtitle||screen?.title||'Continue your journey');
 }
 function normalizeStandaloneItems(screen){
  const original=screen.elements;
@@ -113,7 +114,7 @@ export function normalizeGeneratedDemo(input){
    let e=s.elements[index];
    if(!object(e))continue;
    if(e.kind==='card'){s.elements[index]=normalizeCard(e);e=s.elements[index];}
-   if(e.kind==='hero')normalizeHero(e);
+   if(e.kind==='hero')normalizeHero(e,s);
    if(e.kind==='actions')normalizeActions(e);
    if(e.kind==='form')normalizeForm(e);
    if(e.kind==='composed')normalizeComposed(e);
