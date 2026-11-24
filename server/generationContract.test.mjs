@@ -85,3 +85,45 @@ test('Generation validation failures never become repeated choice questions',()=
  assert.match(structure.message,/invalid application structure/);
  assert.equal(structure.question,undefined);
 });
+
+test('Compiler converts top-level AI cards into supported composed cards without removing content',()=>{
+ const d=structuredClone(generated);
+ d.screens[0].elements.push({id:'income-card',kind:'card',title:'Monthly Income',description:'AED 28,000'});
+ const normalized=normalizeGeneratedDemo(d);
+ const card=normalized.screens[0].elements.at(-1);
+ assert.equal(card.kind,'composed');
+ assert.equal(card.title,'Monthly Income');
+ assert.equal(card.items[0].kind,'card');
+ assert.equal(card.items[0].text,'AED 28,000');
+ assert.deepEqual(explainGeneratedDemo(normalized,'portal'),[]);
+ assert.equal(d.screens[0].elements.at(-1).kind,'card');
+});
+test('Compiler translates typed form drift and composed progress/select values but keeps invalid routes rejected',()=>{
+ const d=structuredClone(generated);
+ const form=d.screens[1].elements[0];
+ form.fields.push({id:'telephone',label:'Mobile Number',type:'tel'},{id:'document',label:'Income proof',type:'upload'},
+ {id:'employment',label:'Employment',type:'dropdown',options:[{label:'Salaried',value:'salaried'},{label:'Self-employed',value:'self'}]});
+ d.screens[0].elements.push({id:'custom',kind:'composed',title:'Verification',items:[
+  {id:'progress',kind:'progress',label:'Progress',value:'30'},
+  {id:'status',kind:'select',label:'Document Type',options:[{label:'Emirates ID',value:'eid'}]}
+ ]});
+ const norm=normalizeGeneratedDemo(d);
+ assert.equal(norm.screens[1].elements[0].fields[1].type,'text');
+ assert.equal(norm.screens[1].elements[0].fields[2].type,'file');
+ assert.deepEqual(norm.screens[1].elements[0].fields[3].options,['Salaried','Self-employed']);
+ assert.equal(norm.screens[0].elements.at(-1).items[0].value,30);
+ assert.deepEqual(explainGeneratedDemo(norm,'portal'),[]);
+ assert.equal(d.screens[1].elements[0].fields[1].type,'tel');
+ norm.screens[1].elements[0].nextScreen='missing';
+ assert.ok(explainGeneratedDemo(norm,'portal').some(x=>x.includes('unknown destination')));
+});
+test('Compiler diagnoses missing form fields explicitly and does not invent consent or navigation',()=>{
+ const d=structuredClone(generated);
+ const form=d.screens[1].elements[0];
+ delete form.fields[0].label;
+ form.actionLabel='';
+ const errors=explainGeneratedDemo(normalizeGeneratedDemo(d),'portal');
+ assert.ok(errors.some(e=>e.includes('.fields[0]')));
+ assert.ok(errors.some(e=>e.includes('.actionLabel')));
+ assert.equal(form.actionLabel,'');
+});
