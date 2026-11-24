@@ -1,6 +1,6 @@
 import {validComposed} from '../src/composed.mjs';
 import {normalizeGeneratedDemo,explainGeneratedDemo,generationFailure,MAX_GENERATED_SCREENS,MAX_GENERATED_ELEMENTS} from './generationContract.mjs';
-import {explicitScreenPlan,plannedScreenGroups,mergePlannedScreens} from './screenPlan.mjs';
+import {explicitScreenPlan,plannedScreenGroups,mergePlannedScreens,plannedBatchInput} from './screenPlan.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -137,8 +137,17 @@ async function generatePlannedDefinition(project,requirement,plan,channel){
      previousAttemptFailed:attempt>0?'Return exactly the requested screens and conform to schema; no extras.':undefined};
     const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,
      headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},
-     body:JSON.stringify({model,instructions,input:JSON.stringify(request),text:{format:{type:'json_object'}},max_output_tokens:6500,store:false})});
-    if(!response.ok){console.error('Planned batch generation API failure',{index,status:response.status});continue;}
+     body:JSON.stringify({model,instructions,input:plannedBatchInput(request),text:{format:{type:'json_object'}},max_output_tokens:6500,store:false})});
+    if(!response.ok){
+     const failure=await response.json().catch(()=>({}));
+     const apiError=failure?.error||{};
+     const code=String(apiError.code||'unknown');
+     const param=String(apiError.param||'none');
+     const detail=String(apiError.message||'').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,400);
+     console.error('Planned batch generation API failure',{index,attempt,status:response.status,code,param,type:String(apiError.type||'unknown'),message:detail});
+     if(response.status===400||response.status===401||response.status===403)return null; // retrying identical invalid requests will not help
+     continue;
+    }
     const raw=await response.json();
     const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
     const data=JSON.parse(output);
@@ -153,7 +162,7 @@ async function generatePlannedDefinition(project,requirement,plan,channel){
   return null;
  };
  const generated=await Promise.all(groups.map(produce));
- if(generated.some(x=>!x))return{generationFailed:true,errorCode:'BATCH_GENERATION_FAILED',reason:'One of the requested screen groups could not be generated. The original 12-screen requirement is saved; no incomplete demo was published.'};
+ if(generated.some(x=>!x))return{generationFailed:true,errorCode:'BATCH_GENERATION_FAILED',reason:'A requested screen group could not be generated. Your original requirements are saved and no incomplete demo was published. Check backend API logs for the precise error.'};
  let definition=normalizeGeneratedDemo(mergePlannedScreens(plan,generated,meta));
  let repaired=false;
  if(!validDemo(definition,channel)){
