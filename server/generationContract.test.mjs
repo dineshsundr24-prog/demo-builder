@@ -45,7 +45,7 @@ test('Portal generation does not silently remove unsupported data, controls or s
  broken.screens[1].elements[0].fields[0].type='custom-lookup';
  const fixed=normalizeGeneratedDemo(broken);
  assert.equal(fixed.screens[1].elements[0].fields[0].type,'custom-lookup');
- assert.ok(explainGeneratedDemo(fixed,'portal').some(e=>e.includes('invalid form')));
+ assert.ok(explainGeneratedDemo(fixed,'portal').some(e=>e.includes('.fields[0]')&&e.includes('invalid field')));
 });
 
 test('Unresolved review form issues become actionable business clarification rather than schema jargon',()=>{
