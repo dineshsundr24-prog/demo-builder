@@ -93,7 +93,17 @@ function App(){
  const showBackButton=screenChrome.showBackButton;
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch{setToast('Browser storage is unavailable. Export your definition before leaving.');}},[state]);
  useEffect(()=>{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'});},[project.messages.length,project.id]);
- useEffect(()=>{const controller=new AbortController();fetch(API+'/api/status',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject(Error('unavailable'))).then(v=>{setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));}).catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});return()=>controller.abort();},[]);
+ useEffect(()=>{
+  const controller=new AbortController();
+  const check=()=>{if(controller.signal.aborted||document.visibilityState==='hidden')return;
+   fetch(API+'/api/status',{signal:controller.signal,cache:'no-store'})
+   .then(r=>r.ok?r.json():Promise.reject(Error('unavailable')))
+   .then(v=>{if(controller.signal.aborted)return;setAiReady(Boolean(v.ready));setAiOnline(true);setAiModel(String(v.model||''));})
+   .catch(()=>{if(!controller.signal.aborted){setAiOnline(false);setAiReady(false);}});
+  };
+  check();document.addEventListener('visibilitychange',check);
+  return()=>{controller.abort();document.removeEventListener('visibilitychange',check);};
+ },[]);
  function updateProject(change:Partial<Project>){setState(s=>({...s,projects:s.projects.map(p=>p.id===s.activeId?{...p,...change}:p)}));}
  function switchProject(id:string){setState(s=>({...s,activeId:id}));setScreenId('');setComposer('');setErrors({});setSearch('');setSelected(null);setSelectMode(true);setPending(null);setAmbiguity(null);setGenerationQuestion(null);setRefinementQuestion(null);}
  function resetAllProjects(){
@@ -115,11 +125,17 @@ function App(){
  function createProject(){const name=createName.trim();if(!name){setToast('Enter a project name.');return;}const p:Project={id:makeId(),name,company:createCompany.trim(),channel:createChannel,guidelines:'',requirement:'',files:[],demo:null,messages:[]};setState(s=>({projects:[...s.projects,p],activeId:p.id}));setScreenId('');setCreateOpen(false);setCreateName('');setCreateCompany('');setComposer('');}
  async function generateFor(projectSnapshot:Project,brief:string){
   if(aiBusy)return;
-  if(!aiReady){setToast('AI server is not configured yet. Add the OpenAI API key on Render.');return;}
   if(!accessToken){setAccessModal(true);setToast('Enter the Demo Builder access token to enable generation.');return;}
   setAiBusy(true);
   const target=projectSnapshot.id;
   try{
+    // The backend may be asleep when the page initially mounts. Never rely on
+    // a cached one-time status result to decide whether generation is possible.
+    const statusResponse=await fetch(API+'/api/status',{cache:'no-store'});
+    if(!statusResponse.ok)throw Error('AI server is temporarily unavailable. Your requirement is saved; please try Generate demo again.');
+    const status=await statusResponse.json();
+    setAiOnline(true);setAiReady(Boolean(status.ready));setAiModel(String(status.model||''));
+    if(!status.ready)throw Error('AI backend is online but its generation configuration is incomplete. Check the backend environment settings.');
     const result=await fetch(API+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},requirement:[brief,...(projectSnapshot.generationClarifications||[]).map(x=>'Clarification from product owner: '+x)].join('\n\n')})});
     const data=await result.json();
     if(!result.ok)throw Error(String(data.error||'Generation failed.'));
@@ -358,8 +374,7 @@ function App(){
   }else{
     const brief=[snapshot.requirement,text].filter(Boolean).join('\n\n');
     setState(p=>({...p,projects:p.projects.map(x=>x.id===snapshot.id?{...x,requirement:brief,messages:[...x.messages,msg]}:x)}));
-    if(aiReady&&accessToken){void generateFor(snapshot,brief);}
-    else if(!aiReady){setToast('Requirement saved. Configure AI backend before generating.');}
+    if(accessToken){void generateFor(snapshot,brief);}
     else{setAccessModal(true);setToast('Requirement saved. Connect AI to generate your demo.');}
   }
 }
