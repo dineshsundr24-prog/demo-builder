@@ -35,7 +35,7 @@ test('Non-numbered requirements continue through ordinary generation path',()=>{
 });
 
 test('AI batch request contains exact screens, screen-specific requirements, shared business context and explicit JSON task',()=>{
- const requirement='## Global guidelines\\nUse navy, teal and fictional UAE bank data.\\n\\n'+sections.map((title,i)=>'### Screen '+(i+1)+' – '+title+'\\nField for '+title+': special-detail-'+(i+1)+'\\n').join('\\n');
+ const requirement='## Global guidelines\nUse navy, teal and fictional UAE bank data.\n\n'+sections.map((title,i)=>'### Screen '+(i+1)+' – '+title+'\nField for '+title+': special-detail-'+(i+1)+'\n').join('\n');
  const plan=explicitScreenPlan(requirement);
  assert.equal(plan.length,12);
  const group=plannedScreenGroups(plan)[2];
