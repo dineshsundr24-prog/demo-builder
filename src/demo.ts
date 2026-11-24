@@ -7,9 +7,13 @@ import {validReportTools} from '../server/reportTools.mjs';
 import {validNavigationLinks} from './portalMenuLinks.mjs';
 // @ts-ignore Shared style contract validates serialized visual properties.
 import {validAppearance} from './visualStyle.mjs';
+// @ts-ignore Row action validator shared with the UI and server.
+import {validTableRowAction} from './tableRowActions.mjs';
 // @ts-ignore Shared mobile navigation validator.
 import {validMobileNavigation} from './mobileComponents.mjs';
 export type VisualAppearance={backgroundColor?:string;textColor?:string;textAlign?:'left'|'center'|'right';padding?:number;borderRadius?:number;alignment?:'left'|'center'|'right'};
+export type RowSelection={destinationId:string;sourceScreenId:string;columns:{id:string;label:string}[];row:Record<string,string>};
+export type TableRowAction={type:'navigate';label:string;screenId:string;passRow?:boolean};
 export type Field = {id:string;label:string;type:'text'|'email'|'password'|'number'|'select'|'date'|'checkbox'|'file';placeholder?:string;required?:boolean;options?:string[]};
 export type Element = (
   | {id:string;kind:'hero';eyebrow?:string;title:string;description:string}
@@ -21,10 +25,10 @@ export type Element = (
     inputType?:'text'|'email'|'number'|'date'|'password';value?:number;
     visibleWhen?:{field:string;equals:string};
     columns?:{id:string;label:string}[];rows?:Record<string,string>[];
-    filterField?:string;filterColumn?:string;filterFields?:{field:string;column:string}[];
+    filterField?:string;filterColumn?:string;filterFields?:{field:string;column:string}[];rowAction?:TableRowAction;
     actions?:{type:'navigate'|'set'|'toggle'|'increment'|'reset'|'show'|'hide'|'download-csv'|'notice';target?:string;value?:string;amount?:number;screen?:string;message?:string}[];
   }[]}
-  | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
+  | {id:string;kind:'table';title:string;subtitle?:string;columns:{id:string;label:string}[];rows:Record<string,string>[];detailScreen?:string;rowAction?:TableRowAction;tools?:{search?:boolean;filter?:boolean;download?:boolean;filterColumn?:string}}
   | {id:string;kind:'notice';tone:'info'|'success';title:string;body:string}
   | {id:string;kind:'navigation';variant:'footer'|'menu';placement?:'header-left'|'header-right'|'bottom'|'body';title:string;links:{id:string;label:string;screenId?:string}[]}
   | {id:string;kind:'actions';buttons:{id:string;label:string;variant?:'primary'|'secondary';nextScreen?:string;appearance?:VisualAppearance}[]}) & {appearance?:VisualAppearance};
@@ -77,6 +81,6 @@ export function validateDemo(value:unknown):value is DemoDefinition {
  if(!validNavigationLinks(d))return false;
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(!ids.has(s.parentScreenId)||s.parentScreenId===s.id||d.screens!.find(parent=>parent.id===s.parentScreenId)?.parentScreenId)))return false;
-  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox','file'].includes(f.type)))?false:(e.kind==='table'&&!validReportTools(e.tools,e.columns))?false:(e.kind==='navigation'&&(d.channel!=='mobile'||!validMobileNavigation(e,d.screens!.map(x=>x.id))))?false:true));
+  return d.screens.every(s=>s.elements.every(e=>(e.kind==='composed'&&!validComposed(e,d.screens!.map(s=>s.id)))?false:(e.kind==='form'&&!e.fields.every(f=>!!f.id&&!!f.label&&['text','email','password','number','select','date','checkbox','file'].includes(f.type)))?false:(e.kind==='table'&&(!validReportTools(e.tools,e.columns)||!validTableRowAction(e.rowAction,d.screens!.map(x=>x.id))))?false:(e.kind==='navigation'&&(d.channel!=='mobile'||!validMobileNavigation(e,d.screens!.map(x=>x.id))))?false:true));
 }
 export function cloneDemo(d:DemoDefinition):DemoDefinition{return JSON.parse(JSON.stringify(d)) as DemoDefinition;}
