@@ -1,0 +1,62 @@
+{
+ "schemaVersion": 2, "id": "kapiko-staff-portal", "name": "Kapiko Staff Portal", "channel": "portal",
+ "theme": { "primary": "#17365D", "secondary": "#0E9389", "accent": "#F58220", "radius": "md", "font": "inter" },
+ "shell": { "kind": "sidebar", "brand": "Kapiko Operations", "showBack": true, "items": [
+  { "id": "nav-dashboard", "label": "Dashboard", "icon": "layout-dashboard", "screen": "dashboard" },
+  { "id": "nav-applications", "label": "Applications", "icon": "folder", "screen": "applications", "children": [
+   { "id": "nav-completed", "label": "Completed", "icon": "check", "screen": "completed" } ] },
+  { "id": "nav-reports", "label": "Reports", "icon": "bar-chart", "screen": "reports" } ] },
+ "collections": [
+  { "id": "applications", "label": "Applications", "key": "ref",
+    "fields": [ { "id": "ref", "label": "Application" }, { "id": "customer", "label": "Customer" }, { "id": "product", "label": "Product" },
+      { "id": "amount", "label": "Amount (AED)" }, { "id": "emirate", "label": "Emirate" }, { "id": "status", "label": "Status" }, { "id": "submitted", "label": "Submitted" } ],
+    "rows": [
+      { "ref": "APP-20481", "customer": "Ahmed Al Hammadi", "product": "Home Finance", "amount": "750000", "emirate": "Dubai", "status": "Pending maker", "submitted": "2026-11-20" },
+      { "ref": "APP-20482", "customer": "Mariam Al Suwaidi", "product": "Personal Finance", "amount": "85000", "emirate": "Abu Dhabi", "status": "Pending maker", "submitted": "2026-11-21" },
+      { "ref": "APP-20483", "customer": "Omar Khalid", "product": "Auto Finance", "amount": "120000", "emirate": "Sharjah", "status": "Pending checker", "submitted": "2026-11-21" },
+      { "ref": "APP-20470", "customer": "Fatima Hassan", "product": "Home Finance", "amount": "980000", "emirate": "Dubai", "status": "Approved", "submitted": "2026-11-12" } ] }
+ ],
+ "screens": [
+  { "id": "dashboard", "title": "Dashboard", "subtitle": "Onboarding pipeline today", "shell": "default", "children": [
+   { "type": "Grid", "id": "kpis", "columns": "4", "gap": "md", "children": [
+    { "type": "Stat", "id": "kpi-open", "label": "Open applications", "value": "1,284", "delta": "+12.8%" },
+    { "type": "Stat", "id": "kpi-maker", "label": "Pending maker", "value": "38" },
+    { "type": "Stat", "id": "kpi-checker", "label": "Pending checker", "value": "14" },
+    { "type": "Stat", "id": "kpi-approved", "label": "Approved this month", "value": "426", "delta": "+6.4%" } ] },
+   { "type": "Table", "id": "recent", "collection": "applications", "title": "Recent applications", "searchable": false,
+     "columns": [ { "field": "ref", "label": "Application" }, { "field": "customer", "label": "Customer" }, { "field": "status", "label": "Status" } ],
+     "rowAction": { "label": "View", "screen": "application-details" } } ] },
+  { "id": "applications", "title": "Customer Applications", "subtitle": "Search, filter and review", "shell": "default", "children": [
+   { "type": "Table", "id": "all", "collection": "applications", "searchable": true, "filterField": "status", "exportCsv": true,
+     "columns": [ { "field": "ref", "label": "Application" }, { "field": "customer", "label": "Customer" }, { "field": "product", "label": "Product" },
+       { "field": "amount", "label": "Amount (AED)" }, { "field": "status", "label": "Status" } ],
+     "rowAction": { "label": "View", "screen": "application-details" } } ] },
+  { "id": "application-details", "title": "Application Details", "subtitle": "{{record.ref}} · {{record.customer}}", "shell": "default", "children": [
+   { "type": "Grid", "id": "detail-grid", "columns": "2", "gap": "md", "children": [
+    { "type": "Card", "id": "applicant", "title": "Applicant", "children": [
+     { "type": "RecordFields", "id": "applicant-fields", "items": [
+      { "label": "Customer", "value": "{{record.customer}}" }, { "label": "Emirate", "value": "{{record.emirate}}" }, { "label": "Submitted", "value": "{{record.submitted | date}}" } ] } ] },
+    { "type": "Card", "id": "request", "title": "Request", "children": [
+     { "type": "RecordFields", "id": "request-fields", "items": [
+      { "label": "Product", "value": "{{record.product}}" }, { "label": "Amount", "value": "{{record.amount | aed}}" }, { "label": "Status", "value": "{{record.status}}" } ] } ] } ] },
+   { "type": "Stack", "id": "detail-actions", "direction": "horizontal", "gap": "sm", "children": [
+    { "type": "Button", "id": "to-maker", "label": "Start maker review", "variant": "primary", "actions": [ { "type": "navigate", "screen": "maker-review", "passRecord": true } ] },
+    { "type": "Button", "id": "to-checker", "label": "Checker decision", "variant": "secondary", "actions": [ { "type": "navigate", "screen": "checker-approval", "passRecord": true } ] } ] } ] },
+  { "id": "maker-review", "title": "Maker Review", "subtitle": "{{record.ref}} · {{record.customer}}", "shell": "default", "children": [
+   { "type": "RecordFields", "id": "maker-summary", "items": [ { "label": "Amount", "value": "{{record.amount | aed}}" }, { "label": "Current status", "value": "{{record.status}}" } ] },
+   { "type": "Template", "id": "maker", "template": "maker-review", "next": "applications" } ] },
+  { "id": "checker-approval", "title": "Checker Approval", "subtitle": "{{record.ref}} · {{record.customer}}", "shell": "default", "children": [
+   { "type": "RecordFields", "id": "checker-summary", "items": [ { "label": "Maker recommendation", "value": "{{state.review.makerDecision}}" }, { "label": "Maker comments", "value": "{{state.review.makerComment}}" }, { "label": "Status", "value": "{{record.status}}" } ] },
+   { "type": "Template", "id": "checker", "template": "checker-approval", "next": "completed" } ] },
+  { "id": "completed", "title": "Completed", "subtitle": "Decisions recorded in this session", "shell": "default", "children": [
+   { "type": "Table", "id": "done", "collection": "applications", "searchable": true, "filterField": "status",
+     "columns": [ { "field": "ref", "label": "Application" }, { "field": "customer", "label": "Customer" }, { "field": "status", "label": "Status" } ],
+     "rowAction": { "label": "View", "screen": "application-details" } } ] },
+  { "id": "reports", "title": "Reports", "subtitle": "Fictional monthly figures", "shell": "default", "children": [
+   { "type": "Grid", "id": "report-kpis", "columns": "3", "gap": "md", "children": [
+    { "type": "Stat", "id": "r-tat", "label": "Average turnaround", "value": "2.4 days" },
+    { "type": "Stat", "id": "r-approval", "label": "Approval rate", "value": "71%" },
+    { "type": "Stat", "id": "r-volume", "label": "Finance volume", "value": "AED 412M" } ] },
+   { "type": "Notice", "id": "r-note", "tone": "info", "title": "Demo data", "body": "All figures are fictional." } ] }
+ ]
+}

@@ -1,0 +1,676 @@
+{
+ "schemaVersion": 2,
+ "id": "kapiko-mobile",
+ "name": "Kapiko Bank Mobile",
+ "channel": "mobile",
+ "theme": {
+  "primary": "#17365D",
+  "secondary": "#0E9389",
+  "accent": "#F58220",
+  "radius": "lg",
+  "font": "inter"
+ },
+ "shell": {
+  "kind": "tabs",
+  "items": [
+   {
+    "id": "tab-home",
+    "label": "Home",
+    "icon": "home",
+    "screen": "dashboard"
+   },
+   {
+    "id": "tab-requests",
+    "label": "Requests",
+    "icon": "list",
+    "screen": "my-service-requests"
+   },
+   {
+    "id": "tab-profile",
+    "label": "Profile",
+    "icon": "user",
+    "screen": "customer-profile"
+   }
+  ],
+  "brand": "Kapiko Bank",
+  "showBack": true
+ },
+ "collections": [
+  {
+   "id": "service-requests",
+   "label": "Service requests",
+   "fields": [
+    {
+     "id": "ref",
+     "label": "Reference"
+    },
+    {
+     "id": "type",
+     "label": "Type"
+    },
+    {
+     "id": "status",
+     "label": "Status"
+    },
+    {
+     "id": "date",
+     "label": "Submitted"
+    }
+   ],
+   "rows": [
+    {
+     "ref": "KPK-INC-2026-00125",
+     "type": "Income update",
+     "status": "In review",
+     "date": "24 Nov 2026"
+    },
+    {
+     "ref": "KPK-CRD-2026-00087",
+     "type": "Card replacement",
+     "status": "Completed",
+     "date": "02 Nov 2026"
+    }
+   ],
+   "key": "ref"
+  }
+ ],
+ "screens": [
+  {
+   "id": "welcome",
+   "title": "Welcome",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Image",
+     "id": "logo",
+     "kind": "logo",
+     "alt": "Kapiko Bank logo"
+    },
+    {
+     "type": "Heading",
+     "id": "headline",
+     "text": "Banking that moves with you",
+     "level": "1"
+    },
+    {
+     "type": "Text",
+     "id": "intro",
+     "text": "Open an account in minutes and manage everything from your phone."
+    },
+    {
+     "type": "Button",
+     "id": "sign-in",
+     "label": "Sign in",
+     "variant": "primary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "sign-in"
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "create",
+     "label": "Create account",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "sign-up"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sign-in",
+   "title": "Sign In",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Form",
+     "id": "login",
+     "children": [
+      {
+       "type": "Input",
+       "id": "user",
+       "field": "login.user",
+       "label": "Mobile or email",
+       "inputType": "text",
+       "required": true
+      },
+      {
+       "type": "Input",
+       "id": "password",
+       "field": "login.password",
+       "label": "Password",
+       "inputType": "password",
+       "required": true
+      },
+      {
+       "type": "Button",
+       "id": "login-submit",
+       "label": "Sign in",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "validate": true
+        },
+        {
+         "type": "navigate",
+         "screen": "dashboard"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "forgot",
+     "label": "Forgot password?",
+     "variant": "link",
+     "actions": [
+      {
+       "type": "toast",
+       "message": "Demo: a reset link would be sent."
+      }
+     ]
+    },
+    {
+     "type": "Template",
+     "id": "uaepass",
+     "template": "uaepass-login",
+     "next": "dashboard"
+    },
+    {
+     "type": "Button",
+     "id": "to-signup",
+     "label": "New to Kapiko? Create account",
+     "variant": "link",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "sign-up"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sign-up",
+   "title": "Sign Up",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Form",
+     "id": "register",
+     "children": [
+      {
+       "type": "Input",
+       "id": "name",
+       "field": "customer.name",
+       "label": "Full name",
+       "inputType": "text",
+       "required": true
+      },
+      {
+       "type": "Input",
+       "id": "mobile",
+       "field": "customer.mobile",
+       "label": "UAE mobile",
+       "inputType": "phone",
+       "required": true,
+       "placeholder": "+971 50 000 0000"
+      },
+      {
+       "type": "Input",
+       "id": "email",
+       "field": "customer.email",
+       "label": "Email",
+       "inputType": "email",
+       "required": true
+      },
+      {
+       "type": "Input",
+       "id": "pw",
+       "field": "customer.password",
+       "label": "Password",
+       "inputType": "password",
+       "required": true
+      },
+      {
+       "type": "Checkbox",
+       "id": "terms",
+       "field": "customer.terms",
+       "label": "I accept the terms and conditions",
+       "required": true
+      },
+      {
+       "type": "Button",
+       "id": "register-submit",
+       "label": "Continue",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "validate": true
+        },
+        {
+         "type": "navigate",
+         "screen": "mobile-otp-verification"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "mobile-otp-verification",
+   "title": "Mobile OTP Verification",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Text",
+     "id": "sent",
+     "text": "We sent a 6-digit code to {{state.customer.mobile}} (simulated, no SMS is sent)."
+    },
+    {
+     "type": "Template",
+     "id": "otp",
+     "template": "otp-entry",
+     "next": "ekyc-using-uae-pass"
+    }
+   ]
+  },
+  {
+   "id": "ekyc-using-uae-pass",
+   "title": "eKYC using UAE PASS",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Template",
+     "id": "ekyc",
+     "template": "uaepass-ekyc",
+     "next": "face-verification"
+    }
+   ]
+  },
+  {
+   "id": "face-verification",
+   "title": "Face Verification",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Template",
+     "id": "face",
+     "template": "face-verification",
+     "next": "dashboard"
+    }
+   ]
+  },
+  {
+   "id": "dashboard",
+   "title": "Dashboard",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Heading",
+     "id": "hello",
+     "text": "Good morning, Ahmed Al Hammadi",
+     "level": "2"
+    },
+    {
+     "type": "Card",
+     "id": "balance",
+     "tone": "brand",
+     "children": [
+      {
+       "type": "Stat",
+       "id": "bal",
+       "label": "Available balance",
+       "value": "AED 48,750.00",
+       "delta": "+2.1% this month"
+      }
+     ]
+    },
+    {
+     "type": "Stack",
+     "id": "quick",
+     "direction": "horizontal",
+     "gap": "sm",
+     "children": [
+      {
+       "type": "Button",
+       "id": "q-income",
+       "label": "Update income",
+       "variant": "secondary",
+       "actions": [
+        {
+         "type": "navigate",
+         "screen": "income-update"
+        }
+       ]
+      },
+      {
+       "type": "Button",
+       "id": "q-requests",
+       "label": "My requests",
+       "variant": "secondary",
+       "actions": [
+        {
+         "type": "navigate",
+         "screen": "my-service-requests"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Notice",
+     "id": "notif",
+     "tone": "info",
+     "title": "Your income update is in review",
+     "body": "Reference KPK-INC-2026-00125"
+    }
+   ]
+  },
+  {
+   "id": "income-update",
+   "title": "Income Update",
+   "shell": "default",
+   "children": [
+    {
+     "type": "RecordFields",
+     "id": "current",
+     "items": [
+      {
+       "label": "Current employer",
+       "value": "Gulf Logistics LLC"
+      },
+      {
+       "label": "Current monthly salary",
+       "value": "AED 18,500"
+      }
+     ]
+    },
+    {
+     "type": "Form",
+     "id": "income",
+     "children": [
+      {
+       "type": "Input",
+       "id": "salary",
+       "field": "income.salary",
+       "label": "New monthly salary (AED)",
+       "inputType": "currency",
+       "required": true
+      },
+      {
+       "type": "Input",
+       "id": "allowances",
+       "field": "income.allowances",
+       "label": "Allowances (AED)",
+       "inputType": "currency",
+       "required": false
+      },
+      {
+       "type": "Select",
+       "id": "status",
+       "field": "income.employment",
+       "label": "Employment status",
+       "options": [
+        "Employed",
+        "Self-employed",
+        "Retired"
+       ],
+       "required": true
+      },
+      {
+       "type": "Input",
+       "id": "effective",
+       "field": "income.effective",
+       "label": "Effective date",
+       "inputType": "date",
+       "required": true
+      },
+      {
+       "type": "Upload",
+       "id": "doc",
+       "field": "income.document",
+       "label": "Salary certificate",
+       "required": true
+      }
+     ]
+    },
+    {
+     "type": "Stack",
+     "id": "income-actions",
+     "direction": "horizontal",
+     "gap": "sm",
+     "children": [
+      {
+       "type": "Button",
+       "id": "save-draft",
+       "label": "Save draft",
+       "variant": "secondary",
+       "actions": [
+        {
+         "type": "toast",
+         "message": "Draft saved in this demo session."
+        }
+       ]
+      },
+      {
+       "type": "Button",
+       "id": "continue",
+       "label": "Continue",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "form": "income",
+         "validate": true
+        },
+        {
+         "type": "navigate",
+         "screen": "income-verification-review"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "cancel",
+     "label": "Cancel",
+     "variant": "link",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "dashboard"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "income-verification-review",
+   "title": "Income Verification & Review",
+   "shell": "default",
+   "children": [
+    {
+     "type": "RecordFields",
+     "id": "compare",
+     "items": [
+      {
+       "label": "Previous salary",
+       "value": "AED 18,500"
+      },
+      {
+       "label": "Updated salary",
+       "value": "AED {{state.income.salary}}"
+      },
+      {
+       "label": "Employment",
+       "value": "{{state.income.employment}}"
+      },
+      {
+       "label": "Effective date",
+       "value": "{{state.income.effective}}"
+      }
+     ]
+    },
+    {
+     "type": "Form",
+     "id": "confirm",
+     "children": [
+      {
+       "type": "Checkbox",
+       "id": "consent",
+       "field": "income.consent",
+       "label": "I confirm these details are accurate",
+       "required": true
+      },
+      {
+       "type": "Button",
+       "id": "confirm-submit",
+       "label": "Confirm and submit",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "validate": true
+        },
+        {
+         "type": "simulate",
+         "label": "Verifying income (simulated)",
+         "durationMs": 1500,
+         "outcome": "success"
+        },
+        {
+         "type": "navigate",
+         "screen": "income-update-confirmation"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "income-update-confirmation",
+   "title": "Income Update Confirmation",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Notice",
+     "id": "done",
+     "tone": "success",
+     "title": "Request submitted",
+     "body": "Reference KPK-INC-2026-00125 \u00b7 Status: In review"
+    },
+    {
+     "type": "Button",
+     "id": "view",
+     "label": "View request",
+     "variant": "primary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "my-service-requests"
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "home",
+     "label": "Return to dashboard",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "dashboard"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "my-service-requests",
+   "title": "My Service Requests",
+   "shell": "default",
+   "children": [
+    {
+     "type": "List",
+     "id": "requests",
+     "collection": "service-requests",
+     "titleField": "type",
+     "subtitleField": "ref",
+     "badgeField": "status"
+    },
+    {
+     "type": "Button",
+     "id": "new-income",
+     "label": "New income update",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "income-update"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "customer-profile",
+   "title": "Customer Profile",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Image",
+     "id": "avatar",
+     "kind": "avatar",
+     "alt": "Profile avatar placeholder"
+    },
+    {
+     "type": "RecordFields",
+     "id": "profile",
+     "items": [
+      {
+       "label": "Name",
+       "value": "Ahmed Al Hammadi"
+      },
+      {
+       "label": "Emirates ID",
+       "value": "784-XXXX-XXXXXXX-X (fictional)"
+      },
+      {
+       "label": "Mobile",
+       "value": "+971 50 123 4567"
+      },
+      {
+       "label": "Employer",
+       "value": "Gulf Logistics LLC"
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "edit",
+     "label": "Edit profile",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "toast",
+       "message": "Demo: profile editing is simulated."
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

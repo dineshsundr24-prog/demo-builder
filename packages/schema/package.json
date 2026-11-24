@@ -1,0 +1,9 @@
+{
+  "name": "@demo/schema",
+  "version": "2.0.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "node --test test/*.test.ts" },
+  "dependencies": { "zod": "4.6.7" }
+}
