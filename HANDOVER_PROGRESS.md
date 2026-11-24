@@ -1,48 +1,45 @@
 # HANDOVER_PROGRESS
 
 ## Current state
-- **Branch:** `v2/foundation`, created from `feat/standalone-foundation@05a82ee`. The deployed branch is untouched.
-- **Phase:** 0 (spikes and decisions). **Complete except for the live model check.**
-- **Owner decisions:** v2 rewrite approved · Supabase (DB, auth, storage) · no v1 hotfix · USD 50/month for AI and hosting combined.
+- **Branch:** `v2/foundation` (pushed). The deployed `feat/standalone-foundation` is untouched; v1 still builds and passes its 220 tests on this branch.
+- **Phase 0:** complete, including the live structured-output check.
+- **Phase 1 (schema and runtime):** **complete.** Exit gate passed.
+- **Owner decisions:** v2 rewrite · Supabase (DB, auth, storage) · no v1 hotfix · USD 50/month for AI and hosting combined.
 
-## Phase 0 outcome
-
-| Item | Result | Evidence |
-|---|---|---|
-| Single registry → validator + strict AI schema | ✅ | `spikes/v2-schema`: `node --test src/*.test.ts` gives **7/7**. The synthetic 12-screen Kapiko doc is valid, 40 screens are valid, every v1 failure shape is rejected with an exact path. |
-| Strict schema form | ✅ Recursive | ~3.2k tokens, strict-lint clean. The unrolled form is 10× larger and exceeds the 1,000-enum limit, so it is rejected. `node src/report.ts` |
-| Editor library | ✅ Puck 0.24.0 (fallback: dnd-kit) | `spikes/editor-puck/e2e.cjs` in Chromium: nested select and edit, drag into a nested slot, undo, phone viewport, no page errors. Lossless v2 ↔ Puck conversion on all 12 screens. |
-| Supabase schema with RLS | ✅ Draft | `docs/v2/SUPABASE_SCHEMA.sql` executed on PGlite (Postgres). Owner isolation works and spoofed inserts are blocked. |
-| Live structured-output check | ✅ | 24 Nov 2026, one request, `gpt-4.1-mini-2025-04-14`, strict recursive schema accepted: HTTP 200, `completed`, 6.8 s, 2,034 input / 535 output tokens, 21 components. One semantic issue caught with exact path (`submit` on a button outside its Form; see Phase 1 change below). Output kept as `spikes/v2-schema/fixtures/live.income-update.json` (fictional data). |
-| Decision records | ✅ | `docs/v2/DECISIONS.md` (D1–D10) |
-
-## Repository findings this phase
-- v1 has no `.gitignore` and no lockfile, so Render installs unpinned versions on every build. A `.gitignore` is added on this branch.
-
-## Live check notes
-- Runs in the `demo-builder` cloud environment (only `api.openai.com` allowed; key stored as a network secret, never in code or env vars).
-- Node's built-in fetch needs `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt OPENAI_API_KEY=proxy-injected` there.
-- Contract change for Phase 1: forms commonly have several buttons (Save draft / Continue / Cancel) outside the field group, so `submit` gets an optional `form` reference instead of being an error.
-
-## How to run the live check yourself (~1 cent)
-Run from `spikes/v2-schema` on a machine with the OpenAI key in the environment:
-
+## Run everything
 ```bash
 npm install
-OPENAI_MODEL=gpt-4.1-mini node src/live-check.ts
+npm run v2:check   # type checks + 21 unit/contract tests + 9 Playwright journeys
+npm test           # v1 suite (unchanged)
+npm run dev -w @demo/studio   # preview at http://localhost:5173
 ```
 
-Pass criteria:
-- `httpStatus` 200
-- `status` "completed"
-- `issues` contains no errors
+## Phase 1 deliverables
+| Package | What it is | Evidence |
+|---|---|---|
+| `packages/schema` | 25-component registry (single source of truth), document model (app shell, keyed collections, bindings), one validator with exact paths, strict AI screen schema, 7 deterministic journey templates, v1 to v2 migrator | 14 tests: both fixtures error-free; 60 screens validate; every v1/live failure shape rejected with path; template routes; v1 starters migrate with routes preserved |
+| `packages/runtime` | Framework-free engine (navigation, history, forms, record passing, maker/checker updates, simulated steps) plus one React renderer and shell (mobile app bar, tabs or drawer; portal sidebar with sub-items) | 7 engine tests: journey A, income flow, two rows open their own record, maker to checker updates only the selected row, back restores record, simulated failure stops the chain, CSV injection safety |
+| `apps/studio` | Preview harness: sample projects, v1/v2 JSON import (migrates v1), screen list with per-screen issue markers, live validation panel, phone (390x844) and portal device frames | Playwright, 9/9, no console errors: Kapiko journeys A and B, UAE PASS, income update to service requests, tabs; portal row details for two customers, maker to checker to Completed, search, filter, sidebar sub-navigation; v1 import that runs end to end |
 
-The output screen is saved to `fixtures/live.income-update.json` as the first real replay fixture.
+## Contract changes since Phase 0
+- `submit` may name a form (`{type:'submit', form:'income'}`), the layout gpt-4.1-mini produced in the live check.
+- Forms no longer carry a built-in submit button; buttons submit them.
+- Table columns take an optional `format` (`aed`, `date`, `status` pill).
 
-## Next: Phase 1 (schema and runtime), once Phase 0 is approved
-1. pnpm workspace (`packages/schema`, `packages/runtime`, `apps/studio`, `apps/api`) with committed lockfile and CI test gate.
-2. Promote the registry to the full ~25 components, generate the Puck config and TypeScript types, add theme tokens.
-3. Runtime renderer and action/data engine (bindings, navigate with record, simulate, updateRecord), with templates expanded deterministically.
-4. v1 → v2 migrator plus tests against v1 starters and exported demos.
+## Known limitations (planned)
+- No editor yet: Phase 3 integrates Puck on top of this runtime.
+- No AI generation in v2 yet: Phase 2 builds the job-based generator on `aiScreenSchema`.
+- Kapiko "View details" on service requests has no detail screen within the fixed 12 screens, so the list is display-only.
+- Theme fonts are referenced, not self-hosted, so offline or self-hosted fonts are a Phase 7 item.
 
-Exit gate: the Kapiko fixture renders and runs its journeys in the preview through the single renderer (Playwright).
+## Next: Phase 2 (generation engine)
+1. API service (Fastify) with a provider adapter, budget guard and usage logging.
+2. Planner: deterministic screen-list parser plus a structured plan call; editable plan review.
+3. Per-screen generation with the strict schema, validation, one targeted repair, marked fallback; bounded concurrency.
+4. Jobs persisted (Supabase), progress streaming, retry and single-screen regeneration.
+
+Exit gate: one controlled real Kapiko 12-screen run producing exactly 12 valid screens, plus a synthetic 30-screen plan, with cost and latency recorded.
+
+## Environment notes
+- Cloud environment `demo-builder`: only `api.openai.com` is added; the OpenAI key is a proxy-injected network secret.
+- Node fetch there needs `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt OPENAI_API_KEY=proxy-injected`.

@@ -94,11 +94,12 @@ Estimate per 12-screen generation (to be verified against current provider prici
 
 **Guards:** per-job and per-user-per-month token caps, maximum screens per job (soft, configurable, default 40), no automatic full regeneration, and usage rows in `usage_events`.
 
-## D10. Toolchain
-- TypeScript 5.7 is kept for now. TypeScript 7 is evaluated later and is not on the critical path.
-- Vitest for unit and contract tests, Playwright for end-to-end tests, Fastify 5 for the API, pnpm workspaces.
-- Lockfile committed. **v1 has no lockfile or `.gitignore`**, so Render builds were not reproducible.
-- All dependency versions are pinned exactly.
+## D10. Toolchain (as built in Phase 1)
+- **npm workspaces** (`packages/schema`, `packages/runtime`, `apps/studio`) instead of pnpm, so Render and local machines need no extra tooling. Root lockfile committed.
+- TypeScript 5.9.3 with `erasableSyntaxOnly`, so Node runs the `.ts` sources directly for tests (no build step). TypeScript 7 is not on the critical path.
+- **Node's built-in test runner** for unit and contract tests (no Vitest dependency). **Playwright 1.63** for browser end-to-end tests.
+- Fastify 5 for the API arrives in Phase 2.
+- All dependency versions pinned exactly. v1 had no lockfile or `.gitignore`; both now exist on this branch.
 
 ## Retained from v1 (ported, not rewritten blindly)
 - Pure edit-operation pattern (`visualEditor.mjs`), mobile slot semantics (`mobileLayout.mjs`), row-action semantics (`tableRowActions.mjs`).

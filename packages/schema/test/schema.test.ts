@@ -70,6 +70,7 @@ test('strict AI schema is lint-clean for both channels and stays small', () => {
     assert.deepEqual(lint.problems, [], doc.channel);
     assert.ok(lint.bytes < 25000, doc.channel + ' schema bytes ' + lint.bytes);
     assert.ok(JSON.stringify(schema).includes('"enum":["' + doc.screens[0].id + '"'));
+    assert.ok(JSON.stringify(schema).includes('"format":{"anyOf"') || JSON.stringify(schema).includes('"format":{"type"'), 'column format property survives strictify');
     const portalOnly = JSON.stringify(schema).includes('"maker-review"');
     assert.equal(portalOnly, doc.channel === 'portal', 'templates filtered by channel');
   }

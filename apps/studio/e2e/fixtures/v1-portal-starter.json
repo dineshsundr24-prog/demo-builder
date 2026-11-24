@@ -1,0 +1,238 @@
+{
+ "schemaVersion": 1,
+ "id": "banking-operations",
+ "name": "Banking Operations",
+ "description": "Customer onboarding and servicing workflow",
+ "channel": "portal",
+ "theme": "navy",
+ "screens": [
+  {
+   "id": "overview",
+   "title": "Overview",
+   "subtitle": "Operational visibility across your onboarding pipeline",
+   "elements": [
+    {
+     "id": "overview-hero",
+     "kind": "hero",
+     "eyebrow": "WORKSPACE OVERVIEW",
+     "title": "Good morning, Alex",
+     "description": "Here is what is happening across your applications today."
+    },
+    {
+     "id": "overview-stats",
+     "kind": "stats",
+     "items": [
+      {
+       "id": "active",
+       "label": "Active applications",
+       "value": "1,284",
+       "delta": "+12.8%"
+      },
+      {
+       "id": "pending",
+       "label": "Pending review",
+       "value": "38",
+       "delta": "8 priority"
+      },
+      {
+       "id": "approved",
+       "label": "Approved this month",
+       "value": "426",
+       "delta": "+6.4%"
+      }
+     ]
+    },
+    {
+     "id": "overview-table",
+     "kind": "table",
+     "title": "Recent applications",
+     "subtitle": "Track the status of your latest requests",
+     "columns": [
+      {
+       "id": "reference",
+       "label": "Application ID"
+      },
+      {
+       "id": "customer",
+       "label": "Customer"
+      },
+      {
+       "id": "product",
+       "label": "Product"
+      },
+      {
+       "id": "status",
+       "label": "Status"
+      }
+     ],
+     "rows": [
+      {
+       "reference": "APP-20481",
+       "customer": "Sarah Ahmed",
+       "product": "Home Finance",
+       "status": "In review"
+      },
+      {
+       "reference": "APP-20480",
+       "customer": "Omar Khalid",
+       "product": "Home Finance",
+       "status": "Approved"
+      },
+      {
+       "reference": "APP-20479",
+       "customer": "Maya Hassan",
+       "product": "Personal Finance",
+       "status": "Pending"
+      },
+      {
+       "reference": "APP-20478",
+       "customer": "Ali Mansoor",
+       "product": "Home Finance",
+       "status": "Approved"
+      }
+     ],
+     "detailScreen": "application"
+    }
+   ]
+  },
+  {
+   "id": "applications",
+   "title": "Applications",
+   "subtitle": "Search and review submitted customer applications",
+   "elements": [
+    {
+     "id": "application-list",
+     "kind": "table",
+     "title": "All applications",
+     "subtitle": "Select an application to review its details",
+     "columns": [
+      {
+       "id": "reference",
+       "label": "Application ID"
+      },
+      {
+       "id": "customer",
+       "label": "Customer name"
+      },
+      {
+       "id": "product",
+       "label": "Product"
+      },
+      {
+       "id": "status",
+       "label": "Status"
+      }
+     ],
+     "rows": [
+      {
+       "reference": "APP-20481",
+       "customer": "Sarah Ahmed",
+       "product": "Home Finance",
+       "status": "In review"
+      },
+      {
+       "reference": "APP-20480",
+       "customer": "Omar Khalid",
+       "product": "Home Finance",
+       "status": "Approved"
+      },
+      {
+       "reference": "APP-20479",
+       "customer": "Maya Hassan",
+       "product": "Personal Finance",
+       "status": "Pending"
+      },
+      {
+       "reference": "APP-20478",
+       "customer": "Ali Mansoor",
+       "product": "Home Finance",
+       "status": "Approved"
+      }
+     ],
+     "detailScreen": "application"
+    }
+   ]
+  },
+  {
+   "id": "application",
+   "title": "Application review",
+   "subtitle": "Review customer information and complete the assessment",
+   "elements": [
+    {
+     "id": "application-notice",
+     "kind": "notice",
+     "tone": "info",
+     "title": "Review required",
+     "body": "Verify the customer information before proceeding."
+    },
+    {
+     "id": "application-form",
+     "kind": "form",
+     "title": "Customer information",
+     "description": "Fields marked with an asterisk are required.",
+     "fields": [
+      {
+       "id": "applicant",
+       "label": "Customer name",
+       "type": "text",
+       "placeholder": "Sarah Ahmed",
+       "required": true
+      },
+      {
+       "id": "email",
+       "label": "Email address",
+       "type": "email",
+       "placeholder": "customer@example.com",
+       "required": true
+      },
+      {
+       "id": "loan",
+       "label": "Requested amount (AED)",
+       "type": "number",
+       "placeholder": "750000",
+       "required": true
+      },
+      {
+       "id": "decision",
+       "label": "Review decision",
+       "type": "select",
+       "options": [
+        "Approved",
+        "Request more information",
+        "Rejected"
+       ],
+       "required": true
+      }
+     ],
+     "actionLabel": "Submit review",
+     "nextScreen": "complete"
+    }
+   ]
+  },
+  {
+   "id": "complete",
+   "title": "Review complete",
+   "subtitle": "Application review has been recorded",
+   "elements": [
+    {
+     "id": "complete-success",
+     "kind": "notice",
+     "tone": "success",
+     "title": "Review submitted successfully",
+     "body": "Your changes were saved in this demo session."
+    },
+    {
+     "id": "complete-action",
+     "kind": "actions",
+     "buttons": [
+      {
+       "id": "back",
+       "label": "Return to applications",
+       "nextScreen": "applications"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

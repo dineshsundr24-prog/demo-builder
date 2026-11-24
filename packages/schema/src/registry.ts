@@ -83,7 +83,7 @@ define({ type: 'Button', label: 'Button', category: 'action', ai: 'Runs declarat
   props: z.object({ label: Bound(40), variant: z.enum(['primary', 'secondary', 'link', 'danger']), actions: Actions }),
   create: () => ({ label: 'Continue', variant: 'primary', actions: [] }) });
 // ---------- Data ----------
-const Column = z.object({ field: z.string().min(1).max(40), label: z.string().min(1).max(40) });
+const Column = z.object({ field: z.string().min(1).max(40), label: z.string().min(1).max(40), format: z.enum(['text', 'aed', 'date', 'status']).optional() });
 define({ type: 'Table', label: 'Table', category: 'data', ai: 'Rows from a data collection; rowAction opens a screen with the clicked record.',
   props: z.object({ collection: CollectionRef, title: z.string().max(80).optional(), columns: z.array(Column).min(1).max(8), searchable: z.boolean(),
     filterField: z.string().max(40).optional(), rowAction: z.object({ label: z.string().min(1).max(20), screen: ScreenRef }).optional(), exportCsv: z.boolean().optional() }),

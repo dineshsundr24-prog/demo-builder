@@ -56,7 +56,11 @@ export function lintStrict(schema: any) {
     }
     if (n.enum) enumValues += n.enum.length;
     for (const k of Object.keys(n)) if (UNSUPPORTED.has(k) || k === 'oneOf' || k === 'ref') problems.push(path + ': unsupported keyword ' + k);
-    for (const [k, v] of Object.entries(n)) visit(v, path + '.' + k);
+    for (const [k, v] of Object.entries(n)) {
+      // Keys of "properties"/"$defs" are names chosen by us, not JSON Schema keywords.
+      if ((k === 'properties' || k === '$defs') && v && typeof v === 'object') for (const [name, sub] of Object.entries(v)) visit(sub, path + '.' + k + '.' + name);
+      else visit(v, path + '.' + k);
+    }
   };
   visit(schema, '$');
   if (schema.type !== 'object' || schema.anyOf) problems.push('$: root must be a plain object');
