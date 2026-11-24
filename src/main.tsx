@@ -123,6 +123,13 @@ function App(){
     const result=await fetch(API+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json','x-builder-access':accessToken},body:JSON.stringify({project:{name:projectSnapshot.name,company:projectSnapshot.company,channel:projectSnapshot.channel,guidelines:projectSnapshot.guidelines},requirement:[brief,...(projectSnapshot.generationClarifications||[]).map(x=>'Clarification from product owner: '+x)].join('\n\n')})});
     const data=await result.json();
     if(!result.ok)throw Error(String(data.error||'Generation failed.'));
+    if(data.generationFailed){
+      setGenerationQuestion(null);
+      const message=String(data.reason||'Application generation failed validation. The original requirement is saved.');
+      setState(prev=>({...prev,projects:prev.projects.map(p=>p.id===target?{...p,messages:[...p.messages,{id:makeId(),role:'system',text:'Generation could not complete: '+message,date:new Date().toISOString()}]}:p)}));
+      setToast(message);
+      return;
+    }
     if(data.needsClarification&&typeof data.question==='string'){
       const suggestions=Array.isArray(data.suggestions)?data.suggestions.filter((x:unknown):x is string=>typeof x==='string').slice(0,3):[];
       setGenerationQuestion({projectId:target,question:data.question,reason:String(data.reason||''),suggestions});
