@@ -5,9 +5,39 @@ import {validComposed} from '../src/composed.mjs';
 export const MAX_GENERATED_SCREENS=12;
 export const MAX_GENERATED_ELEMENTS=48;
 const kinds=new Set(['hero','stats','form','table','notice','actions','composed']);
-const fields=new Set(['text','email','password','number','select','date','checkbox']);
+const fields=new Set(['text','email','password','number','select','date','checkbox','file']);
 function text(v,max=180){return typeof v==='string'&&v.trim().length>0&&v.length<=max;}
 function object(v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}
+// Compile harmless model representation drift into existing, fully supported
+// components. Never fabricate a navigation target, screen, consent or decision.
+const fieldAliases={tel:'text',phone:'text',mobile:'text',textarea:'text',string:'text',integer:'number',decimal:'number',dropdown:'select',combobox:'select',upload:'file',fileUpload:'file',boolean:'checkbox'};
+const safeScalar=v=>typeof v==='string'?v:typeof v==='number'&&Number.isFinite(v)||typeof v==='boolean'?String(v):undefined;
+function normalizeForm(e){
+ if(typeof e.title!=='string'&&typeof e.label==='string')e.title=e.label;
+ if(e.actionLabel===undefined&&typeof e.buttonLabel==='string')e.actionLabel=e.buttonLabel;
+ if(Array.isArray(e.fields))for(const f of e.fields){
+  if(!object(f))continue;
+  if(fieldAliases[f.type])f.type=fieldAliases[f.type];
+  if(f.type==='select'&&Array.isArray(f.options))f.options=f.options.map(o=>typeof o==='string'?o:object(o)&&typeof o.label==='string'?o.label:o);
+ }
+}
+function normalizeComposed(e){
+ if(!Array.isArray(e.items))return;
+ for(const x of e.items){
+  if(!object(x))continue;
+  if(x.kind==='progress'&&typeof x.value==='string'&&x.value.trim()!==''&&Number.isFinite(Number(x.value)))x.value=Number(x.value);
+  if(x.kind==='input'&&fieldAliases[x.inputType])x.inputType=fieldAliases[x.inputType];
+  if(x.kind==='select'&&Array.isArray(x.options))x.options=x.options.map(o=>typeof o==='string'?o:object(o)&&typeof o.label==='string'?o.label:o);
+  if(x.kind==='table'&&Array.isArray(x.rows))for(const row of x.rows)if(object(row))for(const [k,v] of Object.entries(row)){const scalar=safeScalar(v);if(scalar!==undefined)row[k]=scalar;}
+ }
+}
+function normalizeCard(e){
+ const label=typeof e.title==='string'?e.title:typeof e.label==='string'?e.label:typeof e.heading==='string'?e.heading:'';
+ const body=typeof e.description==='string'?e.description:typeof e.body==='string'?e.body:typeof e.text==='string'?e.text:'';
+ if(!label.trim())return e; // Let validation report a missing title; do not invent it.
+ return {id:e.id,kind:'composed',title:label,appearance:e.appearance,
+  items:[{id:'card-content',kind:'card',label,text:body}]};
+}
 export function normalizeGeneratedDemo(input){
  if(!object(input))return input;
  const d=structuredClone(input);
@@ -18,8 +48,12 @@ export function normalizeGeneratedDemo(input){
   if(!object(s))continue;
   if(s.subtitle===undefined||s.subtitle==='')s.subtitle='Explore '+String(s.title||'this screen').slice(0,100);
   if(!Array.isArray(s.elements))continue;
-  for(const e of s.elements){
+  for(let index=0;index<s.elements.length;index++){
+   let e=s.elements[index];
    if(!object(e))continue;
+   if(e.kind==='card'){s.elements[index]=normalizeCard(e);e=s.elements[index];}
+   if(e.kind==='form')normalizeForm(e);
+   if(e.kind==='composed')normalizeComposed(e);
    if(e.kind==='table'&&Array.isArray(e.rows)){
     for(const row of e.rows){
      if(!object(row))continue;
@@ -75,7 +109,10 @@ export function explainGeneratedDemo(d,channel){
      if(!Array.isArray(e.items)||!e.items.length||e.items.length>6||e.items.some(it=>!object(it)||!text(it.id)||!text(it.label)||!text(it.value)))bad(p+'.items','require 1–6 stats with string id,label,value');
      break;
     case 'form':
-     if(!text(e.title)||!text(e.actionLabel)||!Array.isArray(e.fields)||!e.fields.length||e.fields.length>16||e.fields.some(f=>!object(f)||!text(f.id)||!text(f.label)||!fields.has(f.type)||f.options!==undefined&&(!Array.isArray(f.options)||f.options.some(o=>!text(o)))))bad(p,'invalid form title, action or fields');
+     if(!text(e.title))bad(p+'.title','form title is required');
+     if(!text(e.actionLabel))bad(p+'.actionLabel','form action label is required');
+     if(!Array.isArray(e.fields)||!e.fields.length||e.fields.length>16)bad(p+'.fields','require 1–16 fields');
+     else e.fields.forEach((f,k)=>{if(!object(f)||!text(f.id)||!text(f.label)||!fields.has(f.type)||f.options!==undefined&&(!Array.isArray(f.options)||f.options.some(o=>!text(o))))bad(p+'.fields['+k+']','invalid field id, label, type or options');});
      if(typeof e.nextScreen==='string')allLinks.push([p+'.nextScreen',e.nextScreen]);
      break;
     case 'actions':
