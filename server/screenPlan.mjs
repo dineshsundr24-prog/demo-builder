@@ -43,7 +43,7 @@ export function mergePlannedScreens(plan,batches,meta){
 // are sent only for the screens that batch is allowed to create.
 export function plannedBatchPayload(requirement,fullPlan,group,meta={}){
  if(typeof requirement!=='string'||!Array.isArray(fullPlan)||!Array.isArray(group)||!group.length)throw Error('Invalid screen generation input.');
- const headings=[...requirement.matchAll(/^\\s{0,3}#{1,5}\\s*Screen\\s+(\\d{1,2})\\s*[-–—:]\\s*.+?\\s*$/gim)];
+ const headings=[...requirement.matchAll(/^\s{0,3}#{1,5}\s*Screen\s+(\d{1,2})\s*[-–—:]\s*.+?\s*$/gim)];
  const sections=new Map();
  for(let i=0;i<headings.length;i++){
   const start=headings[i].index, end=i+1<headings.length?headings[i+1].index:requirement.length;
@@ -64,5 +64,5 @@ export function plannedBatchPayload(requirement,fullPlan,group,meta={}){
 // JSON mode requires the actual input to explicitly demand JSON output, not
 // merely supply a JSON-encoded requirements object.
 export function plannedBatchInput(request){
- return 'Return only a valid JSON object with a screens array. The output must be JSON, without markdown or commentary.\\n'+JSON.stringify(request);
+ return 'Return only a valid JSON object with a screens array. The output must be JSON, without markdown or commentary.\n'+JSON.stringify(request);
 }
