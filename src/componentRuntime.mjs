@@ -20,6 +20,7 @@ export function validDynamicComponent(element,screenIds=[]){
   if(x.kind==='progress'&&(!Number.isFinite(x.value)||x.value<0||x.value>100))return false;
   if(x.kind==='input'&&x.inputType!==undefined&&!['text','email','number','date','password'].includes(x.inputType))return false;
   if(x.kind==='table'){
+   if(!validTableRowAction(x.rowAction,screenIds))return false;
    if(!Array.isArray(x.columns)||!x.columns.length||x.columns.length>10||x.columns.some(c=>!c||!id(c.id)||!str(c.label,100)||!c.label)||!Array.isArray(x.rows)||x.rows.length>50||x.rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)||Object.values(row).some(v=>typeof v!=='string'||v.length>500)))return false;
    if(x.filterField!==undefined&&!id(x.filterField))return false;
    if(x.filterColumn!==undefined&&!x.columns.some(c=>c.id===x.filterColumn))return false;
