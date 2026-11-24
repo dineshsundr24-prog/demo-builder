@@ -1,4 +1,5 @@
 import {validAppearance} from './visualStyle.mjs';
+import {validTableRowAction} from './tableRowActions.mjs';
 // Safe declarative interactions for AI-composed demo components.
 // All actions operate on local prototype state: no eval, script injection, API calls, or arbitrary paths.
 const id=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v);
