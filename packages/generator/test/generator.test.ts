@@ -218,3 +218,31 @@ test('template-language conditionals (live SafeDrive run) are removed without a 
   assert.equal(job.status, 'completed');
   assert.ok(!JSON.stringify(job.document).includes('{{#if'));
 });
+
+test('IDIDI brief (UAT): exact 5 screens, standard sign-in/up allowed, no UAE PASS/OTP/eKYC/face templates', async () => {
+  const brief = 'Create a Mobile app screen \n1) Welcome screen \n2) Standard Sign in Screen \n3) Standard Sign up screen\n4) Dashboard \n5) Income screen with Option for customer to update income details ';
+  const p = parseBrief(brief)!;
+  assert.deepEqual(p.screens.map(s => s.title), ['Welcome', 'Standard Sign In', 'Standard Sign Up', 'Dashboard', 'Income']);
+  assert.ok(p.screens[4].requirement.includes('update income details'));
+  const { allowedTemplates } = await import('@demo/schema');
+  const allowed = allowedTemplates('mobile', brief);
+  assert.ok(allowed.includes('sign-in') && allowed.includes('sign-up'));
+  for (const t of ['uaepass-login', 'uaepass-ekyc', 'otp-entry', 'face-verification']) assert.ok(!allowed.includes(t), t);
+  // A planner that still picks UAE PASS for "Standard Sign in" is overruled, and extra screens are ignored.
+  const provider = new FakeProvider(req => {
+    const input = JSON.parse(req.input);
+    assert.ok(!JSON.stringify(input.templates).includes('uaepass'), 'UAE PASS not offered');
+    return { theme: { primary: '#000000', secondary: '#111111', accent: '#222222' }, sampleFacts: [], shellKind: 'tabs', menu: [], collections: [],
+      screens: [...input.screenList.map((s: any) => ({ id: s.id, title: 'Renamed ' + s.title, purpose: 'p', template: s.id === 'standard-sign-in' ? 'uaepass-login' : null, links: [], shell: 'hidden' })),
+        { id: 'standard-sign-in', title: 'dup', purpose: 'x', template: null, links: [], shell: 'hidden' }] };
+  });
+  const { createPlan } = await import('../src/plan.ts');
+  const { plan } = await createPlan(provider, { name: 'IDIDI BANK', channel: 'mobile' }, brief, { maxScreens: 40 });
+  assert.equal(plan.screens.length, 5);
+  assert.deepEqual(plan.screens.map(s => s.title), ['Welcome', 'Standard Sign In', 'Standard Sign Up', 'Dashboard', 'Income'], 'titles are the BA\'s, not the model\'s');
+  assert.equal(plan.screens[1].template, null);
+});
+
+test('ordinary numbered requirements are not mistaken for a screen list', () => {
+  assert.equal(parseBrief('Business rules:\n1. Users must log in\n2. Data must be encrypted\n3. Monthly reports'), null);
+});

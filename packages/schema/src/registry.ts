@@ -93,8 +93,8 @@ define({ type: 'List', label: 'List', category: 'data', ai: 'Mobile-friendly lis
     itemAction: z.object({ screen: ScreenRef }).optional() }),
   create: () => ({ collection: '', titleField: '' }) });
 // ---------- Templates ----------
-define({ type: 'Template', label: 'Journey template', category: 'template', ai: 'Prebuilt simulated banking block (UAE PASS, eKYC, face, OTP, upload, maker/checker). Set next to the screen that follows success.',
-  props: z.object({ template: TemplateRef, next: ScreenRef.optional() }), create: () => ({ template: 'otp-entry' }) });
+define({ type: 'Template', label: 'Journey template', category: 'template', ai: 'Prebuilt, professionally designed block (sign-in, sign-up and, when listed, simulated UAE PASS/OTP/eKYC/face/upload/maker-checker). next = screen after success; alt = secondary link (e.g. sign-up from sign-in).',
+  props: z.object({ template: TemplateRef, next: ScreenRef.optional(), alt: ScreenRef.optional() }), create: () => ({ template: 'sign-in' }) });
 
 export const components: readonly ComponentDef[] = defs;
 export const componentByType = new Map(defs.map(d => [d.type, d]));

@@ -7,10 +7,10 @@ import { components } from './registry.ts';
 import { templates } from './templates.ts';
 
 const UNSUPPORTED = new Set(['$schema', 'default', 'minLength', 'maxLength', 'format', 'propertyNames', 'examples']);
-export type AiContext = { channel: 'mobile' | 'portal'; screenIds: string[]; collectionIds: string[] };
+export type AiContext = { channel: 'mobile' | 'portal'; screenIds: string[]; collectionIds: string[]; templateIds?: string[] };
 
 export function aiScreenSchema(ctx: AiContext) {
-  const templateIds = templates.filter(t => t.channels.includes(ctx.channel)).map(t => t.id);
+  const templateIds = ctx.templateIds ?? templates.filter(t => t.channels.includes(ctx.channel)).map(t => t.id);
   return toStrictSchema(Screen, { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
 }
 /** Any Zod schema -> strict structured-output JSON Schema; `ref` markers become enums. */
@@ -81,9 +81,9 @@ export function stripNulls<T>(value: T): T {
   return value;
 }
 /** Compact component guide for the model, generated from the registry. */
-export function componentGuide(channel: 'mobile' | 'portal') {
+export function componentGuide(channel: 'mobile' | 'portal', templateIds?: string[]) {
   const comps = components.filter(c => c.channels.includes(channel)).map(c => '- ' + c.type + (c.container ? ' (container)' : '') + ': ' + c.ai).join('\n');
-  const tmpl = templates.filter(t => t.channels.includes(channel)).map(t => '- ' + t.id + ': ' + t.description).join('\n');
+  const tmpl = templates.filter(t => t.channels.includes(channel) && (!templateIds || templateIds.includes(t.id))).map(t => '- ' + t.id + ': ' + t.description).join('\n');
   return 'Components:\n' + comps + '\nTemplates (use a Template node; set next):\n' + tmpl +
     '\nBindings: {{state.key}} for values entered earlier, {{record.field}} on screens opened from a table/list row, optional | aed | date | upper | mask.';
 }

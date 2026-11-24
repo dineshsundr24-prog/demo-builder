@@ -1,6 +1,6 @@
 // Planning: brief -> reviewable plan (screens, shell, data, templates, links).
 import { z } from 'zod';
-import { toStrictSchema, templates, ScreenRef, TemplateRef, type Collection, type Shell } from '@demo/schema';
+import { toStrictSchema, templates, allowedTemplates, ScreenRef, TemplateRef, type Collection, type Shell } from '@demo/schema';
 import { parseBrief, briefColours, type ParsedBrief } from './briefParser.ts';
 import type { LlmProvider, CompletionResult } from './provider.ts';
 
@@ -11,6 +11,7 @@ export type Plan = {
   theme: { primary: string; secondary: string; accent: string };
   shell: Shell; collections: Collection[]; screens: PlanScreen[];
   sampleFacts: { label: string; value: string }[];
+  templates: string[];               // templates allowed for this brief (journey templates need a mention)
   globalContext: string; notes: string[];
 };
 export const ICONS = ['home', 'list', 'user', 'layout-dashboard', 'folder', 'check', 'bar-chart', 'settings', 'bell', 'credit-card', 'file'] as const;
@@ -37,15 +38,16 @@ function planModel(locked: boolean) {
   });
 }
 
-const PLAN_INSTRUCTIONS = `You plan a clickable, fictional banking/business demo app that a renderer builds from declarative components.
+const PLAN_INSTRUCTIONS = `You plan a clickable, fictional demo application (any industry) that a renderer builds from professionally designed components.
 Return the plan only. Rules:
-- Screens: when a screen list is provided, return exactly those screens, same ids and order. Otherwise propose 3-12 screens (ids are lowercase-hyphen slugs).
+- Screens: when a screen list is provided, return exactly those screens, same ids, titles and order; never add screens. Otherwise propose only the screens the brief needs (3-12; ids are lowercase-hyphen slugs).
 - purpose: one or two sentences describing the content and controls of that screen, faithful to its requirement.
 - links: the screens this screen's buttons, rows or templates lead to, following the journeys.
 - shell: "hidden" for focused flows (welcome, sign-in/up, OTP, verification); "default" where the app menu (tabs/sidebar) shows.
 - shellKind: mobile -> tabs (or drawer); portal -> sidebar. menu: 3-5 main destinations.
-- template: use a template id when a screen is mainly that simulated step (UAE PASS, OTP, eKYC, face, upload, maker/checker); else null.
-- collections: sample data tables needed by lists/tables (e.g. applications, service requests, transactions), with realistic FICTIONAL UAE data; key = the field that uniquely identifies a row; rows align with fields.
+- template: only from the provided templates list, and only when the screen IS that step: a standard sign-in screen -> "sign-in", registration -> "sign-up". Never replace a requested standard form with an identity-provider template. Otherwise null.
+- purpose: describe the content concretely (sections, fields, actions) the way a product designer would brief a UI designer.
+- collections: sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows align with fields.
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
 - theme: use brand colours from the brief when given; otherwise a professional banking palette.
 - Never claim real integrations; never use real personal data.`;
@@ -55,8 +57,9 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   const locked = !!parsed;
   const lockedIds = parsed?.screens.map(s => s.id) ?? [];
   if (parsed && parsed.screens.length > opts.maxScreens) throw Object.assign(Error('The brief lists ' + parsed.screens.length + ' screens; this workspace allows up to ' + opts.maxScreens + ' per generation. Split the journey or raise MAX_SCREENS_PER_JOB.'), { category: 'budget' });
-  const tmpl = templates.filter(t => t.channels.includes(req.channel));
-  const schema = toStrictSchema(planModel(locked), { screen: lockedIds, template: tmpl.map(t => t.id) });
+  const allowed = allowedTemplates(req.channel, brief + '\n' + (req.guidelines ?? ''));
+  const tmpl = templates.filter(t => allowed.includes(t.id));
+  const schema = toStrictSchema(planModel(locked), { screen: lockedIds, template: allowed });
   const input = JSON.stringify({
     project: { name: req.name, company: req.company ?? '', channel: req.channel, designGuidelines: (req.guidelines ?? '').slice(0, 1500) },
     templates: tmpl.map(t => ({ id: t.id, description: t.description })),
@@ -66,11 +69,11 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   // The plan schema has no optional fields; null is meaningful (e.g. template: null), so do not strip it.
   const result = planModel(locked).safeParse(call.json);
   if (!result.success) throw Object.assign(Error('The plan did not match the plan schema at ' + (result.error.issues[0]?.path ?? []).join('.') + ': ' + result.error.issues[0]?.message), { category: 'parse' });
-  return { plan: normalizePlan(result.data, req, brief, parsed), call };
+  return { plan: normalizePlan(result.data, req, brief, parsed, allowed), call };
 }
 
 /** Enforce the BA's list, valid references and channel conventions, deterministically. */
-export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: GenerationRequest, brief: string, parsed: ParsedBrief | null): Plan {
+export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: GenerationRequest, brief: string, parsed: ParsedBrief | null, allowed: string[] = allowedTemplates(req.channel, brief)): Plan {
   const notes = [...(parsed?.notes ?? [])];
   let screens: PlanScreen[];
   if (parsed) {
@@ -88,6 +91,7 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
       return { id, title: s.title, requirement: s.purpose, purpose: s.purpose, template: s.template, links: s.links, shell: s.shell, locked: false };
     });
   }
+  for (const s of screens) if (s.template && !allowed.includes(s.template)) { notes.push('Ignored template "' + s.template + '" for "' + s.title + '" (not requested in the brief)'); s.template = null; }
   const ids = new Set(screens.map(s => s.id));
   for (const s of screens) s.links = [...new Set(s.links.filter(l => ids.has(l) && l !== s.id))];
   const colours = briefColours(brief + ' ' + (req.guidelines ?? ''));
@@ -105,5 +109,5 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     return { id: c.id, label: c.label, key, fields, rows };
   });
   return { appName: req.name, channel: req.channel, theme, shell: { kind: items.length ? kind : 'none', brand: (req.company || req.name).slice(0, 60), showBack: true, items },
-    collections, screens, sampleFacts: p.sampleFacts, globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
+    collections, screens, sampleFacts: p.sampleFacts, templates: allowed, globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
 }

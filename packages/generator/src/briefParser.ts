@@ -11,7 +11,21 @@ const patterns: { re: RegExp; kind: string }[] = [
   { kind: 'plain-screen', re: new RegExp('^\\s*(?:[-*]\\s+)?(?:screen|page)\\s+(\\d{1,3})' + SEP + '(.+)$', 'i') },
   // "1. **Welcome:** details" / "1) **Welcome** - details"
   { kind: 'numbered-bold', re: /^\s*(\d{1,3})[.)]\s+\*\*\s*(.+?)\s*:?\s*\*\*\s*[:\-–—]?\s*(.*)$/ },
+  // "1) Welcome screen" / "2. Standard Sign in Screen" (only when the brief is about screens/pages)
+  { kind: 'numbered-plain', re: /^\s*(\d{1,3})[.)]\s+(?!\*\*)(.+?)\s*$/ },
 ];
+// Words that usually start the detail part of a long list item ("Income screen with option to ...").
+const DETAIL_START = /\s+(?:with|where|which|that|for|showing|including|to|allowing|containing|listing|displaying)\s+|\s*\(/i;
+/** Short screen title from a plain list item; the full item stays as the requirement. */
+export function titleFromItem(item: string) {
+  let t = item.replace(/\*+/g, '').trim();
+  const split = /:\s|\s[-–—]\s/.exec(t);
+  if (split) t = t.slice(0, split.index);
+  if (t.length > 32) { const d = DETAIL_START.exec(t); if (d && d.index > 2) t = t.slice(0, d.index); }
+  t = t.replace(/\s+(?:screen|page)s?$/i, '').trim() || t;
+  if (t.length > 40) t = t.split(/\s+/).slice(0, 5).join(' ');
+  return t.replace(/\b([a-z])/g, (m, c, i) => (i === 0 || !/^(?:and|or|of|the|a|an|for|with)\b/.test(t.slice(i)) ? c.toUpperCase() : c));
+}
 const slug = (t: string) => t.toLowerCase().normalize('NFKD').replace(/&/g, ' ').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'screen';
 const cleanTitle = (t: string) => t.replace(/\*+/g, '').replace(/[:\s]+$/, '').trim().slice(0, 85);
 
@@ -25,6 +39,7 @@ function match(line: string) {
         const split = /:\s|\s[-–—]\s/.exec(title); // "Title: details" or "Title - details"
         if (split) { rest = title.slice(split.index + split[0].length).trim(); title = title.slice(0, split.index); }
       }
+      if (p.kind === 'numbered-plain') return { number: Number(m[1]), title: cleanTitle(titleFromItem(m[2])), rest: m[2].trim(), kind: p.kind };
       return { number: Number(m[1]), title: cleanTitle(title), rest: rest.trim(), kind: p.kind };
     }
   }
@@ -32,7 +47,9 @@ function match(line: string) {
 }
 
 export function parseBrief(brief: string): ParsedBrief | null {
-  const lines = String(brief ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const text = String(brief ?? '').replace(/\r\n?/g, '\n');
+  const lines = text.split('\n');
+  const aboutScreens = /\b(?:screens?|pages?)\b/i.test(text);
   const notes: string[] = [];
   type Block = { number: number; title: string; lines: string[]; start: number; end: number };
   const blocks: Block[] = [];
@@ -40,7 +57,8 @@ export function parseBrief(brief: string): ParsedBrief | null {
   let blankRun = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const m = match(line);
+    let m = match(line);
+    if (m && m.kind === 'numbered-plain' && !aboutScreens) m = null; // ordinary numbered requirements
     if (m && m.title) {
       current = { number: m.number, title: m.title, lines: m.rest ? [m.rest] : [], start: i, end: i };
       blocks.push(current); blankRun = 0; continue;
@@ -67,7 +85,8 @@ export function parseBrief(brief: string): ParsedBrief | null {
     const base = slug(b.title); let id = base, n = 2;
     while (used.has(id)) id = base + '-' + n++;
     used.add(id);
-    return { number: b.number, id, title: b.title, requirement: [b.title, ...b.lines].join('\n').slice(0, 4000) };
+    const req = b.lines.length && b.lines[0].toLowerCase().startsWith(b.title.toLowerCase().slice(0, 6)) ? b.lines : [b.title, ...b.lines];
+    return { number: b.number, id, title: b.title, requirement: req.join('\n').slice(0, 4000) };
   });
   const inBlock = new Set<number>();
   for (const b of run) for (let i = b.start; i <= b.end; i++) inBlock.add(i);

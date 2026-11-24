@@ -6,7 +6,7 @@ import type { Plan, PlanScreen } from './plan.ts';
 
 export type ScreenOutcome = { screen: Screen; status: 'valid' | 'repaired' | 'fallback'; issues: Issue[]; calls: CompletionResult[]; failure?: string };
 
-export function screenInstructions(channel: 'mobile' | 'portal') {
+export function screenInstructions(channel: 'mobile' | 'portal', templateIds?: string[]) {
   // Static per channel, so the provider can cache this prefix across every screen call.
   return `You design ONE screen of a fictional ${channel === 'mobile' ? 'mobile banking app (390px wide)' : 'staff web portal (desktop)'} as a component tree for a declarative renderer.
 Rules:
@@ -17,10 +17,10 @@ Rules:
 - Existing or sample data (balances, current employer, profile details) is literal text in RecordFields/Stat/Text. Use {{state...}} ONLY to show what the user typed on an earlier screen.
 - Input "field" state keys are "<topic>.<name>" in camelCase with a business topic, e.g. customer.mobile, income.salary, review.makerComment. To show a value entered on an earlier screen use {{state.topic.name}}; on a screen opened from a table/list row use {{record.field}}.
 - Tables and Lists only use the listed collections and their field ids. On a screen opened from a row, {{record.<field>}} must use that collection's exact field ids. Use rowAction/itemAction to open a details screen.
-- Prefer a Template node for simulated UAE PASS, OTP, eKYC, face verification, document upload and maker/checker steps; set its next.
-- Everything external is simulated: say so in the UI. Use realistic FICTIONAL UAE data (AED amounts, +971 numbers). No real people, no real IDs.
+- Use a Template node only from the listed templates and only when the screen is that step (set next, and alt for the secondary link). A requested "standard" sign-in/sign-up uses the sign-in/sign-up templates, never an identity-provider template.
+- Everything external is simulated: say so in the UI. Use realistic FICTIONAL data for the brief's locale (UAE/AED unless stated). No real people, no real IDs.
 - Mobile: single column, primary action last. Portal: use Grid for KPIs and side-by-side cards.
-${componentGuide(channel)}`;
+${componentGuide(channel, templateIds)}`;
 }
 
 function screenInput(plan: Plan, s: PlanScreen) {
@@ -41,9 +41,9 @@ export function planDocument(plan: Plan, screens: Screen[] = []): DemoDocument {
 const errorsOf = (issues: Issue[]) => issues.filter(i => i.severity === 'error');
 
 export async function generateScreen(provider: LlmProvider, plan: Plan, target: PlanScreen, onCall: (kind: 'screen' | 'repair', call: CompletionResult) => Promise<void> = async () => {}): Promise<ScreenOutcome> {
-  const schema = aiScreenSchema({ channel: plan.channel, screenIds: plan.screens.map(s => s.id), collectionIds: plan.collections.map(c => c.id) });
+  const schema = aiScreenSchema({ channel: plan.channel, screenIds: plan.screens.map(s => s.id), collectionIds: plan.collections.map(c => c.id), templateIds: plan.templates });
   const ctx = documentContext(planDocument(plan));
-  const instructions = screenInstructions(plan.channel);
+  const instructions = screenInstructions(plan.channel, plan.templates);
   const calls: CompletionResult[] = [];
   const check = (json: unknown) => {
     const screen = { ...(stripNulls(json) as Screen), id: target.id, title: target.title } as Screen; // the plan owns id and title
@@ -81,14 +81,14 @@ export async function generateScreen(provider: LlmProvider, plan: Plan, target: 
  * Returns the improved screen only if it is valid and has fewer binding problems.
  */
 export async function refineBindings(provider: LlmProvider, plan: Plan, screen: Screen, problems: Issue[], writtenKeys: string[], recordScreens: string[], onCall: (kind: 'repair', call: CompletionResult) => Promise<void>): Promise<Screen | null> {
-  const schema = aiScreenSchema({ channel: plan.channel, screenIds: plan.screens.map(s => s.id), collectionIds: plan.collections.map(c => c.id) });
+  const schema = aiScreenSchema({ channel: plan.channel, screenIds: plan.screens.map(s => s.id), collectionIds: plan.collections.map(c => c.id), templateIds: plan.templates });
   const target = plan.screens.find(s => s.id === screen.id)!;
   const input = JSON.stringify({
     task: 'Fix ONLY these data-binding problems and return the full screen. For values nobody enters (existing/sample data), write realistic fictional literal text instead of {{state...}}. To show what the user entered elsewhere, use exactly one of the listed state keys. Use {{record...}} only if this screen receives a record.',
     problems: problems.map(i => i.path.replace(/^screen/, '') + ': ' + i.message), stateKeysEnteredInTheApp: writtenKeys, screensThatReceiveARecord: recordScreens,
     previousScreen: screen, context: JSON.parse(screenInput(plan, target)),
   });
-  const call = await provider.complete({ purpose: 'repair', instructions: screenInstructions(plan.channel), input, schemaName: 'screen', schema, maxOutputTokens: 6000 });
+  const call = await provider.complete({ purpose: 'repair', instructions: screenInstructions(plan.channel, plan.templates), input, schemaName: 'screen', schema, maxOutputTokens: 6000 });
   await onCall('repair', call);
   const next = { ...(stripNulls(call.json) as Screen), id: screen.id, title: screen.title } as Screen;
   return next;
