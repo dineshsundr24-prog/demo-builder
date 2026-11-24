@@ -2,15 +2,18 @@
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useMemo,useState} from 'react';
 import {ChevronRight,Download,Search,SlidersHorizontal} from 'lucide-react';
-import type {Element} from './demo';
+import type {Element,RowSelection} from './demo';
+// @ts-ignore Shared row-action interpretation
+import {effectiveTableAction,selectedRowContext} from './tableRowActions.mjs';
 // @ts-ignore Shared pure report filtering and CSV export functions.
 import {filteredReportRows,reportCsv} from '../server/reportTools.mjs';
 import './reportTable.css';
 
 type Table=Extract<Element,{kind:'table'}>;
-export default function ReportTable({element,onNavigate}:{element:Table;onNavigate:(id?:string)=>void}){
+export default function ReportTable({element,onNavigate}:{element:Table;onNavigate:(id?:string,context?:RowSelection|null)=>void}){
  const [query,setQuery]=useState('');
  const [filter,setFilter]=useState('');
+ const action=effectiveTableAction(element);
  const tools=element.tools;
  const searchEnabled=tools?.search!==false;
  const filterEnabled=tools?.filter===true;
@@ -35,9 +38,15 @@ export default function ReportTable({element,onNavigate}:{element:Table;onNaviga
    {downloadEnabled&&<button type="button" className="report-download" onClick={downloadCsv} title="Download displayed records as CSV" aria-label={'Download '+element.title+' CSV'}><Download size={14}/><span>Download CSV</span></button>}
   </div>}
   </div>
-  <div className="table-scroll"><table><thead><tr>{element.columns.map(c=><th key={c.id}>{c.label}</th>)}{element.detailScreen&&<th aria-label="Details"/>}</tr></thead><tbody>
-   {rows.map((row,i)=><tr key={row.reference||row.userId||i} className={element.detailScreen?'clickable':''} onClick={()=>element.detailScreen&&onNavigate(element.detailScreen)}>{element.columns.map(c=><td key={c.id}>{c.id==='status'?<span className={'status '+(row[c.id]==='Approved'||row[c.id]==='Active'?'approved':'pending')}>{row[c.id]}</span>:row[c.id]}</td>)}{element.detailScreen&&<td><ChevronRight size={15}/></td>}</tr>)}
-   {!rows.length&&<tr><td className="empty" colSpan={element.columns.length+(element.detailScreen?1:0)}>No matching records</td></tr>}
+  <div className="table-scroll"><table><thead><tr>{element.columns.map(c=><th key={c.id}>{c.label}</th>)}{action&&!element.columns.some(c=>c.id==='action'||c.id==='actions')&&<th>Action</th>}</tr></thead><tbody>
+   {rows.map((row,i)=><tr key={row.reference||row.userId||i} className={action?'clickable':''}
+    onClick={()=>action&&onNavigate(action.screenId,selectedRowContext(action.screenId,element,row,''))}>
+    {element.columns.map(c=><td key={c.id}>{(c.id==='action'||c.id==='actions')&&action?
+     <button type="button" className="report-row-action" onClick={e=>{e.stopPropagation();onNavigate(action.screenId,selectedRowContext(action.screenId,element,row,''));}}>{action.label}<ChevronRight size={14}/></button>:
+     c.id==='status'?<span className={'status '+(row[c.id]==='Approved'||row[c.id]==='Active'?'approved':'pending')}>{row[c.id]}</span>:row[c.id]}</td>)}
+    {action&&!element.columns.some(c=>c.id==='action'||c.id==='actions')&&<td><button type="button" className="report-row-action" onClick={e=>{e.stopPropagation();onNavigate(action.screenId,selectedRowContext(action.screenId,element,row,''));}}>{action.label}<ChevronRight size={14}/></button></td>}
+   </tr>)}
+   {!rows.length&&<tr><td className="empty" colSpan={element.columns.length+(action&&!element.columns.some(c=>c.id==='action'||c.id==='actions')?1:0)}>No matching records</td></tr>}
   </tbody></table></div>
   {(filterEnabled||downloadEnabled)&&<div className="report-count">{rows.length} of {element.rows.length} sample records</div>}
  </section>;
