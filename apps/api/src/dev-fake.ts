@@ -15,7 +15,7 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
       menu: list.some((s: any) => s.id === 'dashboard') ? [{ label: 'Home', icon: 'home', screen: 'dashboard' }, { label: 'Requests', icon: 'list', screen: 'my-service-requests' }, { label: 'Profile', icon: 'user', screen: 'customer-profile' }] : [],
       collections: [{ id: 'service-requests', label: 'Service requests', key: 'ref', fields: [{ id: 'ref', label: 'Reference' }, { id: 'type', label: 'Type' }, { id: 'status', label: 'Status' }, { id: 'date', label: 'Submitted' }],
         rows: [['KPK-INC-2026-00125', 'Income update', 'In review', '24 Nov 2026'], ['KPK-CRD-2026-00087', 'Card replacement', 'Completed', '02 Nov 2026']] }],
-      screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Fictional ' + s.title + ' screen', template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default' })) };
+      screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Fictional ' + s.title + ' screen', template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default', mustInclude: [] })) };
   }
   const id = input.screen?.id ?? input.context?.screen?.id;
   const channel = (input.app ?? input.context?.app)?.channel === 'portal' ? 'portal' : 'mobile';

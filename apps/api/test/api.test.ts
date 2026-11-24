@@ -10,7 +10,7 @@ const provider = () => new FakeProvider((req: CompletionRequest) => {
   const input = JSON.parse(req.input);
   if (req.purpose === 'plan') return { theme: { primary: '#000000', secondary: '#111111', accent: '#222222' }, sampleFacts: [], shellKind: 'tabs', menu: [{ label: 'Home', icon: 'home', screen: 'dashboard' }],
     collections: [{ id: 'service-requests', label: 'Requests', key: 'ref', fields: [{ id: 'ref', label: 'Ref' }, { id: 'type', label: 'Type' }, { id: 'status', label: 'Status' }, { id: 'date', label: 'Date' }], rows: [['A', 'B', 'C', 'D'], ['E', 'F', 'G', 'H']] }],
-    screens: input.screenList.map((s: any) => ({ id: s.id, title: s.title, purpose: 'p', template: null, links: [], shell: 'default' })) };
+    screens: input.screenList.map((s: any) => ({ id: s.id, title: s.title, purpose: 'p', template: null, links: [], shell: 'default', mustInclude: [] })) };
   return kapiko.screens.find((s: any) => s.id === input.screen.id);
 });
 const TOKEN = 'test-token-123';

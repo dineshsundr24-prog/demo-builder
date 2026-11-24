@@ -38,7 +38,15 @@ export function stringsIn(value: unknown, path: string): [string, string][] {
   if (value && typeof value === 'object') return Object.entries(value).flatMap(([k, v]) => stringsIn(v, path + '.' + k));
   return [];
 }
-function actionsOf(n: NodeT): any[] { return Array.isArray(n.actions) ? n.actions as any[] : []; }
+/** Every action on a node, including those inside designed patterns (ActionBar, QuickActions, MenuList, Promo...). */
+function actionsOf(n: NodeT): any[] {
+  const out: any[] = [];
+  const add = (a: unknown) => { if (Array.isArray(a)) out.push(...a); };
+  add(n.actions);
+  for (const k of ['primary', 'secondary', 'cta', 'viewAll']) add((n[k] as any)?.actions);
+  if (Array.isArray(n.items)) for (const it of n.items as any[]) add(it?.actions);
+  return out;
+}
 
 export function documentContext(doc: DemoDocument): DocContext {
   const stateKeys = new Set<string>(), recordScreens = new Set<string>(), recordFields = new Map<string, Set<string>>();

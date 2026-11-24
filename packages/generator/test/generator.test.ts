@@ -17,7 +17,7 @@ function fakePlan(req: CompletionRequest) {
     menu: [{ label: 'Home', icon: 'home', screen: list[Math.min(6, list.length - 1)].id }],
     collections: [{ id: 'service-requests', label: 'Requests', key: 'ref', fields: [{ id: 'ref', label: 'Ref' }, { id: 'type', label: 'Type' }, { id: 'status', label: 'Status' }, { id: 'date', label: 'Date' }],
       rows: [['KPK-INC-2026-00125', 'Income update', 'In review', '24 Nov 2026'], ['KPK-CRD-2026-00087', 'Card', 'Completed', '02 Nov 2026']] }],
-    screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Purpose of ' + s.title, template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default' })),
+    screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Purpose of ' + s.title, template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default', mustInclude: [] })),
   };
 }
 const screenIdOf = (req: CompletionRequest) => { const i = JSON.parse(req.input); return (i.screen ?? i.context?.screen).id as string; };
@@ -233,8 +233,8 @@ test('IDIDI brief (UAT): exact 5 screens, standard sign-in/up allowed, no UAE PA
     const input = JSON.parse(req.input);
     assert.ok(!JSON.stringify(input.templates).includes('uaepass'), 'UAE PASS not offered');
     return { theme: { primary: '#000000', secondary: '#111111', accent: '#222222' }, sampleFacts: [], shellKind: 'tabs', menu: [], collections: [],
-      screens: [...input.screenList.map((s: any) => ({ id: s.id, title: 'Renamed ' + s.title, purpose: 'p', template: s.id === 'standard-sign-in' ? 'uaepass-login' : null, links: [], shell: 'hidden' })),
-        { id: 'standard-sign-in', title: 'dup', purpose: 'x', template: null, links: [], shell: 'hidden' }] };
+      screens: [...input.screenList.map((s: any) => ({ id: s.id, title: 'Renamed ' + s.title, purpose: 'p', template: s.id === 'standard-sign-in' ? 'uaepass-login' : null, links: [], shell: 'hidden', mustInclude: [] })),
+        { id: 'standard-sign-in', title: 'dup', purpose: 'x', template: null, links: [], shell: 'hidden', mustInclude: [] }] };
   });
   const { createPlan } = await import('../src/plan.ts');
   const { plan } = await createPlan(provider, { name: 'IDIDI BANK', channel: 'mobile' }, brief, { maxScreens: 40 });
