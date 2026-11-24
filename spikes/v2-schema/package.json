@@ -1,0 +1,7 @@
+{
+  "name": "spike-v2-schema",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test src/*.test.ts", "report": "node src/report.ts" },
+  "dependencies": { "zod": "4.6.7" }
+}

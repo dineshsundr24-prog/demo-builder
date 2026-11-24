@@ -1,0 +1,1108 @@
+{
+ "type": "object",
+ "properties": {
+  "id": {
+   "type": "string",
+   "enum": [
+    "dashboard"
+   ]
+  },
+  "title": {
+   "type": "string"
+  },
+  "subtitle": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "shell": {
+   "type": "string",
+   "enum": [
+    "default",
+    "hidden"
+   ]
+  },
+  "children": {
+   "minItems": 1,
+   "maxItems": 30,
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/__schema0"
+   }
+  }
+ },
+ "required": [
+  "id",
+  "title",
+  "subtitle",
+  "shell",
+  "children"
+ ],
+ "$defs": {
+  "__schema0": {
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "direction": {
+       "type": "string",
+       "enum": [
+        "vertical",
+        "horizontal"
+       ]
+      },
+      "gap": {
+       "type": "string",
+       "enum": [
+        "none",
+        "sm",
+        "md",
+        "lg"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Stack"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      },
+      "children": {
+       "minItems": 1,
+       "maxItems": 20,
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/__schema0"
+       }
+      }
+     },
+     "required": [
+      "direction",
+      "gap",
+      "type",
+      "id",
+      "children"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "title": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "tone": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "enum": [
+        "default",
+        "brand",
+        "muted",
+        null
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Card"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      },
+      "children": {
+       "minItems": 1,
+       "maxItems": 20,
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/__schema0"
+       }
+      }
+     },
+     "required": [
+      "title",
+      "tone",
+      "type",
+      "id",
+      "children"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "submitLabel": {
+       "type": "string"
+      },
+      "onSubmit": {
+       "maxItems": 6,
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "navigate"
+           },
+           "screen": {
+            "type": "string",
+            "enum": [
+             "welcome",
+             "sign-in",
+             "sign-up",
+             "mobile-otp-verification",
+             "ekyc-using-uae-pass",
+             "face-verification",
+             "dashboard",
+             "income-update",
+             "income-verification-review",
+             "income-update-confirmation",
+             "my-service-requests",
+             "customer-profile"
+            ]
+           },
+           "passRecord": {
+            "type": [
+             "boolean",
+             "null"
+            ]
+           }
+          },
+          "required": [
+           "type",
+           "screen",
+           "passRecord"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "back"
+           }
+          },
+          "required": [
+           "type"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "submit"
+           },
+           "validate": {
+            "type": "boolean"
+           }
+          },
+          "required": [
+           "type",
+           "validate"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "setState"
+           },
+           "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+           },
+           "value": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "key",
+           "value"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "updateRecord"
+           },
+           "field": {
+            "type": "string"
+           },
+           "value": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "field",
+           "value"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "simulate"
+           },
+           "label": {
+            "type": "string"
+           },
+           "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000
+           },
+           "outcome": {
+            "type": "string",
+            "enum": [
+             "success",
+             "failure"
+            ]
+           }
+          },
+          "required": [
+           "type",
+           "label",
+           "durationMs",
+           "outcome"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "toast"
+           },
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        ]
+       }
+      },
+      "type": {
+       "type": "string",
+       "const": "Form"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      },
+      "children": {
+       "minItems": 1,
+       "maxItems": 20,
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/__schema0"
+       }
+      }
+     },
+     "required": [
+      "submitLabel",
+      "onSubmit",
+      "type",
+      "id",
+      "children"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "level": {
+       "type": "string",
+       "enum": [
+        "1",
+        "2",
+        "3"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Heading"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "text",
+      "level",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "tone": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "enum": [
+        "default",
+        "muted",
+        "small",
+        null
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Text"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "text",
+      "tone",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "tone": {
+       "type": "string",
+       "enum": [
+        "info",
+        "success",
+        "warning",
+        "error"
+       ]
+      },
+      "title": {
+       "type": "string"
+      },
+      "body": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Notice"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "tone",
+      "title",
+      "body",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "label": {
+       "type": "string"
+      },
+      "value": {
+       "type": "string"
+      },
+      "delta": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Stat"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "label",
+      "value",
+      "delta",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "type": "string",
+       "enum": [
+        "logo",
+        "illustration",
+        "camera-frame",
+        "avatar",
+        "document"
+       ]
+      },
+      "alt": {
+       "type": "string"
+      },
+      "type": {
+       "type": "string",
+       "const": "Image"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "kind",
+      "alt",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "label": {
+       "type": "string"
+      },
+      "value": {
+       "type": "number",
+       "minimum": 0,
+       "maximum": 100
+      },
+      "type": {
+       "type": "string",
+       "const": "Progress"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "label",
+      "value",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "tone": {
+       "type": "string",
+       "enum": [
+        "neutral",
+        "success",
+        "warning",
+        "error",
+        "info"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Badge"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "text",
+      "tone",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "label": {
+       "type": "string"
+      },
+      "variant": {
+       "type": "string",
+       "enum": [
+        "primary",
+        "secondary",
+        "link"
+       ]
+      },
+      "actions": {
+       "maxItems": 6,
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "navigate"
+           },
+           "screen": {
+            "type": "string",
+            "enum": [
+             "welcome",
+             "sign-in",
+             "sign-up",
+             "mobile-otp-verification",
+             "ekyc-using-uae-pass",
+             "face-verification",
+             "dashboard",
+             "income-update",
+             "income-verification-review",
+             "income-update-confirmation",
+             "my-service-requests",
+             "customer-profile"
+            ]
+           },
+           "passRecord": {
+            "type": [
+             "boolean",
+             "null"
+            ]
+           }
+          },
+          "required": [
+           "type",
+           "screen",
+           "passRecord"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "back"
+           }
+          },
+          "required": [
+           "type"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "submit"
+           },
+           "validate": {
+            "type": "boolean"
+           }
+          },
+          "required": [
+           "type",
+           "validate"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "setState"
+           },
+           "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+           },
+           "value": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "key",
+           "value"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "updateRecord"
+           },
+           "field": {
+            "type": "string"
+           },
+           "value": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "field",
+           "value"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "simulate"
+           },
+           "label": {
+            "type": "string"
+           },
+           "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000
+           },
+           "outcome": {
+            "type": "string",
+            "enum": [
+             "success",
+             "failure"
+            ]
+           }
+          },
+          "required": [
+           "type",
+           "label",
+           "durationMs",
+           "outcome"
+          ],
+          "additionalProperties": false
+         },
+         {
+          "type": "object",
+          "properties": {
+           "type": {
+            "type": "string",
+            "const": "toast"
+           },
+           "message": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "type",
+           "message"
+          ],
+          "additionalProperties": false
+         }
+        ]
+       }
+      },
+      "type": {
+       "type": "string",
+       "const": "Button"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "label",
+      "variant",
+      "actions",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "field": {
+       "type": "string",
+       "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+      },
+      "label": {
+       "type": "string"
+      },
+      "inputType": {
+       "type": "string",
+       "enum": [
+        "text",
+        "email",
+        "phone",
+        "number",
+        "password",
+        "date",
+        "otp",
+        "currency"
+       ]
+      },
+      "required": {
+       "type": "boolean"
+      },
+      "placeholder": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Input"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "field",
+      "label",
+      "inputType",
+      "required",
+      "placeholder",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "field": {
+       "type": "string",
+       "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+      },
+      "label": {
+       "type": "string"
+      },
+      "options": {
+       "minItems": 1,
+       "maxItems": 20,
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "required": {
+       "type": "boolean"
+      },
+      "type": {
+       "type": "string",
+       "const": "Select"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "field",
+      "label",
+      "options",
+      "required",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "field": {
+       "type": "string",
+       "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+      },
+      "label": {
+       "type": "string"
+      },
+      "required": {
+       "type": "boolean"
+      },
+      "type": {
+       "type": "string",
+       "const": "Checkbox"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "field",
+      "label",
+      "required",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "field": {
+       "type": "string",
+       "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,2}$"
+      },
+      "label": {
+       "type": "string"
+      },
+      "required": {
+       "type": "boolean"
+      },
+      "type": {
+       "type": "string",
+       "const": "Upload"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "field",
+      "label",
+      "required",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "collection": {
+       "type": "string",
+       "enum": [
+        "service-requests"
+       ]
+      },
+      "title": {
+       "type": [
+        "string",
+        "null"
+       ]
+      },
+      "columns": {
+       "minItems": 1,
+       "maxItems": 8,
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "field": {
+          "type": "string"
+         },
+         "label": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "field",
+         "label"
+        ],
+        "additionalProperties": false
+       }
+      },
+      "searchable": {
+       "type": "boolean"
+      },
+      "rowAction": {
+       "type": [
+        "object",
+        "null"
+       ],
+       "properties": {
+        "label": {
+         "type": "string"
+        },
+        "screen": {
+         "type": "string",
+         "enum": [
+          "welcome",
+          "sign-in",
+          "sign-up",
+          "mobile-otp-verification",
+          "ekyc-using-uae-pass",
+          "face-verification",
+          "dashboard",
+          "income-update",
+          "income-verification-review",
+          "income-update-confirmation",
+          "my-service-requests",
+          "customer-profile"
+         ]
+        }
+       },
+       "required": [
+        "label",
+        "screen"
+       ],
+       "additionalProperties": false
+      },
+      "type": {
+       "type": "string",
+       "const": "Table"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "collection",
+      "title",
+      "columns",
+      "searchable",
+      "rowAction",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "items": {
+       "minItems": 1,
+       "maxItems": 16,
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "label": {
+          "type": "string"
+         },
+         "value": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "label",
+         "value"
+        ],
+        "additionalProperties": false
+       }
+      },
+      "type": {
+       "type": "string",
+       "const": "RecordFields"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "items",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "template": {
+       "type": "string",
+       "enum": [
+        "uaepass-login",
+        "uaepass-ekyc",
+        "face-verification",
+        "otp-entry",
+        "document-upload"
+       ]
+      },
+      "next": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "enum": [
+        "welcome",
+        "sign-in",
+        "sign-up",
+        "mobile-otp-verification",
+        "ekyc-using-uae-pass",
+        "face-verification",
+        "dashboard",
+        "income-update",
+        "income-verification-review",
+        "income-update-confirmation",
+        "my-service-requests",
+        "customer-profile",
+        null
+       ]
+      },
+      "type": {
+       "type": "string",
+       "const": "Template"
+      },
+      "id": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+     },
+     "required": [
+      "template",
+      "next",
+      "type",
+      "id"
+     ],
+     "additionalProperties": false
+    }
+   ]
+  }
+ },
+ "additionalProperties": false
+}
