@@ -13,6 +13,7 @@ Rules:
 - Return the screen with the given id and title. Use only the schema's components and actions. Keep it focused: 3-12 top-level components.
 - Put inputs inside a Form. A Button with {type:"submit"} validates its Form; a button outside the form must name it: {type:"submit", form:"<form id>"}. Then add {type:"navigate"} to continue.
 - Navigate only to listed screen ids. Back/Cancel buttons use {type:"back"} or navigate to the right screen.
+- Bindings are plain values only: no conditionals or loops ({{#if}}, {{else}}, {{#each}} are not supported). Show alternatives as separate literal text.
 - Existing or sample data (balances, current employer, profile details) is literal text in RecordFields/Stat/Text. Use {{state...}} ONLY to show what the user typed on an earlier screen.
 - Input "field" state keys are "<topic>.<name>" in camelCase with a business topic, e.g. customer.mobile, income.salary, review.makerComment. To show a value entered on an earlier screen use {{state.topic.name}}; on a screen opened from a table/list row use {{record.field}}.
 - Tables and Lists only use the listed collections and their field ids. On a screen opened from a row, {{record.<field>}} must use that collection's exact field ids. Use rowAction/itemAction to open a details screen.
@@ -55,6 +56,8 @@ export async function generateScreen(provider: LlmProvider, plan: Plan, target: 
     calls.push(call); await onCall('screen', call);
     first = check(call.json);
     if (!errorsOf(first.issues).length) return { screen: first.screen, status: 'valid', issues: first.issues, calls };
+    const unblocked = stripBlockHelpers(first.screen, first.issues);
+    if (unblocked) { const again = check(unblocked); if (!errorsOf(again.issues).length) return { screen: again.screen, status: 'valid', issues: again.issues, calls }; first = again; }
     const cleaned = stripArtifacts(first.screen, first.issues);
     if (cleaned) { const again = check(cleaned); if (!errorsOf(again.issues).length) return { screen: again.screen, status: 'valid', issues: again.issues, calls }; first = again; }
     const shortened = shortenTooLong(first.screen, first.issues);
@@ -89,6 +92,14 @@ export async function refineBindings(provider: LlmProvider, plan: Plan, screen: 
   await onCall('repair', call);
   const next = { ...(stripNulls(call.json) as Screen), id: screen.id, title: screen.title } as Screen;
   return next;
+}
+
+/** Drop unsupported template block helpers ({{#if x}}, {{else}}, {{/if}}, {{#each}}), keeping the text around them. */
+export function stripBlockHelpers(screen: Screen, issues: Issue[]): Screen | null {
+  if (!issues.some(i => i.code === 'binding.syntax' && /\{\{\s*(#|\/|else\b)/.test(i.message))) return null;
+  const clean = (s: string) => s.replace(/\{\{\s*(?:#\w+[^}]*|\/\w+|else)\s*\}\}/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const visit = (v: any): any => typeof v === 'string' ? clean(v) : Array.isArray(v) ? v.map(visit) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, visit(x)])) : v;
+  return visit(screen);
 }
 
 /** Remove stray braces (a recurring model artifact such as "Reference #},{") outside valid bindings. */

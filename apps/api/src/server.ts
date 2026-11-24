@@ -65,6 +65,9 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const request: GenerationRequest = { name: String(r.name ?? '').slice(0, 120) || 'Demo', company: String(r.company ?? '').slice(0, 120), channel: r.channel, guidelines: String(r.guidelines ?? '').slice(0, 3000) };
     try { return reply.code(202).send(await gen.startPlan(request, body.brief)); } catch (e) { return sendError(reply, e); }
   });
+  app.get('/api/v2/jobs', async (req, reply) => {
+    try { return { jobs: await gen.store.listJobs(Number((req.query as any)?.limit) || 20) }; } catch (e) { return sendError(reply, e); }
+  });
   app.get('/api/v2/jobs/:id', async (req, reply) => {
     try { return await gen.snapshot((req.params as any).id); } catch (e) { return sendError(reply, e); }
   });

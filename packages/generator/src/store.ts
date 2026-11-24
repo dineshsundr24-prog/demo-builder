@@ -26,7 +26,9 @@ export interface JobStore {
   listScreens(jobId: string): Promise<ScreenRow[]>;
   addUsage(row: UsageRow): Promise<void>;
   costSince(since: Date): Promise<number>;
+  listJobs(limit: number): Promise<JobSummary[]>;
 }
+export type JobSummary = Pick<JobRow, 'id' | 'status' | 'request' | 'cost_usd' | 'created_at' | 'finished_at'>;
 
 const now = () => new Date().toISOString();
 export class MemoryStore implements JobStore {
@@ -45,6 +47,10 @@ export class MemoryStore implements JobStore {
   async listScreens(jobId: string) { return [...this.screens.values()].filter(r => r.job_id === jobId).sort((a, b) => a.position - b.position).map(r => structuredClone(r)); }
   async addUsage(row: UsageRow) { this.usage.push({ ...row, created_at: now() }); }
   async costSince(since: Date) { return this.usage.filter(u => new Date(u.created_at) >= since).reduce((s, u) => s + u.cost_usd, 0); }
+  async listJobs(limit: number) {
+    return [...this.jobs.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, limit)
+      .map(({ id, status, request, cost_usd, created_at, finished_at }) => ({ id, status, request, cost_usd, created_at, finished_at }));
+  }
 }
 
 export class StoreError extends Error { status: number; constructor(message: string, status: number) { super(message); this.status = status; } }
@@ -83,6 +89,9 @@ export class SupabaseStore implements JobStore {
   }
   async listScreens(jobId: string) { return (await this.req('generation_screens?job_id=eq.' + encodeURIComponent(jobId) + '&order=position.asc')) as ScreenRow[]; }
   async addUsage(row: UsageRow) { await this.req('usage_events', { method: 'POST', body: { ...row, cost_usd: Number(row.cost_usd.toFixed(5)) }, prefer: 'return=minimal' }); }
+  async listJobs(limit: number) {
+    return (await this.req('generation_jobs?select=id,status,request,cost_usd,created_at,finished_at&order=created_at.desc&limit=' + Math.max(1, Math.min(100, Math.floor(limit))))) as JobSummary[];
+  }
   async costSince(since: Date) {
     const rows = (await this.req('usage_events?select=cost_usd&created_at=gte.' + encodeURIComponent(since.toISOString()) + '&limit=100000')) as { cost_usd: string | number }[];
     return rows.reduce((s, r) => s + Number(r.cost_usd), 0);

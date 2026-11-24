@@ -205,3 +205,16 @@ test('job totals equal the sum of usage rows when screens run in parallel (no lo
   assert.equal(job.input_tokens, rows.reduce((s, u) => s + u.input_tokens, 0));
   assert.ok(Math.abs(Number(job.cost_usd) - rows.reduce((s, u) => s + u.cost_usd, 0)) < 1e-9);
 });
+
+test('template-language conditionals (live SafeDrive run) are removed without a paid repair', async () => {
+  const provider = new FakeProvider(req => {
+    if (req.purpose === 'plan') return fakePlan(req);
+    const s = kapikoScreen(screenIdOf(req));
+    if (s.id === 'customer-profile') (s.children as any[])[1].items[0].value = '{{#if record.fromAdjuster}}Adjuster{{else}}You{{/if}}';
+    return s;
+  });
+  const job = await runToEnd(new Generator(new MemoryStore(), provider, cfg));
+  assert.equal(provider.calls.filter(c => c.purpose === 'repair').length, 0);
+  assert.equal(job.status, 'completed');
+  assert.ok(!JSON.stringify(job.document).includes('{{#if'));
+});

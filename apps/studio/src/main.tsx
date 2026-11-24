@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AlertTriangle, CheckCircle2, Monitor, Smartphone, Sparkles, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FolderOpen, Monitor, Plus, Smartphone, Sparkles, Upload, XCircle } from 'lucide-react';
 import { GeneratePanel } from './GeneratePanel.tsx';
 import { DemoRuntime, type Session } from '@demo/runtime';
 import '@demo/runtime/runtime.css';
@@ -13,13 +13,16 @@ const samples: Record<string, DemoDocument> = { kapiko: kapiko as DemoDocument, 
 const params = new URLSearchParams(location.search);
 
 function Studio() {
-  const [doc, setDoc] = useState<DemoDocument>(samples[params.get('doc') ?? 'kapiko'] ?? samples.kapiko);
-  const [screenId, setScreenId] = useState(params.get('screen') ?? doc.screens[0].id);
+  // No sample is loaded by default: the studio opens on "Create a new demo" (examples are optional).
+  const [doc, setDoc] = useState<DemoDocument | null>(samples[params.get('doc') ?? ''] ?? null);
+  const [screenId, setScreenId] = useState(params.get('screen') ?? doc?.screens[0].id ?? '');
+  const [channel, setChannel] = useState<'mobile' | 'portal'>(params.get('channel') === 'portal' ? 'portal' : 'mobile');
+  const [resume, setResume] = useState<string | undefined>();
   const [runKey, setRunKey] = useState(0);
   const [notes, setNotes] = useState<MigrationNote[]>([]);
   const [importError, setImportError] = useState('');
   const [genOpen, setGenOpen] = useState(params.get('generate') === '1');
-  const issues = useMemo<Issue[]>(() => validateDocument(doc), [doc]);
+  const issues = useMemo<Issue[]>(() => (doc ? validateDocument(doc) : []), [doc]);
   const errors = issues.filter(i => i.severity === 'error'), warnings = issues.filter(i => i.severity === 'warning');
 
   const load = (d: DemoDocument, n: MigrationNote[] = []) => { setDoc(d); setScreenId(d.screens[0].id); setNotes(n); setImportError(''); setRunKey(k => k + 1); };
@@ -31,15 +34,46 @@ function Studio() {
       else throw Error('Unsupported file: expected a Demo Builder export (schemaVersion 1 or 2).');
     } catch (e) { setImportError(e instanceof Error ? e.message : 'Import failed'); }
   };
+  const openGenerator = (c: 'mobile' | 'portal', jobId?: string) => { setChannel(c); setResume(jobId); setGenOpen(true); };
+  const download = () => {
+    if (!doc) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = (doc.id || 'demo') + '.json'; a.click(); URL.revokeObjectURL(url);
+  };
+  const panel = genOpen ? <GeneratePanel key={channel + (resume ?? '')} defaultChannel={channel} resumeJobId={resume} onClose={() => setGenOpen(false)} onLoad={(d, w) => load(d, w.map(note => ({ path: '', note })))} /> : null;
+  const importInput = <label className="studio-import"><Upload size={15} />Import JSON (v1 or v2)<input type="file" accept="application/json,.json" onChange={e => e.target.files?.[0] && importFile(e.target.files[0])} /></label>;
+
+  if (!doc) return <div className="studio-welcome">
+    <main>
+      <div className="studio-brand">MEYON Demo Builder <span>v2 preview</span></div>
+      <h1>Create a new demo</h1>
+      <p>Describe your business requirements; AI drafts a screen plan you can edit, then generates a clickable application.</p>
+      <div className="welcome-cards">
+        <button type="button" data-testid="new-mobile" onClick={() => openGenerator('mobile')}><Smartphone size={28} /><strong>Mobile application</strong><span>Customer-facing app: onboarding, accounts, service requests…</span></button>
+        <button type="button" data-testid="new-portal" onClick={() => openGenerator('portal')}><Monitor size={28} /><strong>Staff portal</strong><span>Back-office web portal: dashboards, queues, reviews, reports…</span></button>
+      </div>
+      <div className="welcome-more">
+        <button type="button" onClick={() => openGenerator('mobile')}><FolderOpen size={15} />Open a previous generation</button>
+        {importInput}
+      </div>
+      {importError ? <p className="studio-error" role="alert">{importError}</p> : null}
+      <details className="welcome-examples"><summary>Examples used during development</summary>
+        {Object.entries(samples).map(([k, d]) => <button key={k} type="button" onClick={() => load(d)}>{d.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}{d.name}</button>)}
+      </details>
+    </main>
+    {panel}
+  </div>;
 
   return <div className="studio">
     <aside className="studio-side">
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
-      <button type="button" className="studio-generate" onClick={() => setGenOpen(true)}><Sparkles size={15} />Generate with AI</button>
+      <button type="button" className="studio-generate" onClick={() => openGenerator(doc.channel)}><Sparkles size={15} />Generate with AI</button>
       <label className="studio-label">Project</label>
       <div className="studio-projects">
-        {Object.entries(samples).map(([k, d]) => <button key={k} type="button" aria-pressed={doc.id === d.id} onClick={() => load(d)}>{d.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}{d.name}</button>)}
-        <label className="studio-import"><Upload size={15} />Import JSON (v1 or v2)<input type="file" accept="application/json,.json" onChange={e => e.target.files?.[0] && importFile(e.target.files[0])} /></label>
+        <p className="studio-current">{doc.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}<strong>{doc.name}</strong></p>
+        <button type="button" onClick={() => { setDoc(null); setNotes([]); }}><Plus size={15} />New demo</button>
+        <button type="button" onClick={download}><Download size={15} />Download JSON</button>
+        {importInput}
       </div>
       {importError ? <p className="studio-error" role="alert">{importError}</p> : null}
       <label className="studio-label">Screens · {doc.screens.length}</label>
@@ -58,7 +92,7 @@ function Studio() {
       </div>
       <button type="button" className="studio-restart" onClick={() => { setScreenId(doc.screens[0].id); setRunKey(k => k + 1); }}>Restart demo</button>
     </aside>
-    {genOpen ? <GeneratePanel defaultChannel={doc.channel} onClose={() => setGenOpen(false)} onLoad={(d, w) => load(d, w.map(note => ({ path: '', note })))} /> : null}
+    {panel}
     <main className="studio-stage">
       <div className={'device device-' + doc.channel} data-testid="device">
         <DemoRuntime key={doc.id + runKey} doc={doc} screenId={screenId} onScreenChange={setScreenId}

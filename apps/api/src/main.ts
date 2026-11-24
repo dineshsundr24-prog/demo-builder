@@ -19,6 +19,7 @@ const generator = new Generator(store, new OpenAIProvider(model, required('OPENA
 });
 const app = await buildServer({
   generator, model, accessToken: required('DEMO_ACCESS_TOKEN'), logger: true,
-  origins: (env.FRONTEND_ORIGINS || 'http://localhost:5173').split(',').map(s => s.trim()).filter(Boolean),
+  // FRONTEND_ORIGINS (comma list) and/or STUDIO_HOST (host name injected by the Render blueprint).
+  origins: [...(env.FRONTEND_ORIGINS || (env.STUDIO_HOST ? '' : 'http://localhost:5173')).split(','), ...(env.STUDIO_HOST ? ['https://' + env.STUDIO_HOST] : [])].map(s => s.trim()).filter(Boolean),
 });
 await app.listen({ port: num('PORT', 8787), host: '0.0.0.0' });

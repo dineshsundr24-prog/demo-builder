@@ -70,3 +70,13 @@ test('malformed ids never reach storage; storage errors do not leak database det
   assert.equal(r.statusCode, 503);
   assert.ok(!r.body.includes('PGRST') && !r.body.includes('generation_jobs') && r.json().error.includes('reference err_'));
 });
+
+test('recent generations are listed newest first, behind the access token', async () => {
+  const app = await server();
+  assert.equal((await app.inject({ url: '/api/v2/jobs' })).statusCode, 401);
+  for (const name of ['First', 'Second']) await app.inject({ method: 'POST', url: '/api/v2/jobs', headers: auth, payload: { request: { name, channel: 'portal' }, brief } });
+  const list = (await app.inject({ url: '/api/v2/jobs?limit=5', headers: auth })).json().jobs;
+  assert.equal(list.length, 2);
+  assert.equal(list[0].request.name, 'Second');
+  assert.ok(!('brief' in list[0]) && !('document' in list[0]), 'list stays small');
+});

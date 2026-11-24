@@ -59,3 +59,23 @@ body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: 
 .gen-actions { display: flex; gap: 8px; }
 .gen-actions button { border: 1px solid var(--s-line); background: none; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
 .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+
+.gen-api { font-size: 12px; } .gen-api .bad { color: #b42318; }
+.gen-secondary { display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px dashed #b6c2d1; background: none; border-radius: 8px; padding: 9px; font: inherit; cursor: pointer; color: var(--s-accent); }
+.gen-link { border: 0; background: none; color: var(--s-muted); font: inherit; cursor: pointer; text-decoration: underline; }
+.gen-recent ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gen-recent li { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--s-line); border-radius: 8px; padding: 8px 10px; }
+.gen-recent li span { display: flex; flex-direction: column; } .gen-recent small { color: var(--s-muted); }
+.gen-recent button { border: 1px solid var(--s-line); background: none; border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; }
+
+.studio-welcome { min-height: 100%; display: grid; place-items: center; padding: 32px 16px; }
+.studio-welcome main { width: min(760px, 100%); display: flex; flex-direction: column; gap: 14px; }
+.studio-welcome h1 { margin: 8px 0 0; font-size: 30px; } .studio-welcome p { margin: 0; color: var(--s-muted); }
+.welcome-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 8px; }
+.welcome-cards button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 22px; border-radius: 14px; border: 1px solid var(--s-line); background: var(--s-panel); cursor: pointer; font: inherit; color: var(--s-text); box-shadow: 0 1px 2px rgb(16 24 40 / 6%); }
+.welcome-cards button:hover { border-color: var(--s-accent); box-shadow: 0 6px 20px rgb(23 54 93 / 12%); }
+.welcome-cards svg { color: var(--s-accent); } .welcome-cards strong { font-size: 17px; } .welcome-cards span { color: var(--s-muted); font-size: 14px; }
+.welcome-more { display: flex; gap: 10px; flex-wrap: wrap; }
+.welcome-more button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--s-line); background: none; padding: 8px 12px; border-radius: 8px; font: inherit; cursor: pointer; }
+.welcome-examples { color: var(--s-muted); font-size: 13px; } .welcome-examples button { display: inline-flex; align-items: center; gap: 6px; margin: 8px 8px 0 0; border: 1px solid var(--s-line); background: var(--s-panel); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; }
+.studio-current { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }

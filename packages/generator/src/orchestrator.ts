@@ -75,6 +75,7 @@ export class Generator {
       try {
         const { plan, call } = await this.withRetry(job, () => createPlan(this.provider, request, brief, { maxScreens: this.config.maxScreensPerJob }));
         await this.record(job.id, 'plan', call);
+        if ((await this.store.getJob(job.id))?.status === 'cancelled') return; // cancelled while planning
         await this.store.updateJob(job.id, { status: 'awaiting_plan_approval', plan, warnings: plan.notes });
         await this.store.upsertScreens(plan.screens.map((s, i) => ({ job_id: job.id, screen_id: s.id, title: s.title, position: i, status: 'pending', attempts: 0, screen: null, issues: [], input_tokens: 0, output_tokens: 0 })));
         this.emit(job.id, 'plan_ready', { screens: plan.screens.length });
