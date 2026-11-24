@@ -2,10 +2,10 @@
 // Each entry yields: validation, the strict AI schema, editor palette/inspector
 // metadata and a factory for new instances. Add a component by adding one entry.
 import { z } from 'zod';
-import { ID, Bound, CollectionRef, ScreenRef, StateKey, TemplateRef } from './primitives.ts';
+import { ID, Bound, CollectionRef, ScreenRef, StateKey, TemplateRef, Icon } from './primitives.ts';
 import { Actions } from './actions.ts';
 
-export type Category = 'layout' | 'content' | 'input' | 'action' | 'data' | 'template';
+export type Category = 'layout' | 'content' | 'input' | 'action' | 'data' | 'template' | 'pattern';
 export type Channel = 'mobile' | 'portal';
 export type ComponentDef = {
   type: string;
@@ -27,7 +27,7 @@ function define(d: Omit<ComponentDef, 'channels' | 'container'> & { channels?: C
 const Options = z.array(z.string().min(1).max(60)).min(1).max(20);
 
 // ---------- Layout ----------
-define({ type: 'Stack', label: 'Stack', category: 'layout', container: true, ai: 'Vertical or horizontal group.',
+define({ type: 'Stack', label: 'Stack', category: 'layout', container: true, ai: 'Low-level group; prefer the designed patterns (ActionBar for buttons, QuickActions for shortcuts). align only affects text alignment.',
   props: z.object({ direction: z.enum(['vertical', 'horizontal']), gap: z.enum(['none', 'sm', 'md', 'lg']), align: z.enum(['start', 'center', 'end', 'stretch']).optional() }),
   create: () => ({ direction: 'vertical', gap: 'md', children: [] }) });
 define({ type: 'Grid', label: 'Grid', category: 'layout', container: true, ai: 'Multi-column layout (portal dashboards, KPI rows). Collapses to one column on mobile.',
@@ -92,6 +92,37 @@ define({ type: 'List', label: 'List', category: 'data', ai: 'Mobile-friendly lis
   props: z.object({ collection: CollectionRef, titleField: z.string().min(1).max(40), subtitleField: z.string().max(40).optional(), badgeField: z.string().max(40).optional(),
     itemAction: z.object({ screen: ScreenRef }).optional() }),
   create: () => ({ collection: '', titleField: '' }) });
+// ---------- Designed patterns (the renderer owns their look; prefer these over low-level layout) ----------
+const Act = Actions;
+define({ type: 'Hero', label: 'Hero', category: 'pattern', ai: 'Top-of-screen brand moment for welcome, success and onboarding screens: logo, title, subtitle, illustration.',
+  props: z.object({ title: Bound(80), subtitle: Bound(220).optional(), showLogo: z.boolean(), illustration: z.enum(['none', 'welcome', 'security', 'success', 'growth', 'documents']) }),
+  create: () => ({ title: 'Welcome', showLogo: true, illustration: 'welcome' }) });
+define({ type: 'BalanceCard', label: 'Balance card', category: 'pattern', ai: 'Primary account/balance card (dashboard hero). amount includes currency, e.g. "AED 35,600.75". Account numbers are masked automatically.',
+  props: z.object({ label: Bound(40), amount: Bound(40), caption: Bound(80).optional(), accountName: Bound(40).optional(), accountNumber: z.string().max(40).optional() }),
+  create: () => ({ label: 'Available balance', amount: 'AED 0.00' }) });
+define({ type: 'QuickActions', label: 'Quick actions', category: 'pattern', ai: 'Grid of 2-8 icon shortcuts (e.g. Transfer, Pay bills, Update income, Statements). Labels max 2 words.',
+  props: z.object({ title: Bound(40).optional(), items: z.array(z.object({ label: z.string().min(1).max(20), icon: Icon, actions: Act })).min(2).max(8) }),
+  create: () => ({ items: [{ label: 'Transfer', icon: 'transfer', actions: [] }, { label: 'Pay bills', icon: 'receipt', actions: [] }] }) });
+define({ type: 'TransactionList', label: 'Transaction list', category: 'pattern', ai: 'Recent activity rows: title, subtitle (date/merchant), amount with direction in/out. Use for activity, payments, history.',
+  props: z.object({ title: Bound(40).optional(), items: z.array(z.object({ title: Bound(60), subtitle: Bound(60).optional(), amount: z.string().max(30), direction: z.enum(['in', 'out', 'neutral']), icon: Icon })).min(1).max(12),
+    viewAll: z.object({ label: z.string().min(1).max(20), actions: Act }).optional() }),
+  create: () => ({ items: [{ title: 'Salary', subtitle: 'Today', amount: '+ AED 25,000.00', direction: 'in', icon: 'banknote' }] }) });
+define({ type: 'MenuList', label: 'Menu list', category: 'pattern', ai: 'Settings/profile style rows with icon, label, optional value and chevron; each row can run actions. danger for sign out.',
+  props: z.object({ title: Bound(40).optional(), items: z.array(z.object({ label: Bound(40), description: Bound(80).optional(), icon: Icon, value: z.string().max(40).optional(), danger: z.boolean().optional(), actions: Act })).min(1).max(12) }),
+  create: () => ({ items: [{ label: 'Personal details', icon: 'user', actions: [] }] }) });
+define({ type: 'ProfileHeader', label: 'Profile header', category: 'pattern', ai: 'Avatar with name and subtitle (e.g. customer since, membership). Top of profile screens.',
+  props: z.object({ name: Bound(60), subtitle: Bound(80).optional(), badge: z.string().max(24).optional() }),
+  create: () => ({ name: 'Customer name' }) });
+define({ type: 'ActionBar', label: 'Action bar', category: 'pattern', ai: 'The screen\'s main actions: one primary and optional secondary (e.g. Save / Cancel). Put it last. Inside a Form, a submit action validates that form.',
+  props: z.object({ primary: z.object({ label: Bound(28), actions: Act }), secondary: z.object({ label: Bound(28), actions: Act }).optional() }),
+  create: () => ({ primary: { label: 'Continue', actions: [] } }) });
+define({ type: 'StatusTimeline', label: 'Status timeline', category: 'pattern', ai: 'Progress of a request/application: steps with done/current/upcoming state and optional date.',
+  props: z.object({ title: Bound(40).optional(), steps: z.array(z.object({ label: Bound(40), detail: Bound(60).optional(), state: z.enum(['done', 'current', 'upcoming']) })).min(2).max(8) }),
+  create: () => ({ steps: [{ label: 'Submitted', state: 'done' }, { label: 'In review', state: 'current' }] }) });
+define({ type: 'Promo', label: 'Promo banner', category: 'pattern', ai: 'Highlighted offer or tip with icon and optional call to action.',
+  props: z.object({ title: Bound(60), body: Bound(160).optional(), icon: Icon, cta: z.object({ label: z.string().min(1).max(24), actions: Act }).optional() }),
+  create: () => ({ title: 'Offer', icon: 'gift' }) });
+
 // ---------- Templates ----------
 define({ type: 'Template', label: 'Journey template', category: 'template', ai: 'Prebuilt, professionally designed block (sign-in, sign-up and, when listed, simulated UAE PASS/OTP/eKYC/face/upload/maker-checker). next = screen after success; alt = secondary link (e.g. sign-up from sign-in).',
   props: z.object({ template: TemplateRef, next: ScreenRef.optional(), alt: ScreenRef.optional() }), create: () => ({ template: 'sign-in' }) });

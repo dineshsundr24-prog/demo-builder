@@ -9,3 +9,7 @@ export const StateKey = z.string().regex(/^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*
 // Text that may contain {{state.x}}, {{record.field}} or {{params.x}} bindings.
 export const Bound = (max = 240) => z.string().min(1).max(max);
 export const Color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+// Curated icon names (rendered with a consistent icon set). Unknown names are impossible by schema.
+export const ICON_NAMES = ['home', 'wallet', 'credit-card', 'banknote', 'send', 'transfer', 'receipt', 'file-text', 'upload', 'download', 'user', 'users', 'settings', 'bell', 'shield', 'lock', 'log-out', 'phone', 'mail', 'map-pin', 'calendar', 'clock', 'briefcase', 'building', 'car', 'heart', 'gift', 'piggy-bank', 'chart', 'trending-up', 'help', 'message', 'search', 'star', 'check', 'plus', 'edit', 'list', 'folder', 'dashboard', 'globe', 'id-card', 'landmark', 'percent', 'shopping-bag', 'plane', 'graduation-cap', 'circle'] as const;
+export const Icon = z.enum(ICON_NAMES).meta({ id: 'Icon' }); // emitted once as a shared definition

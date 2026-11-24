@@ -2,6 +2,7 @@
 // published viewer all render through these, so they cannot drift apart.
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { expandTemplate, resolveText, formatters, type NodeT, type DemoDocument, type Action } from '@demo/schema';
+import { patternRenderers, BrandMark } from './patterns.tsx';
 import { getPath, visibleRows, csvFor, type Session } from './engine.ts';
 
 export type RuntimeApi = {
@@ -15,14 +16,14 @@ export type RuntimeApi = {
   interactive: boolean;
 };
 export const RuntimeContext = createContext<RuntimeApi | null>(null);
-const FormContext = createContext<string | undefined>(undefined);
+export const FormContext = createContext<string | undefined>(undefined);
 export const useRuntime = () => { const r = useContext(RuntimeContext); if (!r) throw Error('RuntimeContext missing'); return r; };
-const useText = () => { const r = useRuntime(); return (t: unknown) => resolveText(String(t ?? ''), { state: r.session.state, record: r.session.record?.row ?? null, params: {} }); };
+export const useText = () => { const r = useRuntime(); return (t: unknown) => resolveText(String(t ?? ''), { state: r.session.state, record: r.session.record?.row ?? null, params: {} }); };
 
 export function Nodes({ nodes }: { nodes: NodeT[] }) { return <>{nodes.map(n => <NodeView key={n.id} node={n} />)}</>; }
 export function NodeView({ node }: { node: NodeT }) {
   const rt = useRuntime();
-  const Renderer = renderers[node.type] ?? Unknown;
+  const Renderer = renderers[node.type] ?? patternRenderers[node.type] ?? Unknown;
   const el = <Renderer node={node} />;
   return rt.wrap ? rt.wrap(node, el) : el;
 }
@@ -44,6 +45,7 @@ function Notice({ node }: { node: NodeT }) { const t = useText(); return <div {.
 function Stat({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'stat')}><span className="db-stat-label">{t(node.label)}</span><span className="db-stat-value">{t(node.value)}</span>{node.delta ? <span className="db-stat-delta">{String(node.delta)}</span> : null}</div>; }
 function Image({ node }: { node: NodeT }) {
   const rt = useRuntime();
+  if (node.kind === 'logo') return <div {...attrs(node, 'image')} data-kind="logo"><BrandMark size={72} /></div>;
   const initials = rt.doc.shell.brand.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return <div {...attrs(node, 'image')} data-kind={String(node.kind)} role="img" aria-label={String(node.alt)}>{node.kind === 'logo' || node.kind === 'avatar' ? initials : node.kind === 'camera-frame' ? <span className="db-face-oval" /> : null}</div>;
 }
@@ -54,7 +56,9 @@ function Steps({ node }: { node: NodeT }) {
 }
 function Badge({ node }: { node: NodeT }) { const t = useText(); return <span {...attrs(node, 'badge')} data-tone={String(node.tone)}>{t(node.text)}</span>; }
 function Divider({ node }: { node: NodeT }) { return <hr {...attrs(node, 'divider')} />; }
-function RecordFields({ node }: { node: NodeT }) { const t = useText(); return <dl {...attrs(node, 'fields')}>{(node.items as any[]).map((it, i) => <div key={i}><dt>{it.label}</dt><dd>{t(it.value)}</dd></div>)}</dl>; }
+// Long unbroken numbers (account numbers, IBANs) are grouped in fours so they wrap cleanly.
+const readable = (v: string) => (/^[A-Z]{0,2}\d[\dA-Z]{11,}$/.test(v.replace(/\s/g, '')) && !/\s/.test(v) ? v.replace(/(.{4})(?=.)/g, '$1 ') : v);
+function RecordFields({ node }: { node: NodeT }) { const t = useText(); return <dl {...attrs(node, 'fields')}>{(node.items as any[]).map((it, i) => <div key={i}><dt>{it.label}</dt><dd>{readable(t(it.value))}</dd></div>)}</dl>; }
 
 function useField(node: NodeT) {
   const rt = useRuntime();

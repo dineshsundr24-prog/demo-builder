@@ -12,5 +12,5 @@ export const Action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('toast'), message: z.string().min(1).max(200) }),
 ]);
 export type Action = z.infer<typeof Action>;
-export const Actions = z.array(Action).max(8);
+export const Actions = z.array(Action.meta({ id: 'Action' })).max(8);
 export const actionTypes = Action.options.map(o => o.shape.type.value);

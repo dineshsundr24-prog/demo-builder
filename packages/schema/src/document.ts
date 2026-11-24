@@ -28,7 +28,9 @@ export const Collection = z.object({
 });
 export type Collection = z.infer<typeof Collection>;
 
-export const Theme = z.object({ primary: Color, secondary: Color, accent: Color, radius: z.enum(['sm', 'md', 'lg']), font: z.enum(['system', 'inter', 'serif']) });
+// logo: optional uploaded brand logo as a data URL (rendered with <img>, so SVG scripts never run).
+export const LogoDataUrl = z.string().max(400_000).regex(/^data:image\/(?:png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/, 'Logo must be a PNG, JPEG, WebP or SVG image');
+export const Theme = z.object({ primary: Color, secondary: Color, accent: Color, radius: z.enum(['sm', 'md', 'lg']), font: z.enum(['system', 'inter', 'serif', 'rounded']), logo: LogoDataUrl.optional() });
 
 export const DemoDocument = z.object({
   schemaVersion: z.literal(2),

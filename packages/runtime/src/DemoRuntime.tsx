@@ -1,14 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type LucideIcon, ArrowLeft, BarChart3, Bell, Check, Circle, CreditCard, FileText, Folder, Home, LayoutDashboard, List as ListIcon, Menu, Settings, User, X } from 'lucide-react';
+import { ArrowLeft, Menu, X } from 'lucide-react';
 import { resolveText, type Action, type DemoDocument, type NodeT } from '@demo/schema';
 import { createSession, dismissToast, openRecord as openRecordFn, runActions, setField as setFieldFn, type Session } from './engine.ts';
 import { Nodes, RuntimeContext, type RuntimeApi } from './nodes.tsx';
+import { Icon as BrandIcon } from './icons.tsx';
 
-const icons: Record<string, LucideIcon> = {
-  home: Home, list: ListIcon, user: User, 'layout-dashboard': LayoutDashboard, folder: Folder, check: Check, 'bar-chart': BarChart3,
-  settings: Settings, bell: Bell, 'credit-card': CreditCard, file: FileText, circle: Circle,
-};
-const Icon = ({ name }: { name: string }) => { const C = icons[name] ?? Circle; return <C size={18} />; };
+const Icon = ({ name }: { name: string }) => <BrandIcon name={name} size={18} />;
 
 export type DemoRuntimeProps = {
   doc: DemoDocument;
@@ -21,7 +18,7 @@ export type DemoRuntimeProps = {
 
 export function themeStyle(doc: DemoDocument): React.CSSProperties {
   const r = { sm: '6px', md: '10px', lg: '16px' }[doc.theme.radius];
-  const font = { system: 'system-ui, -apple-system, "Segoe UI", sans-serif', inter: 'Inter, system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif' }[doc.theme.font];
+  const font = { system: 'system-ui, -apple-system, "Segoe UI", sans-serif', inter: 'Inter, system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif', rounded: '"SF Pro Rounded", "Nunito", ui-rounded, system-ui, sans-serif' }[doc.theme.font];
   return { '--db-primary': doc.theme.primary, '--db-secondary': doc.theme.secondary, '--db-accent': doc.theme.accent, '--db-radius': r, '--db-font': font } as React.CSSProperties;
 }
 
@@ -65,19 +62,25 @@ export function DemoRuntime({ doc, screenId, onScreenChange, interactive = true,
   const menuItems = doc.shell.items;
   const active = (id: string) => id === screen.id;
 
-  const body = <main className="db-screen" data-screen-id={screen.id}>
+  // On mobile screens with an app bar, a first heading that repeats the title is not shown twice.
+  const norm = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const first = (screen.children as NodeT[])[0];
+  const bodyNodes = (doc.channel === 'mobile' && showShell && first?.type === 'Heading' && norm(text(String(first.text))) === norm(text(screen.title)))
+    ? (screen.children as NodeT[]).slice(1) : (screen.children as NodeT[]);
+  const body = <main className="db-screen" data-screen-id={screen.id} data-shell={screen.shell}>
     {doc.channel === 'portal' ? <header className="db-page-head">
       {canBack ? <button type="button" className="db-back" aria-label="Back" onClick={() => interactive && run([{ type: 'back' }])}><ArrowLeft size={18} /></button> : null}
       <div><h1>{text(screen.title)}</h1>{screen.subtitle ? <p>{text(screen.subtitle)}</p> : null}</div></header> : null}
-    <div className="db-screen-body"><Nodes nodes={screen.children as NodeT[]} /></div>
+    <div className="db-screen-body"><Nodes nodes={bodyNodes} /></div>
   </main>;
 
   return <RuntimeContext.Provider value={api}>
     <div className="db-app" data-channel={doc.channel} data-shell={showShell ? doc.shell.kind : 'none'} style={themeStyle(doc)}>
       {doc.channel === 'mobile' ? <>
-        <header className="db-appbar">
+        <header className="db-appbar" data-minimal={screen.shell === 'hidden'}>
           {canBack ? <button type="button" className="db-icon-btn" aria-label="Back" onClick={() => interactive && run([{ type: 'back' }])}><ArrowLeft size={20} /></button> : <span className="db-icon-btn" />}
-          <div className="db-appbar-title"><strong>{text(screen.title)}</strong>{screen.subtitle ? <small>{text(screen.subtitle)}</small> : null}</div>
+          {/* Focused flows (welcome, sign-in) have no title bar text; the screen content carries the title. */}
+          <div className="db-appbar-title">{screen.shell !== 'hidden' ? <strong>{text(screen.title)}</strong> : null}</div>
           {showShell && doc.shell.kind === 'drawer' ? <button type="button" className="db-icon-btn" aria-label="Menu" onClick={() => setDrawer(true)}><Menu size={20} /></button> : <span className="db-icon-btn" />}
         </header>
         {body}
