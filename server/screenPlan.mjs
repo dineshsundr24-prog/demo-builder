@@ -38,7 +38,31 @@ export function mergePlannedScreens(plan,batches,meta){
  return{schemaVersion:1,id:meta.id,name:meta.name,description:meta.description,theme:meta.theme,channel:meta.channel,screens};
 }
 
-// JSON mode requires the input message itself to instruct JSON generation.
+// Convert business requirements into a scoped, evidence-preserving batch.
+// Global requirements remain visible to every batch, but specific screen details
+// are sent only for the screens that batch is allowed to create.
+export function plannedBatchPayload(requirement,fullPlan,group,meta={}){
+ if(typeof requirement!=='string'||!Array.isArray(fullPlan)||!Array.isArray(group)||!group.length)throw Error('Invalid screen generation input.');
+ const headings=[...requirement.matchAll(/^\\s{0,3}#{1,5}\\s*Screen\\s+(\\d{1,2})\\s*[-–—:]\\s*.+?\\s*$/gim)];
+ const sections=new Map();
+ for(let i=0;i<headings.length;i++){
+  const start=headings[i].index, end=i+1<headings.length?headings[i+1].index:requirement.length;
+  sections.set(Number(headings[i][1]),requirement.slice(start,end).trim());
+ }
+ const globalContext=requirement.slice(0,headings[0]?.index??0).trim();
+ const expected=fullPlan.map(x=>({id:x.id,title:x.title}));
+ return {
+  task:'Generate exactly the supplied batch screens as a valid JSON object. Do not generate screens outside the batch.',
+  project:{name:String(meta.name||''),company:String(meta.company||''),channel:meta.channel,designGuidelines:String(meta.designGuidelines||'')},
+  globalRequirements:globalContext,
+  availableScreensForNavigation:expected,
+  screensToGenerate:group.map(x=>({id:x.id,title:x.title,requirements:sections.get(x.number)||x.title})),
+  expectedOutput:{screens:group.map(x=>({id:x.id,title:x.title,subtitle:'string',elements:'1-4 valid top-level components'}))},
+  rules:{fixedScreenIds:true,additionalScreens:false,screenCount:group.length,fictionalDataOnly:true,simulatedExternalServices:true}
+ };
+}
+// JSON mode requires the actual input to explicitly demand JSON output, not
+// merely supply a JSON-encoded requirements object.
 export function plannedBatchInput(request){
- return 'Return only a valid JSON object containing the exact requested screens array.\\n'+JSON.stringify(request);
+ return 'Return only a valid JSON object with a screens array. The output must be JSON, without markdown or commentary.\\n'+JSON.stringify(request);
 }
