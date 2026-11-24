@@ -37,3 +37,8 @@ export function mergePlannedScreens(plan,batches,meta){
  if(byId.size!==plan.length)throw Error('AI generated an unplanned screen.');
  return{schemaVersion:1,id:meta.id,name:meta.name,description:meta.description,theme:meta.theme,channel:meta.channel,screens};
 }
+
+// JSON mode requires the input message itself to instruct JSON generation.
+export function plannedBatchInput(request){
+ return 'Return only a valid JSON object containing the exact requested screens array.\\n'+JSON.stringify(request);
+}
