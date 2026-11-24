@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeGeneratedDemo,explainGeneratedDemo,generationClarification} from './generationContract.mjs';
+import {normalizeGeneratedDemo,explainGeneratedDemo,generationClarification,generationFailure,MAX_GENERATED_SCREENS} from './generationContract.mjs';
 const generated={schemaVersion:1,id:'kapiko-portal',name:'Kapiko Bank Staff Portal',description:'Banking staff workflow',channel:'portal',theme:'navy',screens:[
 {id:'dashboard',title:'Dashboard',subtitle:'Operations dashboard',elements:[
 {id:'stats',kind:'stats',items:[{id:'total',label:'Total Applications',value:128}]},
@@ -63,4 +63,25 @@ test('Unsupported component visual pattern has standard portal alternative',()=>
  const help=generationClarification(['screens[0].elements[1].kind: unsupported component chart'],'portal');
  assert.match(help.question,/standard banking-portal components/i);
  assert.match(help.suggestions.join(' '),/supported components/i);
+});
+
+test('12 requested mobile screens are within the same shared generation and visual editor limit',()=>{
+ const one={id:'banner',kind:'hero',title:'Step',description:'Demo'};
+ const definition={schemaVersion:1,id:'mobile-12',name:'Kapiko Mobile',description:'Digital banking journey',channel:'mobile',theme:'teal',
+  screens:Array.from({length:12},(_,i)=>({id:'s'+i,title:'Step '+i,subtitle:'Step '+i,elements:[{...one,id:'banner-'+i}]}))};
+ assert.equal(MAX_GENERATED_SCREENS,12);
+ assert.deepEqual(explainGeneratedDemo(definition,'mobile'),[]);
+ const tooMany=structuredClone(definition);
+ tooMany.screens.push({id:'s12',title:'Extra',subtitle:'Extra',elements:[{...one,id:'extra'}]});
+ assert.ok(explainGeneratedDemo(tooMany,'mobile').some(x=>/2–12 screens/.test(x)));
+});
+test('Generation validation failures never become repeated choice questions',()=>{
+ const limit=generationFailure(['screens: require 2–12 screens']);
+ assert.equal(limit.code,'SCREEN_COUNT');
+ assert.match(limit.message,/12/);
+ assert.equal(limit.question,undefined);
+ const structure=generationFailure(['screens[2].elements[0]: invalid form']);
+ assert.equal(structure.code,'INVALID_GENERATED_DEFINITION');
+ assert.match(structure.message,/invalid application structure/);
+ assert.equal(structure.question,undefined);
 });
