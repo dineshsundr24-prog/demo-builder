@@ -432,3 +432,14 @@
   max-height:none;
   overflow:visible;
 }
+
+/* Shared selected-row panel appears only when a configured row action navigates. */
+.selected-record-summary{border:1px solid #cadef7;border-radius:12px;background:#f8fbff;padding:17px;margin:12px 0 18px;min-width:0}
+.selected-record-title{font-size:12px;font-weight:800;color:#315f9f;margin-bottom:13px}
+.selected-record-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px}
+.selected-record-field{min-width:0;display:flex;flex-direction:column;gap:4px}
+.selected-record-field span{color:#71829b;font-size:11px}
+.selected-record-field strong{color:#243957;font-size:13px;overflow-wrap:anywhere}
+.report-row-action{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#285ea8;font-size:12px;font-weight:700;padding:6px;cursor:pointer;border-radius:6px}
+.report-row-action:hover,.report-row-action:focus-visible{background:#e6effb;color:#174c93}
+.ve-table-action-config{margin-top:12px;padding:12px;border-radius:9px;border:1px solid #a9c9ef;background:#eff6ff;display:flex;flex-direction:column;gap:11px}
