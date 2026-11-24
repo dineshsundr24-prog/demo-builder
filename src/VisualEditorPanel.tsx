@@ -87,9 +87,7 @@ export default function VisualEditorPanel({demo,screenId,selected,busy,onSelectS
      <div className="ve-section-heading"><b><Settings2 size={14}/> Properties</b><span>{selected?.level==='field'?'Field':selected?.level==='item'?'Generated item':selected?.level==='nav-link'?'Menu item':selected?.level==='button'?'Button':labels[element.kind]}</span></div>
      {(element.kind==='table'||(element.kind==='composed'&&item?.kind==='table'))&&<div className="ve-table-action-config">
        <div className="ve-section-heading"><b>Row Actions</b><span>On click</span></div>
-       <div className="ve-field"><label>Action</label><select value={effectiveTableAction(item?.kind==='table'?item:element)?.type||''}
-        onChange={e=>act('Configure table row action',()=>configureTableRowAction(demo,screen.id,element.id,e.target.value?demo.screens.find(s=>s.id!==screen.id)?.id||'':'',{itemId:item?.kind==='table'?item.id:undefined}))}>
-        <option value="">Not connected</option><option value="navigate">Navigate to page</option></select></div>
+       <div className="ve-field"><label>Action behavior</label><input readOnly value="Navigate to page" aria-label="Table row action behavior"/></div>
        <div className="ve-field"><label>Destination page</label><select value={effectiveTableAction(item?.kind==='table'?item:element)?.screenId||''}
         onChange={e=>act('Link table View action',()=>configureTableRowAction(demo,screen.id,element.id,e.target.value,{label:effectiveTableAction(item?.kind==='table'?item:element)?.label||'View',itemId:item?.kind==='table'?item.id:undefined}))}>
         <option value="">Choose a page</option>{demo.screens.filter(s=>s.id!==screen.id).map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></div>
