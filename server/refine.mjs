@@ -1,4 +1,5 @@
 import {validAppearance} from '../src/visualStyle.mjs';
+import {validTableRowAction} from '../src/tableRowActions.mjs';
 import {validMobileNavigation} from '../src/mobileComponents.mjs';
 import {validComposed} from '../src/composed.mjs';
 import {validNavigationLinks} from '../src/portalMenuLinks.mjs';
@@ -81,7 +82,7 @@ export function validateStrictDemo(d,channel){
    if(e.kind==='actions'&&(!Array.isArray(e.buttons)||e.buttons.some(b=>!b||typeof b.id!=='string'||typeof b.label!=='string'||b.nextScreen&&typeof b.nextScreen!=='string')))return false;
    if(e.kind==='form'&&(!Array.isArray(e.fields)||!e.fields.length||typeof e.title!=='string'||typeof e.actionLabel!=='string'||e.fields.some(f=>!f||typeof f.id!=='string'||typeof f.label!=='string'||!['text','email','password','number','select','date','checkbox','file'].includes(f.type))))return false;
    if(e.kind==='composed'&&!validComposed(e,d.screens.map(x=>x.id)))return false;
-   if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||!validReportTools(e.tools,e.columns)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
+   if(e.kind==='table'&&(!Array.isArray(e.columns)||!Array.isArray(e.rows)||!validTableRowAction(e.rowAction,d.screens.map(x=>x.id))||!validReportTools(e.tools,e.columns)||e.rows.some(r=>!r||typeof r!=='object'||Object.values(r).some(v=>typeof v!=='string'))))return false;
    if(!['hero','stats','notice','actions','form','table','composed','navigation'].includes(e.kind))return false;
   }
  }
@@ -89,7 +90,7 @@ export function validateStrictDemo(d,channel){
  if(d.channel==='mobile'&&d.screens.some(s=>s.parentScreenId))return false;
  if(d.screens.some(s=>s.parentScreenId&&(typeof s.parentScreenId!=='string'||!ids.has(s.parentScreenId)||s.id===s.parentScreenId||d.screens.find(p=>p.id===s.parentScreenId)?.parentScreenId)))return false;
   for(const s of d.screens)for(const e of s.elements){
-  const links=e.kind==='actions'?e.buttons.map(b=>b.nextScreen):e.kind==='form'?[e.nextScreen]:e.kind==='table'?[e.detailScreen]:[];
+  const links=e.kind==='actions'?e.buttons.map(b=>b.nextScreen):e.kind==='form'?[e.nextScreen]:e.kind==='table'?[e.detailScreen,e.rowAction?.screenId]:[];
   if(links.some(id=>id&&!ids.has(id)))return false;
  }
  return true;
