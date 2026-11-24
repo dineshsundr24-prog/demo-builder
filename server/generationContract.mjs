@@ -40,7 +40,7 @@ function normalizeCard(e){
 }
 // Canonicalize the model's ordinary UI control vocabulary into the supported
 // top-level screen representation, without discarding labels or routes.
-const nestedKinds=new Set(['text','card','input','checkbox','select','button','progress','badge','divider']);
+const nestedKinds=new Set(['text','input','checkbox','select','button','progress','badge','divider']);
 const safeId=(v,fallback)=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,60}$/.test(v)?v:fallback;
 function normalizeNestedItem(value,index){
  const x=structuredClone(value);
