@@ -3,6 +3,7 @@ import {verifyEditScope} from './editScope.mjs';
 // @ts-ignore Shared portal-navigation helpers.
 import {navigationMenuLinks} from './portalMenuLinks.mjs';
 import ReportTable from './ReportTable';
+import SelectedRowDetails from './SelectedRowDetails';
 import ScreenshotStudio from './ScreenshotStudio';
 import ComposedElement from './ComposedElement';
 import MobileNavigation from './MobileNavigation';
@@ -18,7 +19,7 @@ import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import{ArrowLeft,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Code2,Copy,Download,Eye,FileJson,FolderPlus,Info,LayoutDashboard,MessageSquare,Monitor,MoreHorizontal,Paperclip,Plus,Minus,RefreshCw,Search,Send,Settings2,ShieldCheck,Smartphone,Sparkles,Upload,Wallet,X,MousePointer2,Maximize2,Minimize2,Images,GripVertical,Trash2,ArrowUp,ArrowDown}from'lucide-react';
-import{cloneDemo,DemoDefinition,Element,mobileStarter,starter,validateDemo}from './demo';
+import{cloneDemo,DemoDefinition,Element,RowSelection,mobileStarter,starter,validateDemo}from './demo';
 import PublishedViewer from './PublishedViewer';
 // @ts-ignore Shared pure JS contract is also exercised by backend tests.
 import {resolveScreenChrome} from './screenChrome.mjs';
@@ -55,7 +56,7 @@ function App(){
  const[refinementQuestion,setRefinementQuestion]=useState<{projectId:string;instruction:string;target:Target;question:string;reason:string;options:string[];clarifications:{question:string;answer:string}[]}|null>(null);
  const[aiReady,setAiReady]=useState(false);const[aiOnline,setAiOnline]=useState(false);const[aiModel,setAiModel]=useState('');const[aiBusy,setAiBusy]=useState(false);
  const[accessModal,setAccessModal]=useState(false);const[rememberAI,setRememberAI]=useState(()=>{try{return localStorage.getItem('meyon-demo-ai-remember')==='yes';}catch{return false;}});const[accessToken,setAccessToken]=useState(()=>{try{return sessionStorage.getItem('meyon-demo-ai-access')||(localStorage.getItem('meyon-demo-ai-remember')==='yes'?localStorage.getItem('meyon-demo-ai-saved')||'':'');}catch{return '';}});const[accessDraft,setAccessDraft]=useState('');
- const[formValues,setFormValues]=useState<Record<string,string>>({});const[errors,setErrors]=useState<Record<string,string>>({});
+ const[formValues,setFormValues]=useState<Record<string,string>>({});const[rowContext,setRowContext]=useState<RowSelection|null>(null);const[errors,setErrors]=useState<Record<string,string>>({});
  const fileInput=useRef<HTMLInputElement>(null);const end=useRef<HTMLDivElement>(null);const previewScroll=useRef<HTMLDivElement>(null);
  const project=state.projects.find(p=>p.id===state.activeId)||state.projects[0];
  const demo=pending?.projectId===project.id?pending.definition:project.demo;
@@ -367,7 +368,7 @@ function App(){
    setToast('Draft restored from version '+v.version+'. Published snapshots were not changed.');
   }catch(err){setToast(err instanceof Error?err.message:'Could not restore version.');}
  }
- function go(id?:string){if(id&&demo?.screens.some(s=>s.id===id)){setSelected(null);setScreenId(id);setErrors({});setSearch('');}}
+ function go(id?:string,context?:RowSelection|null){if(id&&demo?.screens.some(s=>s.id===id)){setSelected(null);setScreenId(id);setRowContext(context&&context.destinationId===id?context:null);setErrors({});setSearch('');}}
  function submit(el:Extract<Element,{kind:'form'}>){const err:Record<string,string>={};for(const f of el.fields){const v=(formValues[f.id]||'').trim();if(f.required&&((f.type==='checkbox'&&v!=='true')||(f.type!=='checkbox'&&!v)))err[f.id]=f.type==='checkbox'?'Please check this box':'Required field';if(v&&f.type==='email'&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))err[f.id]='Enter a valid email';}setErrors(err);if(!Object.keys(err).length){go(el.nextScreen);if(!el.nextScreen)setToast('Demo form submitted. No actual backend call was made.');}}
  function exportJSON(){if(!demo)return;if(pending){setToast('Apply or discard the proposed edit before exporting.');return;}const url=URL.createObjectURL(new Blob([JSON.stringify(demo,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=demo.id+'.json';a.click();URL.revokeObjectURL(url);}
  async function handleFiles(files:FileList|null){if(!files?.length)return;const names=Array.from(files).map(f=>f.name);updateProject({files:[...project.files,...names]});setToast('Attached filenames recorded locally. Document extraction and AI processing are not connected yet.');if(fileInput.current)fileInput.current.value='';}
@@ -378,8 +379,8 @@ function App(){
  case'notice':return <div className={'notice '+el.tone} style={appearanceToStyle(el.appearance)}>{el.tone==='success'?<CheckCircle2 size={19}/>:<Info size={19}/>}<div><strong>{el.title}</strong><p>{el.body}</p></div></div>;
  case'actions':return <div className="button-row" style={appearanceToStyle(el.appearance)}>{el.buttons.map(b=><span className="canvas-button-holder" key={b.id}><button data-select-level="button" data-select-element={el.id} data-select-child={b.id} style={appearanceToStyle(b.appearance)} className={'btn '+(b.variant==='secondary'?'outline':'primary')+(activeSelection?.level==='button'&&activeSelection.elementId===el.id&&activeSelection.childId===b.id?' visual-selected':'')} onClick={()=>go(b.nextScreen)}>{b.label}<ArrowRight size={14}/></button>{selectMode&&!pending&&<button type="button" data-editor-control="true" className="canvas-delete-button" title={'Remove '+b.label} aria-label={'Remove '+b.label} onClick={e=>{e.preventDefault();e.stopPropagation();canvasAction('Remove button',()=>removeVisualButton(project.demo!,screen!.id,el.id,b.id));setSelected({level:'element',screenId:screen!.id,elementId:el.id});}}><Trash2 size={12}/></button>}</span>)}</div>;
  case'navigation':return <MobileNavigation element={el} onNavigate={go} editing={selectMode&&!pending} selectedLinkId={activeSelection?.level==='nav-link'&&activeSelection.elementId===el.id?activeSelection.childId:undefined} onSelectLink={id=>setSelected({level:'nav-link',screenId:screen!.id,elementId:el.id,childId:id})}/>;
- case'table':return <ReportTable key={el.id} element={el} onNavigate={go}/>;
- case'composed':return <ComposedElement key={el.id} element={el} onNavigate={go}
+ case'table':return <ReportTable key={el.id} element={el} onNavigate={(id,ctx)=>go(id,ctx?{...ctx,sourceScreenId:screen!.id}:null)}/>;
+ case'composed':return <ComposedElement key={el.id} element={el} onNavigate={(id,ctx)=>go(id,ctx?{...ctx,sourceScreenId:screen!.id}:null)}
  editor={selectMode&&!pending?{
   selectedItemId:activeSelection?.level==='item'&&activeSelection.elementId===el.id?activeSelection.childId:undefined,
   onSelect:(itemId:string)=>setSelected({level:'item',screenId:screen!.id,elementId:el.id,childId:itemId}),
@@ -449,7 +450,7 @@ function App(){
   {renderMobileSlot('header-left')}
   <div data-select-level="header" className={'mobile-brand'+(activeSelection?.level==='header'?' visual-selected':'')}>{showBrandIcon&&<span className="mobile-symbol"><Wallet size={17}/></span>}<span>{brandName}</span></div>
   {renderMobileSlot('header-right')}
- </div>}{showBackButton&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div><div className={'elements'+(selectMode?' canvas-editing':'')} onDragOver={e=>{if(selectMode)e.preventDefault();}} onDrop={e=>canvasDrop(e)}>
+ </div>}{showBackButton&&screen.id!==demo.screens[0].id&&<button className="back-link" onClick={()=>go(demo.screens[0].id)}><ArrowLeft size={15}/>Back</button>}<div className="screen-intro"><h1>{screen.title}</h1><p>{screen.subtitle}</p></div>{rowContext?.destinationId===screen.id&&<SelectedRowDetails context={rowContext}/>}<div className={'elements'+(selectMode?' canvas-editing':'')} onDragOver={e=>{if(selectMode)e.preventDefault();}} onDrop={e=>canvasDrop(e)}>
  {screen.elements.filter(el=>project.channel!=='mobile'||layoutMobileScreen(screen).body.some(item=>item.id===el.id)).map((el,i)=><div data-select-level="element" data-select-element={el.id} draggable={selectMode&&!pending} onDragStart={e=>{if(!selectMode||((e.target as HTMLElement).closest('.canvas-field-editable')&&e.target!==e.currentTarget))return;e.stopPropagation();e.dataTransfer.setData('text/plain','component:'+el.id);e.dataTransfer.effectAllowed='move';}} onDragOver={e=>{if(selectMode){e.preventDefault();e.stopPropagation();}}} onDrop={e=>canvasDrop(e,el.id)}
  className={'visual-target canvas-edit-target'+(activeSelection?.elementId===el.id?' visual-selected':'')} key={el.id}>
  {selectMode&&!pending&&<div className="canvas-element-toolbar" data-editor-control="true" onClick={e=>e.stopPropagation()}><span className="canvas-element-handle" title="Drag component to reorder"><GripVertical size={15}/><span>{el.kind==='form'?'Form':el.kind==='actions'?'Buttons':el.kind==='hero'?'Banner':el.kind==='notice'?'Text / Card':el.kind}</span></span><button title="Move up" aria-label="Move component up" disabled={i===0} onClick={()=>canvasAction('Move component up',()=>moveVisualComponent(project.demo!,screen.id,el.id,i-1))}><ArrowUp size={14}/></button><button title="Move down" aria-label="Move component down" disabled={i===screen.elements.length-1} onClick={()=>canvasAction('Move component down',()=>moveVisualComponent(project.demo!,screen.id,el.id,i+1))}><ArrowDown size={14}/></button><button title="Remove component" aria-label="Remove component" onClick={()=>canvasDeleteElement(el.id)}><Trash2 size={14}/></button></div>}
