@@ -80,3 +80,13 @@ test('recent generations are listed newest first, behind the access token', asyn
   assert.equal(list[0].request.name, 'Second');
   assert.ok(!('brief' in list[0]) && !('document' in list[0]), 'list stays small');
 });
+
+test('public status reports storage problems without leaking database details', async () => {
+  const { StoreError, MemoryStore: MS } = await import('@demo/generator');
+  class BadKey extends MS { async costSince(): Promise<number> { throw new StoreError('Supabase GET usage_events failed (401): Invalid API key', 401); } }
+  const app = await buildServer({ generator: new Generator(new BadKey(), provider(), defaultConfig), accessToken: TOKEN, origins: [], model: 'fake' });
+  const s = (await app.inject({ url: '/api/v2/status' })).json();
+  assert.equal(s.storage, 'unavailable');
+  assert.equal(s.ready, false);
+  assert.ok(!JSON.stringify(s).includes('Invalid API key'));
+});

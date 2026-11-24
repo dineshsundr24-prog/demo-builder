@@ -5,7 +5,7 @@ import type { DemoDocument } from '@demo/schema';
 
 const env = import.meta.env as Record<string, string | undefined>;
 export const API = env.VITE_API_URL || (env.VITE_API_HOST ? 'https://' + env.VITE_API_HOST : 'http://localhost:8787');
-type Status = { model: string; store: string; budget: { spentUsd: number; limitUsd: number } | null; maxScreensPerJob: number };
+type Status = { model: string; store: string; storage?: 'connected' | 'unavailable'; budget: { spentUsd: number; limitUsd: number } | null; maxScreensPerJob: number };
 type JobSummary = { id: string; status: string; request: { name?: string; channel?: string }; cost_usd: number; created_at: string };
 type PlanScreen = { id: string; title: string; purpose: string; requirement: string; template: string | null; links: string[]; shell: string; locked: boolean };
 type Job = { id: string; status: string; plan: { screens: PlanScreen[]; notes?: string[] } | null; warnings: string[]; error: { category: string; message: string; traceId: string } | null; cost_usd: number; input_tokens: number; output_tokens: number; trace_id: string };
@@ -37,8 +37,13 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
   // API health, model, storage and monthly budget (public endpoint); recent jobs need the token.
   useEffect(() => {
     let stop = false;
-    fetch(API + '/api/v2/status').then(r => r.json()).then(s => { if (!stop) { setStatus(s); setApiError(''); } })
-      .catch(() => { if (!stop) setApiError('Cannot reach the generation API at ' + API + '. On the free plan it may take up to a minute to wake up; try again shortly.'); });
+    fetch(API + '/api/v2/status').then(r => r.json()).then(s => {
+      if (stop) return;
+      // Older API builds report storage failures as budget: {error}; treat both shapes the same.
+      const storageDown = s?.storage === 'unavailable' || (s?.budget && typeof s.budget.spentUsd !== 'number');
+      setStatus({ ...s, storage: storageDown ? 'unavailable' : 'connected', budget: storageDown ? null : s.budget }); setApiError('');
+    })
+      .catch(() => { if (!stop) setStatus(null); if (!stop) setApiError('Cannot reach the generation API at ' + API + '. On the free plan it may take up to a minute to wake up; try again shortly.'); });
     return () => { stop = true; };
   }, [job?.status]);
   useEffect(() => {
@@ -89,7 +94,7 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
     <section className="gen-panel">
       <header><h2><Sparkles size={18} /> Generate with AI</h2><button type="button" className="gen-x" aria-label="Close" onClick={onClose}><X size={18} /></button></header>
       {!job || ['failed', 'cancelled'].includes(job.status) && !job.plan ? <div className="gen-body">
-        <p className="gen-note gen-api" data-testid="api-status">{apiError ? <span className="bad">{apiError}</span> : status ? <>Connected · model {status.model} · storage {status.store}{status.budget ? ' · AI spend this month USD ' + status.budget.spentUsd.toFixed(2) + ' of ' + status.budget.limitUsd : ''}</> : 'Connecting to the generation API…'}</p>
+        <p className="gen-note gen-api" data-testid="api-status">{apiError ? <span className="bad">{apiError}</span> : status?.storage === 'unavailable' ? <span className="bad">The API is running but its storage is not connected, so generations cannot be saved. Ask the administrator to check SUPABASE_SECRET_KEY.</span> : status ? <>Connected · model {status.model} · storage {status.store}{typeof status.budget?.spentUsd === 'number' ? ' · AI spend this month USD ' + status.budget.spentUsd.toFixed(2) + ' of ' + status.budget.limitUsd : ''}</> : 'Connecting to the generation API…'}</p>
         <label>Access token<input type="password" value={access} onChange={e => setAccess(e.target.value)} placeholder="Demo Builder access token" autoComplete="off" /></label>
         <div className="gen-row"><label>Project name<input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
           <label>Company<input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} /></label>

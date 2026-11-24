@@ -54,8 +54,11 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/api/v2/status', async () => {
     let budget: unknown = null;
-    try { budget = await gen.budgetStatus(); } catch (e) { budget = { error: e instanceof Error ? e.message : 'unavailable' }; }
-    return { ready: Boolean(opts.accessToken), model: opts.model, store: gen.store.kind, budget, maxScreensPerJob: gen.config.maxScreensPerJob };
+    // Public endpoint: never expose storage error details here (they are logged server-side).
+    let storage: 'connected' | 'unavailable' = 'connected';
+    try { budget = await gen.budgetStatus(); }
+    catch (e) { storage = 'unavailable'; budget = null; app.log.error({ detail: e instanceof Error ? e.message : String(e) }, 'status: storage check failed'); }
+    return { ready: Boolean(opts.accessToken) && storage === 'connected', model: opts.model, store: gen.store.kind, storage, budget, maxScreensPerJob: gen.config.maxScreensPerJob };
   });
 
   app.post('/api/v2/jobs', async (req, reply) => {

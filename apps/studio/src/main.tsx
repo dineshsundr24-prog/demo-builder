@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AlertTriangle, CheckCircle2, Download, FolderOpen, Monitor, Plus, Smartphone, Sparkles, Upload, XCircle } from 'lucide-react';
 import { GeneratePanel } from './GeneratePanel.tsx';
+import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { DemoRuntime, type Session } from '@demo/runtime';
 import '@demo/runtime/runtime.css';
 import { validateDocument, migrateV1, DemoDocument, type Issue, type MigrationNote } from '@demo/schema';
@@ -101,4 +102,4 @@ function Studio() {
     </main>
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><Studio /></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary><Studio /></ErrorBoundary></React.StrictMode>);
