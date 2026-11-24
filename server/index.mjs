@@ -1,5 +1,6 @@
 import {validComposed} from '../src/composed.mjs';
 import {normalizeGeneratedDemo,explainGeneratedDemo,generationFailure,MAX_GENERATED_SCREENS,MAX_GENERATED_ELEMENTS} from './generationContract.mjs';
+import {explicitScreenPlan,plannedScreenGroups,mergePlannedScreens} from './screenPlan.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -116,10 +117,65 @@ async function repairInvalidScreens(candidate,issues,channel){
  if(!validDemo(definition,channel))return null;
  return{definition,usage:{inputTokens,outputTokens}};
 }
+// Large, explicitly numbered journeys use a frozen screen plan and independently
+// authored groups. This prevents one-shot AI from adding a 13th screen and avoids
+// forcing the entire journey through a high-token full-definition rewrite.
+async function generatePlannedDefinition(project,requirement,plan,channel){
+ const meta={id:'demo-'+String(project.name||'application').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,55),
+  name:String(project.name||project.company||'Digital Banking Demo').slice(0,120),
+  description:'Interactive '+channel+' demonstration of '+String(project.name||'the application').slice(0,100),
+  channel,theme:'navy'};
+ const groups=plannedScreenGroups(plan,3);
+ const listing=plan.map(s=>({id:s.id,title:s.title}));
+ const instructions='You author a SMALL BATCH of existing application screens. Return ONLY JSON {"screens":[...]}. The full screen list and exact batch IDs are provided. Produce exactly the batch screens, in their original order and with the supplied IDs; never add, omit or rename a screen. Each screen MUST have id,title,subtitle and 1–4 elements. Allowed top-level kinds: hero,stats,form,table,notice,actions,composed. NO top-level card/button/input. Use composed {id,kind:"composed",title,items:[{id,kind:"card"|"text"|"input"|"checkbox"|"select"|"button"|"progress",label,text?,options?,required?,nextScreen?}]} for richer UI; every item needs id,kind,label, select requires string options and progress numeric value. Forms: id,kind:"form",title,actionLabel,fields:[{id,label,type:"text"|"email"|"password"|"number"|"select"|"date"|"checkbox"|"file",required?,options?}],nextScreen?; no custom field types. For actions use buttons with id,label,nextScreen. Every nextScreen MUST be from the supplied full-screen list. All ids unique per screen. Use concise realistic fictional UAE banking data, navigable controls and simulated UAE PASS/biometrics, never live claims. Do not invent extra screens or unsupported component types.';
+ const produce=async(group,index)=>{
+  for(let attempt=0;attempt<2;attempt++){
+   const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),90000);
+   try{
+    const request={projectName:meta.name,company:project.company,channel,designGuidelines:project.guidelines,
+     originalRequirement:requirement,fullScreenList:listing,batchToCreate:group,strictScreenCount:group.length,
+     previousAttemptFailed:attempt>0?'Return exactly the requested screens and conform to schema; no extras.':undefined};
+    const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,
+     headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},
+     body:JSON.stringify({model,instructions,input:JSON.stringify(request),text:{format:{type:'json_object'}},max_output_tokens:6500,store:false})});
+    if(!response.ok){console.error('Planned batch generation API failure',{index,status:response.status});continue;}
+    const raw=await response.json();
+    const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
+    const data=JSON.parse(output);
+    if(!Array.isArray(data.screens)||data.screens.length!==group.length||data.screens.some((sc,i)=>sc?.id!==group[i].id)){
+     console.warn('Planned generation batch rejected: screen list mismatch',{index,expected:group.map(x=>x.id),actual:data.screens?.map(x=>x?.id)});
+     continue;
+    }
+    return{screens:data.screens,usage:{inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
+   }catch(e){console.warn('Planned generation batch failed',{index,attempt,message:String(e?.message||e).slice(0,140)});}
+   finally{clearTimeout(timeout);}
+  }
+  return null;
+ };
+ const generated=await Promise.all(groups.map(produce));
+ if(generated.some(x=>!x))return{generationFailed:true,errorCode:'BATCH_GENERATION_FAILED',reason:'One of the requested screen groups could not be generated. The original 12-screen requirement is saved; no incomplete demo was published.'};
+ let definition=normalizeGeneratedDemo(mergePlannedScreens(plan,generated,meta));
+ let repaired=false;
+ if(!validDemo(definition,channel)){
+  const issues=explainGeneratedDemo(definition,channel);
+  console.warn('Planned screens require targeted repair',{count:plan.length,issues:issues.slice(0,10)});
+  const fixed=await repairInvalidScreens(definition,issues,channel);
+  if(!fixed)return{generationFailed:true,errorCode:'INVALID_PLANNED_SCREEN',reason:'The requested screen list was preserved, but one or more generated screens failed component validation. No partial demo was saved.'};
+  definition=fixed.definition;repaired=true;
+ }
+ const tokens=generated.reduce((v,g)=>({inputTokens:v.inputTokens+g.usage.inputTokens,outputTokens:v.outputTokens+g.usage.outputTokens}),{inputTokens:0,outputTokens:0});
+ console.info('Planned screen generation succeeded',{screens:definition.screens.length,groups:groups.length,repaired});
+ return{definition,summary:'Generated '+definition.screens.length+' screens against the fixed, numbered project screen plan.',usage:{model,inputTokens:tokens.inputTokens,outputTokens:tokens.outputTokens}};
+}
 async function generate(body){
  const project=body?.project||{};
  const channel=project.channel;
  if(!['portal','mobile'].includes(channel)||typeof body.requirement!=='string'||body.requirement.trim().length<15||body.requirement.length>12000)throw Object.assign(new Error('A requirement of 15–12,000 characters and a valid channel are required.'),{status:400});
+ const requestedPlan=explicitScreenPlan(body.requirement,MAX_GENERATED_SCREENS);
+ if(requestedPlan&&requestedPlan.length>=9){
+  console.info('Using fixed screen-list generation',{requestedScreens:requestedPlan.length,groups:Math.ceil(requestedPlan.length/3)});
+  return await generatePlannedDefinition(project,body.requirement,requestedPlan,channel);
+ }
  const context=JSON.stringify({projectName:String(project.name||'New application').slice(0,120),company:String(project.company||'').slice(0,120),designGuidelines:String(project.guidelines||'').slice(0,1600),channel,requirement:body.requirement.slice(0,12000)});
  const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),90000);
  let raw;
