@@ -2,6 +2,8 @@
 // Do not invent screens, component kinds, interactions, routes or field identities.
 import {validComposed} from '../src/composed.mjs';
 
+export const MAX_GENERATED_SCREENS=12;
+export const MAX_GENERATED_ELEMENTS=48;
 const kinds=new Set(['hero','stats','form','table','notice','actions','composed']);
 const fields=new Set(['text','email','password','number','select','date','checkbox']);
 function text(v,max=180){return typeof v==='string'&&v.trim().length>0&&v.length<=max;}
@@ -46,7 +48,7 @@ export function explainGeneratedDemo(d,channel){
  if(typeof d.description!=='string'||d.description.length>500)bad('description','must be a string of at most 500 characters');
  if(d.channel!==channel)bad('channel','does not match project');
  if(!['navy','teal'].includes(d.theme))bad('theme','must be navy or teal');
- if(!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>9)return [...errors,'screens: require 2–9 screens'];
+ if(!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>MAX_GENERATED_SCREENS)return [...errors,'screens: require 2–'+MAX_GENERATED_SCREENS+' screens'];
  const screenIds=new Set(),allLinks=[],allScreenIds=d.screens.filter(object).map(s=>s.id);
  let total=0;
  d.screens.forEach((s,i)=>{
@@ -88,11 +90,19 @@ export function explainGeneratedDemo(d,channel){
    }
   });
  });
- if(total>45)bad('screens','more than 45 total elements');
+ if(total>MAX_GENERATED_ELEMENTS)bad('screens','more than '+MAX_GENERATED_ELEMENTS+' total elements');
  for(const [path,target] of allLinks)if(!screenIds.has(target))bad(path,'unknown destination '+target);
  return errors;
 }
 
+// Technical schema failures are not user preferences. Never turn them into repeated
+// generic clarification questions after the generator and repairer have failed.
+export function generationFailure(issues){
+ const list=Array.isArray(issues)?issues:[String(issues||'Generation validation failed')];
+ const limit=list.find(x=>/^screens: require /.test(x));
+ if(limit)return{code:'SCREEN_COUNT',message:'Generation produced an unsupported number of screens. The current limit is '+MAX_GENERATED_SCREENS+'. The original requirements are preserved.',details:list.slice(0,5)};
+ return{code:'INVALID_GENERATED_DEFINITION',message:'AI generated an invalid application structure and automated repair did not resolve it. No screens were saved. Please retry generation or generate a smaller first journey.',details:list.slice(0,5)};
+}
 /** Business-facing clarification; never expose internal schema paths to BAs. */
 export function generationClarification(issues,channel){
  const first=Array.isArray(issues)?issues[0]||'':String(issues||'');
