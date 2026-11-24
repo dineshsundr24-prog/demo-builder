@@ -443,3 +443,10 @@
 .report-row-action{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#285ea8;font-size:12px;font-weight:700;padding:6px;cursor:pointer;border-radius:6px}
 .report-row-action:hover,.report-row-action:focus-visible{background:#e6effb;color:#174c93}
 .ve-table-action-config{margin-top:12px;padding:12px;border-radius:9px;border:1px solid #a9c9ef;background:#eff6ff;display:flex;flex-direction:column;gap:11px}
+
+/* One explicit, confirmed destructive workspace action; never auto-reset on deploy. */
+.studio-side-footer{display:flex;flex-direction:column;gap:10px;align-items:stretch}
+.studio-side-footer>div{display:flex;align-items:center;gap:6px}
+.reset-projects-button{width:100%;min-height:37px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #efc3c3;background:#fff5f5;color:#af3636;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer}
+.reset-projects-button:hover{background:#fee4e4;border-color:#e8a6a6}
+.reset-projects-button:disabled{opacity:.45;cursor:not-allowed}
