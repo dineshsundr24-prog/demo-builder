@@ -2,7 +2,9 @@
 import {appearanceToStyle} from './visualStyle.mjs';
 import React,{useState} from 'react';
 import {GripVertical,ArrowUp,ArrowDown,Trash2} from 'lucide-react';
-import type {Element} from './demo';
+import type {Element,RowSelection} from './demo';
+// @ts-ignore Shared row action contract.
+import {effectiveTableAction,selectedRowContext} from './tableRowActions.mjs';
 // @ts-ignore Safe runtime is shared between browser and Node regression tests.
 import {dynamicRows,dynamicCsv,executeDynamicActions} from './componentRuntime.mjs';
 import './styles.css';
@@ -10,7 +12,7 @@ import './dynamicComponent.css';
 type Composed=Extract<Element,{kind:'composed'}>;
 type Item=Composed['items'][number];
 type EditorControls={selectedItemId?:string;onSelect:(itemId:string)=>void;onMove:(itemId:string,toIndex:number)=>void;onRemove:(itemId:string)=>void};
-export default function ComposedElement({element,onNavigate,editor}:{element:Composed;onNavigate:(id?:string)=>void;editor?:EditorControls}){
+export default function ComposedElement({element,onNavigate,editor}:{element:Composed;onNavigate:(id?:string,context?:RowSelection|null)=>void;editor?:EditorControls}){
  const [values,setValues]=useState<Record<string,string>>({});
  const [visible,setVisible]=useState<Record<string,boolean>>({});
  const [errors,setErrors]=useState<Record<string,string>>({});
@@ -47,7 +49,20 @@ export default function ComposedElement({element,onNavigate,editor}:{element:Com
     case 'select':return <div className="composed-field" style={appearanceToStyle(item.appearance)} key={item.id}><label>{item.label}{item.required?' *':''}</label><select value={val} onChange={e=>setValues(p=>({...p,[item.id]:e.target.value}))}><option value="">Select an option</option>{item.options?.map(x=><option key={x} value={x}>{x}</option>)}</select>{errors[item.id]&&<small className="error">{errors[item.id]}</small>}</div>;
     case 'input':return <div className="composed-field" style={appearanceToStyle(item.appearance)} key={item.id}><label>{item.label}{item.required?' *':''}</label><input type={item.inputType||'text'} value={val} onChange={e=>setValues(p=>({...p,[item.id]:e.target.value}))} placeholder={item.text||''}/>{errors[item.id]&&<small className="error">{errors[item.id]}</small>}</div>;
     case 'button':return <button type="button" className="btn primary composed-action" style={appearanceToStyle(item.appearance)} key={item.id} onClick={()=>act(item)}>{item.label}</button>;
-    case 'table':{const rows=dynamicRows(item,values) as Record<string,string>[];return <div className="dynamic-table-wrap" style={appearanceToStyle(item.appearance)} key={item.id}><div className="dynamic-table-title">{item.label}</div><div className="table-scroll"><table><thead><tr>{item.columns?.map(c=><th key={c.id}>{c.label}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{item.columns?.map(c=><td key={c.id}>{r[c.id]}</td>)}</tr>)}{rows.length===0&&<tr><td colSpan={item.columns?.length||1} className="empty">No matching records</td></tr>}</tbody></table></div></div>;}
+    case 'table':{
+    const rows=dynamicRows(item,values) as Record<string,string>[];
+    const action=effectiveTableAction(item);
+    const hasActionCol=item.columns?.some(c=>c.id==='action'||c.id==='actions');
+    return <div className="dynamic-table-wrap" style={appearanceToStyle(item.appearance)} key={item.id}>
+      <div className="dynamic-table-title">{item.label}</div>
+      <div className="table-scroll"><table><thead><tr>{item.columns?.map(c=><th key={c.id}>{c.label}</th>)}{action&&!hasActionCol&&<th>Action</th>}</tr></thead><tbody>
+      {rows.map((row,i)=><tr key={i}>{item.columns?.map(c=><td key={c.id}>{action&&(c.id==='action'||c.id==='actions')?
+       <button type="button" className="report-row-action" onClick={()=>onNavigate(action.screenId,selectedRowContext(action.screenId,item,row,''))}>{action.label}</button>:row[c.id]}</td>)}
+       {action&&!hasActionCol&&<td><button type="button" className="report-row-action" onClick={()=>onNavigate(action.screenId,selectedRowContext(action.screenId,item,row,''))}>{action.label}</button></td>}
+      </tr>)}
+      {rows.length===0&&<tr><td colSpan={(item.columns?.length||1)+(action&&!hasActionCol?1:0)} className="empty">No matching records</td></tr>}
+      </tbody></table></div></div>;
+   }
    }};
    if(!editor)return renderItem();
    return <div key={item.id} className={'composed-editable-item'+(editor.selectedItemId===item.id?' composed-item-selected':'')}
