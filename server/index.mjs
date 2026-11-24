@@ -1,5 +1,5 @@
 import {validComposed} from '../src/composed.mjs';
-import {normalizeGeneratedDemo,explainGeneratedDemo,generationClarification} from './generationContract.mjs';
+import {normalizeGeneratedDemo,explainGeneratedDemo,generationFailure,MAX_GENERATED_SCREENS,MAX_GENERATED_ELEMENTS} from './generationContract.mjs';
 import http from 'node:http';
 import {timingSafeEqual} from 'node:crypto';
 import {locateScreen,applyScreenPatch,validateStrictDemo} from './refine.mjs';
@@ -34,7 +34,7 @@ const kindSet=new Set(['hero','stats','form','table','notice','actions','compose
 const fieldTypes=new Set(['text','email','password','number','select','date','checkbox','file']);
 const str=(v,max=140)=>typeof v==='string'&&v.length>0&&v.length<=max;
 function validDemo(d,channel){
- if(!d||d.schemaVersion!==1||!str(d.id)||!str(d.name)||!str(d.description,500)||d.channel!==channel||!['navy','teal'].includes(d.theme)||!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>9)return false;
+ if(!d||d.schemaVersion!==1||!str(d.id)||!str(d.name)||!str(d.description,500)||d.channel!==channel||!['navy','teal'].includes(d.theme)||!Array.isArray(d.screens)||d.screens.length<2||d.screens.length>MAX_GENERATED_SCREENS)return false;
  const screenIds=new Set();let total=0;
  for(const s of d.screens){
   if(!str(s.id)||!str(s.title)||!str(s.subtitle,500)||screenIds.has(s.id)||!Array.isArray(s.elements)||s.elements.length<1||s.elements.length>8)return false;
@@ -52,7 +52,7 @@ function validDemo(d,channel){
    }
   }
  }
- if(total>45)return false;
+ if(total>MAX_GENERATED_ELEMENTS)return false;
  for(const s of d.screens)for(const e of s.elements){
   if(e.kind==='form'&&e.nextScreen&&!screenIds.has(e.nextScreen))return false;
   if(e.kind==='table'&&e.detailScreen&&!screenIds.has(e.detailScreen))return false;
@@ -61,7 +61,7 @@ function validDemo(d,channel){
  return true;
 }
 
-const system=`You are the Demo Builder requirement interpreter. Generate a COMPLETE, polished, realistic, interactive business application demo in STRICT JSON only, based on user story and project context. Never write markdown, commentary or code. Do not claim live external integrations. Supply coherent realistic sample data, clear visual hierarchy, properly linked nextScreen, and unambiguous required form fields. Match the company and guidelines and cover all key steps. Output EXACTLY the following contract with schemaVersion:1,id,name,description,channel ('mobile' or 'portal'),theme ('navy' or 'teal'),screens array containing 3-7 screens (2-9 allowed). Each screen {id,title,subtitle,elements:[...]}. Unique stable ASCII IDs. Elements may be:
+const system=`You are the Demo Builder requirement interpreter. Generate a COMPLETE, polished, realistic, interactive business application demo in STRICT JSON only, based on user story and project context. Never write markdown, commentary or code. Do not claim live external integrations. Supply coherent realistic sample data, clear visual hierarchy, properly linked nextScreen, and unambiguous required form fields. Match the company and guidelines and cover all key steps. Output EXACTLY the following contract with schemaVersion:1,id,name,description,channel ('mobile' or 'portal'),theme ('navy' or 'teal'),screens array containing 3-7 screens (2-12 allowed; honor an explicit request for up to 12 distinct screens). Each screen {id,title,subtitle,elements:[...]}. Unique stable ASCII IDs. Elements may be:
 {kind:'composed',id,title,items:[{id,kind:'text'|'card'|'input'|'checkbox'|'select'|'button'|'progress',label,text?,required?,options?,nextScreen?,inputType?,value?}]} (use to assemble missing UI patterns with clickable controls; max 16 items)
 {kind:'hero',id,eyebrow,title,description}
 {kind:'stats',id,items:[{id,label,value,delta?}]}
@@ -69,13 +69,13 @@ const system=`You are the Demo Builder requirement interpreter. Generate a COMPL
 {kind:'table',id,title,subtitle?,columns:[{id,label}],rows:[{columnId:'value'}],detailScreen?}
 {kind:'notice',id,tone:'info'|'success',title,body}
 {kind:'actions',id,buttons:[{id,label,variant:'primary'|'secondary',nextScreen?}]}
-Choose screen patterns intelligently: mobile flows (welcome, registration, verification, consent, confirmation); portals (dashboard, list, review, decision). The first screen must offer a way to navigate forward; at least one screen must contain a form or table. Last screen should provide a completion notice or useful summary. Do not mention features unsupported by this component schema in generated screen text. STRICT OUTPUT RULES: Every screen MUST have a nonempty string subtitle and 1–6 elements; total elements across all screens <=35. Generate 3–6 screens unless explicitly requested more. Every table row value MUST be a string (even numbers, dates, booleans and AED amounts). Every stats item value MUST be a string. Every table column ID MUST match a corresponding row key. Every form must include a nonempty title, actionLabel and 1–16 valid typed fields. Each action's nextScreen and each table's detailScreen MUST exactly match an id in the screens array. Every element has a unique nonempty id per screen. Never include an unsupported element kind (no chart, badge, grid or sidebar element); use only the listed kinds. Never add empty description or subtitle; screen subtitle is required. Avoid 'composed' unless necessary, and follow its item constraints exactly. Restrict text lengths and rows (max 8 rows). Include sensible UAE locality and AED amounts where relevant. Do not generate executable JS, HTML, or CSS.`;
+Choose screen patterns intelligently: mobile flows (welcome, registration, verification, consent, confirmation); portals (dashboard, list, review, decision). The first screen must offer a way to navigate forward; at least one screen must contain a form or table. Last screen should provide a completion notice or useful summary. Do not mention features unsupported by this component schema in generated screen text. STRICT OUTPUT RULES: Every screen MUST have a nonempty string subtitle and 1–6 elements; total elements across all screens <=48. Generate 3–6 screens unless explicitly requested more. If exactly 12 screens are requested, return all 12 with concise content and no more than 4 elements per screen. Every table row value MUST be a string (even numbers, dates, booleans and AED amounts). Every stats item value MUST be a string. Every table column ID MUST match a corresponding row key. Every form must include a nonempty title, actionLabel and 1–16 valid typed fields. Each action's nextScreen and each table's detailScreen MUST exactly match an id in the screens array. Every element has a unique nonempty id per screen. Never include an unsupported element kind (no chart, badge, grid or sidebar element); use only the listed kinds. Never add empty description or subtitle; screen subtitle is required. Avoid 'composed' unless necessary, and follow its item constraints exactly. Restrict text lengths and rows (max 8 rows). Include sensible UAE locality and AED amounts where relevant. Do not generate executable JS, HTML, or CSS.`;
 
 async function repairGeneratedDefinition(candidate,issues,channel){
  const instructions='Repair the candidate Demo Definition JSON while preserving all requested screens, sample data, and valid navigation. Fix these validation errors: '+issues.slice(0,8).join('; ')+'. Return ONLY the complete valid JSON object, with allowed element kinds hero,stats,form,table,notice,actions,composed. Forms require title, actionLabel and fields with id,label,type. Allowed types text,email,password,number,select,date,checkbox. Every screen requires subtitle. All table row and KPI values must be strings. All nextScreen and detailScreen IDs must exist. Use existing screens rather than inventing routes.';
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),70000);
  try{
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Correct this '+channel+' Demo Definition JSON object: '+JSON.stringify(candidate),text:{format:{type:'json_object'}},max_output_tokens:8500,store:false})});
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:'Correct this '+channel+' Demo Definition JSON object: '+JSON.stringify(candidate),text:{format:{type:'json_object'}},max_output_tokens:12000,store:false})});
   if(!response.ok){console.warn('Generated draft repair unavailable',{status:response.status});return null;}
   const raw=await response.json();const output=(raw.output||[]).filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('');
   return{definition:normalizeGeneratedDemo(JSON.parse(output)),usage:{inputTokens:raw.usage?.input_tokens||0,outputTokens:raw.usage?.output_tokens||0}};
@@ -90,7 +90,7 @@ async function generate(body){
  const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),90000);
  let raw;
  try{
-  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:system,input:'Generate a valid JSON Demo Definition object that follows the schema and requirements. Project context JSON:\n'+context,text:{format:{type:'json_object'}},max_output_tokens:7500,store:false})});
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:ctrl.signal,headers:{'Authorization':`Bearer ${process.env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions:system,input:'Generate a valid JSON Demo Definition object that follows the schema and requirements. Project context JSON:\n'+context,text:{format:{type:'json_object'}},max_output_tokens:12000,store:false})});
   raw=await response.json();
   if(!response.ok){
    const code=String(raw?.error?.code||'unknown');
@@ -117,8 +117,9 @@ async function generate(body){
   if(result&&validDemo(result.definition,channel)){normalized=result.definition;extra=result.usage;repaired=true;}
   else{
    const unresolved=result?explainGeneratedDemo(result.definition,channel):reasons;
-   const clarification=generationClarification(unresolved.length?unresolved:reasons,channel);
-   return{needsClarification:true,question:clarification.question,suggestions:clarification.suggestions,reason:clarification.reason,summary:'Your brief is saved. Please clarify this one choice to continue.',usage:{model:raw.model||model,inputTokens:(raw.usage?.input_tokens||0)+(result?.usage?.inputTokens||0),outputTokens:(raw.usage?.output_tokens||0)+(result?.usage?.outputTokens||0)}};
+   const failure=generationFailure(unresolved.length?unresolved:reasons);
+   console.error('Generated draft rejected after repair',{channel,code:failure.code,problems:failure.details});
+   return{generationFailed:true,errorCode:failure.code,reason:failure.message,summary:'Your original brief is preserved. Generation did not complete.',usage:{model:raw.model||model,inputTokens:(raw.usage?.input_tokens||0)+(result?.usage?.inputTokens||0),outputTokens:(raw.usage?.output_tokens||0)+(result?.usage?.outputTokens||0)}};
   }
  }
  return{definition:normalized,summary:`Generated ${normalized.screens.length} interactive screens for ${normalized.name}.${repaired?' MEYON repaired the draft automatically.':''}`,usage:{model:raw.model||model,inputTokens:(raw.usage?.input_tokens||0)+extra.inputTokens,outputTokens:(raw.usage?.output_tokens||0)+extra.outputTokens}};
