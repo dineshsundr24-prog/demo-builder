@@ -14,7 +14,12 @@ function tokenOk(given: unknown, expected: string) {
 function sendError(reply: FastifyReply, e: unknown) {
   if (e instanceof JobError) return reply.code(e.status).send({ error: e.message, category: e.category });
   if (e instanceof ProviderError) return reply.code(502).send({ error: e.message, category: e.category });
-  if (e instanceof StoreError) return reply.code(503).send({ error: 'Job storage is unavailable: ' + e.message, category: 'storage' });
+  if (e instanceof StoreError) {
+    // Database details stay in server logs; clients get a reference they can quote.
+    const ref = 'err_' + Math.random().toString(36).slice(2, 10);
+    reply.log.error({ ref, status: e.status, detail: e.message }, 'storage error');
+    return reply.code(503).send({ error: 'Job storage is temporarily unavailable (reference ' + ref + ')', category: 'storage' });
+  }
   reply.log.error(e);
   return reply.code(500).send({ error: 'Unexpected server error', category: 'internal' });
 }
@@ -33,6 +38,13 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     h.n++; hits.set(key, h);
     return h.n > 20;
   };
+  // Job and screen ids are validated before they reach the database layer.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  app.addHook('preHandler', async (req, reply) => {
+    const p = (req.params ?? {}) as { id?: string; screenId?: string };
+    if (p.id !== undefined && !UUID.test(p.id)) return reply.code(404).send({ error: 'Job not found', category: 'not_found' });
+    if (p.screenId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(p.screenId)) return reply.code(404).send({ error: 'Screen not found', category: 'not_found' });
+  });
   app.addHook('onRequest', async (req, reply) => {
     if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status') return;
     if (!tokenOk(req.headers['x-builder-access'], opts.accessToken)) return reply.code(401).send({ error: 'Missing or invalid Demo Builder access token', category: 'auth' });

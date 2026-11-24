@@ -56,3 +56,17 @@ test('bad input and unknown jobs return clear errors', async () => {
   const missing = await app.inject({ url: '/api/v2/jobs/00000000-0000-0000-0000-000000000000', headers: auth });
   assert.equal(missing.statusCode, 404);
 });
+
+test('malformed ids never reach storage; storage errors do not leak database details', async () => {
+  const app = await server();
+  for (const id of ['not-a-uuid', "x'or'1'='1", '..%2F..%2Fetc', 'abc&select=*']) {
+    const r = await app.inject({ url: '/api/v2/jobs/' + encodeURIComponent(id), headers: auth });
+    assert.equal(r.statusCode, 404, id);
+  }
+  const { StoreError, MemoryStore: MS } = await import('@demo/generator');
+  class Broken extends MS { async getJob(): Promise<never> { throw new StoreError('Supabase GET generation_jobs failed (500): PGRST205 secret table detail', 500); } }
+  const broken = await buildServer({ generator: new Generator(new Broken(), provider(), defaultConfig), accessToken: TOKEN, origins: [], model: 'fake' });
+  const r = await broken.inject({ url: '/api/v2/jobs/00000000-0000-0000-0000-000000000000', headers: auth });
+  assert.equal(r.statusCode, 503);
+  assert.ok(!r.body.includes('PGRST') && !r.body.includes('generation_jobs') && r.json().error.includes('reference err_'));
+});

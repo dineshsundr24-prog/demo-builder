@@ -13,7 +13,9 @@
     "v2:e2e": "npm run e2e -w @demo/studio",
     "v2:check": "npm run v2:typecheck && npm run v2:test && npm run v2:e2e",
     "v2:api": "npm start -w @demo/api",
-    "v2:api:fake": "node apps/api/src/dev-fake.ts"
+    "v2:api:fake": "node apps/api/src/dev-fake.ts",
+    "db:test:local": "node supabase/tests/run-local.ts",
+    "db:preflight": "node supabase/scripts/apply-remote.ts --preflight"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -21,6 +23,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@types/node": "^22.19.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
