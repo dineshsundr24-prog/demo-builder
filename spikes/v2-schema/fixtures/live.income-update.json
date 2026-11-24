@@ -1,0 +1,158 @@
+{
+ "id": "income-update",
+ "title": "Income Update",
+ "shell": "default",
+ "children": [
+  {
+   "direction": "vertical",
+   "gap": "md",
+   "type": "Stack",
+   "id": "stack-1",
+   "children": [
+    {
+     "text": "Update Your Income Details",
+     "level": "2",
+     "type": "Heading",
+     "id": "heading-1"
+    },
+    {
+     "text": "Please provide your updated salary information and employment details below.",
+     "tone": "muted",
+     "type": "Text",
+     "id": "text-1"
+    },
+    {
+     "submitLabel": "Save Draft",
+     "onSubmit": [
+      {
+       "type": "simulate",
+       "label": "Saving draft",
+       "durationMs": 1200,
+       "outcome": "success"
+      },
+      {
+       "type": "toast",
+       "message": "Draft saved successfully."
+      }
+     ],
+     "type": "Form",
+     "id": "form-1",
+     "children": [
+      {
+       "field": "income.salary",
+       "label": "New Salary (AED)",
+       "inputType": "currency",
+       "required": true,
+       "placeholder": "Enter new salary",
+       "type": "Input",
+       "id": "input-salary"
+      },
+      {
+       "field": "income.allowances",
+       "label": "Allowances (AED)",
+       "inputType": "currency",
+       "required": false,
+       "placeholder": "Enter allowances",
+       "type": "Input",
+       "id": "input-allowances"
+      },
+      {
+       "field": "income.additional",
+       "label": "Additional Income (AED)",
+       "inputType": "currency",
+       "required": false,
+       "placeholder": "Enter additional income",
+       "type": "Input",
+       "id": "input-additional-income"
+      },
+      {
+       "field": "employment.status",
+       "label": "Employment Status",
+       "options": [
+        "Employed",
+        "Self-Employed",
+        "Unemployed",
+        "Retired"
+       ],
+       "required": true,
+       "type": "Select",
+       "id": "select-employment-status"
+      },
+      {
+       "field": "income.effectiveDate",
+       "label": "Effective Date",
+       "inputType": "date",
+       "required": true,
+       "placeholder": "Select effective date",
+       "type": "Input",
+       "id": "input-effective-date"
+      },
+      {
+       "field": "income.salaryCertificate",
+       "label": "Upload Salary Certificate",
+       "required": true,
+       "type": "Upload",
+       "id": "upload-salary-certificate"
+      }
+     ]
+    },
+    {
+     "direction": "horizontal",
+     "gap": "md",
+     "type": "Stack",
+     "id": "stack-buttons",
+     "children": [
+      {
+       "label": "Continue to Review",
+       "variant": "primary",
+       "actions": [
+        {
+         "type": "submit",
+         "validate": true
+        },
+        {
+         "type": "navigate",
+         "screen": "income-verification-review",
+         "passRecord": true
+        }
+       ],
+       "type": "Button",
+       "id": "btn-continue"
+      },
+      {
+       "label": "Save Draft",
+       "variant": "secondary",
+       "actions": [
+        {
+         "type": "simulate",
+         "label": "Saving draft",
+         "durationMs": 1200,
+         "outcome": "success"
+        },
+        {
+         "type": "toast",
+         "message": "Draft saved successfully."
+        }
+       ],
+       "type": "Button",
+       "id": "btn-save-draft"
+      },
+      {
+       "label": "Cancel",
+       "variant": "link",
+       "actions": [
+        {
+         "type": "navigate",
+         "screen": "dashboard",
+         "passRecord": false
+        }
+       ],
+       "type": "Button",
+       "id": "btn-cancel"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

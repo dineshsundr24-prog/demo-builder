@@ -34,7 +34,7 @@ The unrolled variant exceeds the documented limit of 1,000 enum values and costs
 
 **Constraint found.** Keep the schema **identical for every call in a job**, rather than pinning a per-screen ID enum. Providers cache or compile a schema the first time they see it, and a changing schema defeats that. The validator checks the returned screen ID instead.
 
-**Open (Phase 0 remaining).** One live call to confirm the configured model accepts the recursive strict schema. It is blocked here because this container has no OpenAI network access or key; see the progress file.
+**Live result (24 Nov 2026).** `gpt-4.1-mini-2025-04-14` accepted the recursive strict schema (HTTP 200, 6.8 s, 2,034 input / 535 output tokens for a 21-component screen). The schema adds far fewer billed input tokens than the byte-size estimate. At published mini-model rates that is well under USD 0.01 per screen (rates still to be confirmed on the OpenAI billing page).
 
 ## D3. Editor: Puck (MIT) behind an adapter; dnd-kit as fallback
 **Decision.** Use `@puckeditor/core` (pinned at 0.24.0) for the canvas, palette, inspector, nested drag-and-drop, viewport switching and undo.
