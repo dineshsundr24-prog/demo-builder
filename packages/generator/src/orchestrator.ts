@@ -92,10 +92,10 @@ export class Generator {
   }
 
   /** Step 1: create a job and produce a reviewable plan (one AI call). */
-  async startPlan(request: GenerationRequest, brief: string): Promise<JobRow> {
+  async startPlan(request: GenerationRequest, brief: string, principalId?: string | null): Promise<JobRow> {
     if (!['mobile', 'portal'].includes(request.channel)) throw new JobError('bad_request', 'Channel must be mobile or portal');
     if (typeof brief !== 'string' || brief.trim().length < 15 || brief.length > 60000) throw new JobError('bad_request', 'The brief must be 15-60,000 characters');
-    const job = await this.store.createJob({ status: 'planning', request: { name: request.name, company: request.company ?? '', channel: request.channel, guidelines: request.guidelines ?? '' }, brief, token_budget: this.config.jobTokenBudget, trace_id: 'trc_' + randomUUID().slice(0, 12) });
+    const job = await this.store.createJob({ status: 'planning', request: { name: request.name, company: request.company ?? '', channel: request.channel, guidelines: request.guidelines ?? '' }, brief, token_budget: this.config.jobTokenBudget, trace_id: 'trc_' + randomUUID().slice(0, 12), ...(principalId ? { principal_id: principalId } : {}) });
     this.emit(job.id, 'planning');
     void (async () => {
       try {

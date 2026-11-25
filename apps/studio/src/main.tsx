@@ -12,6 +12,11 @@ import { EditorPanel } from './editor/EditorPanel.tsx';
 import { Present } from './editor/Present.tsx';
 import { AssistChat, type AssistOutcome, type ChatMessage, type ChatMode } from './editor/AssistChat.tsx';
 import type { PanelTab } from './editor/EditorPanel.tsx';
+import { AccountBox, useSignedIn } from './editor/Account.tsx';
+import { VersionsPanel, type SaveState } from './editor/Versions.tsx';
+import { PublicView } from './editor/PublicView.tsx';
+import { demosApi, type DemoDetail, type DemoMeta } from './editor/demosApi.ts';
+import { completeRedirect, hasCredentials } from './account.ts';
 import kapiko from '../../../packages/schema/fixtures/kapiko-mobile.json';
 import portal from '../../../packages/schema/fixtures/staff-portal.json';
 import './studio.css';
@@ -42,6 +47,21 @@ function Studio() {
   const [rightTab, setRightTab] = useState<PanelTab>('props');
   const undoScreen = useRef<string[]>([]);
   const lastAi = useRef<DemoDocument | null>(null);
+  // ---------- Saved demos (server): draft autosave with conflict protection, versions, publication ----------
+  const signedIn = useSignedIn();
+  const [authNotice, setAuthNotice] = useState('');
+  const [cloud, setCloud] = useState<DemoDetail | null>(null);
+  const cloudRef = useRef<DemoDetail | null>(null); cloudRef.current = cloud;
+  const savedDoc = useRef<DemoDocument | null>(null);
+  const genSaved = useRef<string | null>(null); // the saved demo created from the current generation
+  const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [saveError, setSaveError] = useState('');
+  const [myDemos, setMyDemos] = useState<DemoMeta[] | null>(null);
+  const [cloudError, setCloudError] = useState('');
+  const [mustSetPassword, setMustSetPassword] = useState(false);
+  useEffect(() => { void completeRedirect().then(r => { if (r === 'recovery') setMustSetPassword(true); else if (r) setAuthNotice(r); }); }, []);
+  const refreshList = useCallback(() => { if (!hasCredentials()) { setMyDemos(null); return; } demosApi.list().then(setMyDemos, () => setMyDemos(null)); }, []);
+  useEffect(() => { refreshList(); }, [signedIn, refreshList]);
   const openChat = (m: ChatMode = 'auto') => { setChatMode(m); setChatOpen(true); setRightTab('ai'); };
   // Portals render at desktop width (1280px) and are scaled to fit the stage, never squeezed.
   const stageRef = useRef<HTMLElement | null>(null);
@@ -59,7 +79,41 @@ function Studio() {
   useEffect(() => { if (!doc) return; const t = setTimeout(() => { saveLocal(DRAFT_KEY, doc); if (presenting.current) saveLocal(PRESENT_KEY, doc); }, 300); return () => clearTimeout(t); }, [doc]);
   useEffect(() => { if (selected && screen && !findNode(screen.children as NodeT[], selected)) setSelected(null); }, [screen, selected]);
 
-  const load = (d: DemoDocument, n: MigrationNote[] = []) => { history.reset(d); setScreenId(d.screens[0].id); setNotes(n); setImportError(''); setSelected(null); setRunKey(k => k + 1); };
+  const load = (d: DemoDocument, n: MigrationNote[] = [], saved: DemoDetail | null = null) => {
+    genSaved.current = null; history.reset(d); setScreenId(d.screens[0].id); setNotes(n); setImportError(''); setSelected(null); setRunKey(k => k + 1);
+    setCloud(saved); savedDoc.current = saved ? d : null; setSaveState('saved'); setSaveError(''); setCloudError('');
+  };
+  const openSaved = async (id: string) => {
+    try { const detail = await demosApi.get(id); load(detail.document, [], detail); }
+    catch (e) { setCloudError(e instanceof Error ? e.message : String(e)); }
+  };
+  const refreshDetail = async () => { const c = cloudRef.current; if (!c) return; const detail = await demosApi.get(c.demo.id); setCloud({ ...detail, document: c.document }); };
+  /** Save the current document as a new saved demo (it becomes the primary baseline if it is the first of its type). */
+  const saveAsNew = async (d: DemoDocument): Promise<string | null> => {
+    try { const meta = await demosApi.create(d); const detail = await demosApi.get(meta.id); setCloud(detail); cloudRef.current = detail; savedDoc.current = d; setSaveState('saved'); refreshList(); return meta.id; }
+    catch (e) { setCloudError(e instanceof Error ? e.message : String(e)); return null; }
+  };
+  /** Push the draft now (compare-and-swap on the draft revision). */
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    const c = cloudRef.current, d = history.doc;
+    if (!c || !d || savedDoc.current === d) return true;
+    setSaveState('saving');
+    try {
+      const meta = await demosApi.saveDraft(c.demo.id, c.demo.draftRevision, d);
+      savedDoc.current = d; setCloud(x => (x ? { ...x, demo: meta } : x)); cloudRef.current = { ...c, demo: meta };
+      setSaveState(history.doc === d ? 'saved' : 'unsaved'); setSaveError(''); return true;
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      if (status === 409) setSaveState('conflict'); else { setSaveState('error'); setSaveError(e instanceof Error ? e.message : String(e)); }
+      return false;
+    }
+  }, [history.doc]);
+  useEffect(() => {
+    if (!cloud || !doc || savedDoc.current === doc || saveState === 'conflict') return;
+    setSaveState(s => (s === 'saving' ? s : 'unsaved'));
+    const t = setTimeout(() => { void saveNow(); }, 1200);
+    return () => clearTimeout(t);
+  }, [doc, cloud?.demo.id, saveState === 'conflict']); // eslint-disable-line react-hooks/exhaustive-deps
   const importFile = async (file: File) => {
     try {
       const json = JSON.parse(await file.text());
@@ -112,12 +166,18 @@ function Studio() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a'); a.href = url; a.download = (doc.id || 'demo') + '.json'; a.click(); URL.revokeObjectURL(url);
   };
-  const panel = genOpen ? <GeneratePanel key={channel + (resume ?? '')} defaultChannel={channel} resumeJobId={resume} onClose={() => setGenOpen(false)} onLoad={(d, w) => load(d, w.map(note => ({ path: '', note })))} /> : null;
+  const panel = genOpen ? <GeneratePanel key={channel + (resume ?? '')} defaultChannel={channel} resumeJobId={resume} onClose={() => setGenOpen(false)} onLoad={(d, w) => {
+      // A regenerated screen from the same generation updates the saved draft instead of creating another demo.
+      if (genSaved.current && cloudRef.current?.demo.id === genSaved.current) { history.commit(d); setNotes(w.map(note => ({ path: '', note }))); return; }
+      load(d, w.map(note => ({ path: '', note })));
+      if (hasCredentials()) void saveAsNew(d).then(id => { genSaved.current = id; });
+    }} /> : null;
   const importInput = <label className="studio-import"><Upload size={15} />Import JSON (v1 or v2)<input type="file" accept="application/json,.json" onChange={e => e.target.files?.[0] && importFile(e.target.files[0])} /></label>;
 
   if (!doc) return <div className="studio-welcome">
     <main>
-      <div className="studio-brand">MEYON Demo Builder <span>v2 preview</span></div>
+      <div className="welcome-top"><div className="studio-brand">MEYON Demo Builder <span>v2 preview</span></div><AccountBox compact mustSetPassword={mustSetPassword} /></div>
+      {authNotice ? <p className="studio-error" role="alert">{authNotice}</p> : null}
       <h1>Create a new demo</h1>
       <p>Describe your business requirements; AI drafts a screen plan you can edit, then generates a clickable application.</p>
       <div className="welcome-cards">
@@ -128,6 +188,10 @@ function Studio() {
         <button type="button" onClick={() => openGenerator('mobile')}><FolderOpen size={15} />Open a previous generation</button>
         {importInput}
       </div>
+      {myDemos && myDemos.length ? <section className="saved-demos" data-testid="saved-demos"><h2>Your saved demos</h2><ul>{myDemos.map(d => <li key={d.id}>
+        <button type="button" onClick={() => openSaved(d.id)}>{d.channel === 'mobile' ? <Smartphone size={16} /> : <Monitor size={16} />}<strong>{d.name}</strong>
+          <span className="muted">{d.latestVersion ? 'v' + d.latestVersion : 'No versions yet'}{d.forkedFromVersionId ? ' · fork' : ''}</span>{d.isPrimary ? <span className="badge-primary">Primary</span> : null}</button></li>)}</ul></section> : null}
+      {cloudError ? <p className="studio-error" role="alert">{cloudError}</p> : null}
       {draft ? <button type="button" className="welcome-draft" data-testid="continue-draft" onClick={() => load(draft)}><History size={15} />Continue editing <strong>{draft.name}</strong></button> : null}
       {importError ? <p className="studio-error" role="alert">{importError}</p> : null}
       <details className="welcome-examples"><summary>Examples used during development</summary>
@@ -147,11 +211,12 @@ function Studio() {
   return <div className="studio">
     <aside className="studio-side">
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
+      <AccountBox mustSetPassword={mustSetPassword} />
       <button type="button" className="studio-generate" onClick={() => openGenerator(doc.channel)}><Sparkles size={15} />Generate with AI</button>
       <label className="studio-label">Project</label>
       <div className="studio-projects">
         <p className="studio-current">{doc.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}<strong>{doc.name}</strong></p>
-        <button type="button" onClick={() => { history.reset(null); setNotes([]); setSelected(null); saveLocal(DRAFT_KEY, null); }}><Plus size={15} />New demo</button>
+        <button type="button" onClick={() => { void saveNow(); history.reset(null); setCloud(null); savedDoc.current = null; setNotes([]); setSelected(null); saveLocal(DRAFT_KEY, null); refreshList(); }}><Plus size={15} />New demo</button>
         <button type="button" onClick={download}><Download size={15} />Download JSON</button>
         <details className="studio-brand-edit"><summary>Brand</summary>
           <BrandFields compact value={{ logo: doc.theme.logo, primary: doc.theme.primary, secondary: doc.theme.secondary, accent: doc.theme.accent, font: doc.theme.font }}
@@ -160,6 +225,16 @@ function Studio() {
         {importInput}
       </div>
       {importError ? <p className="studio-error" role="alert">{importError}</p> : null}
+      {cloud ? <VersionsPanel detail={cloud} saveState={saveState} saveError={saveError}
+        onSaveVersion={async note => { if (!(await saveNow())) throw Error('Save the draft first'); await demosApi.saveVersion(cloud.demo.id, cloudRef.current!.demo.draftRevision, note); await refreshDetail(); }}
+        onPublish={async n => { const r = await demosApi.publish(cloud.demo.id, n); await refreshDetail(); return r.url; }}
+        onRevoke={async pid => { await demosApi.revoke(cloud.demo.id, pid); await refreshDetail(); }}
+        onRestore={async n => { const v = await demosApi.version(cloud.demo.id, n); history.commit(v.document); setScreenId(v.document.screens[0].id); }}
+        onFork={async n => { if (!(await saveNow())) throw Error('Save the draft first'); const f = await demosApi.fork(cloud.demo.id, n); await openSaved(f.demo.id); refreshList(); }}
+        onMakePrimary={async () => { await demosApi.makePrimary(cloud.demo.id); await refreshDetail(); }}
+        onReloadLatest={async () => { await openSaved(cloud.demo.id); }} />
+        : hasCredentials() ? <button type="button" className="studio-save-cloud" data-testid="save-cloud" onClick={() => saveAsNew(doc)}>Save to my demos</button> : null}
+      {cloudError && doc ? <p className="studio-error" role="alert">{cloudError}</p> : null}
       <label className="studio-label">Screens · {doc.screens.length}</label>
       <ol className="studio-screens">{doc.screens.map((s, i) => {
         const n = issues.filter(x => x.screenId === s.id);
@@ -218,4 +293,4 @@ function Studio() {
     </aside> : null}
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary>{params.get('present') ? <Present /> : <Studio />}</ErrorBoundary></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary>{params.get('p') ? <PublicView token={params.get('p')!} /> : params.get('present') ? <Present /> : <Studio />}</ErrorBoundary></React.StrictMode>);

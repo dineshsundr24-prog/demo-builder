@@ -4,8 +4,18 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import cors from '@fastify/cors';
 import { timingSafeEqual } from 'node:crypto';
 import { Generator, JobError, ProviderError, StoreError, type GenerationRequest, type Plan, type Brand } from '@demo/generator';
+import { resolveCaller, AuthError, type VerifyUser } from './demos/auth.ts';
+import { registerDemoRoutes } from './demos/routes.ts';
+import { MemoryDemoStore, type DemoStore } from './demos/store.ts';
 
-export type ServerOptions = { generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean };
+export type ServerOptions = {
+  generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean;
+  /** Persistent demos (defaults to in-memory). */ demoStore?: DemoStore;
+  /** Supabase Auth verification for standalone users (absent: shared UAT token only). */ verifyUser?: VerifyUser;
+  /** HMAC secret for Builder sessions (MEYON launches). */ sessionSecret?: string;
+  /** Studio origin used to build public demo links. */ publicBaseUrl?: string;
+  /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
+};
 
 function tokenOk(given: unknown, expected: string) {
   if (!expected || typeof given !== 'string') return false;
@@ -38,7 +48,8 @@ function sendError(reply: FastifyReply, e: unknown) {
 export async function buildServer(opts: ServerOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 1024 * 1024 }); // room for an optional logo
   const gen = opts.generator;
-  await app.register(cors, { origin: opts.origins, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['content-type', 'x-builder-access'] });
+  await app.register(cors, { origin: opts.origins, methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'], allowedHeaders: ['content-type', 'x-builder-access', 'authorization'] });
+  const demoStore = opts.demoStore ?? new MemoryDemoStore();
 
   // Simple in-process rate limit for paid actions: 20 per minute per client.
   const hits = new Map<string, { t: number; n: number }>();
@@ -56,11 +67,28 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (p.id !== undefined && !UUID.test(p.id)) return reply.code(404).send({ error: 'Job not found', category: 'not_found' });
     if (p.screenId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(p.screenId)) return reply.code(404).send({ error: 'Screen not found', category: 'not_found' });
   });
+  // Every route except health, status and public demo links needs a caller: a Supabase sign-in, a Builder
+  // session (MEYON launch) or the shared UAT token (confined to its own UAT workspace).
+  const paid = (url: string) => /^\/api\/v2\/(jobs|assist)/.test(url);
   app.addHook('onRequest', async (req, reply) => {
-    if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status') return;
-    if (!tokenOk(req.headers['x-builder-access'], opts.accessToken)) return reply.code(401).send({ error: 'Missing or invalid Demo Builder access token', category: 'auth' });
-    if (req.method === 'POST' && limited(req)) return reply.code(429).send({ error: 'Too many generation requests; wait a minute', category: 'rate_limit' });
+    if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status' || req.url.startsWith('/api/v2/public/')) return;
+    try { req.caller = await resolveCaller({ store: demoStore, uatToken: opts.allowUatToken === false ? undefined : opts.accessToken, sessionSecret: opts.sessionSecret, verifyUser: opts.verifyUser }, req.headers); }
+    catch (e) {
+      if (e instanceof AuthError) return reply.code(e.status).send({ error: e.message, category: 'auth' });
+      reply.log.error(e); return reply.code(503).send({ error: 'Sign-in could not be verified right now; try again shortly', category: 'auth_unavailable' });
+    }
+    if (req.method === 'POST' && paid(req.url) && limited(req)) return reply.code(429).send({ error: 'Too many generation requests; wait a minute', category: 'rate_limit' });
   });
+  // Generation jobs belong to whoever started them; legacy unowned jobs stay visible to the UAT token only.
+  const ownsJob = (job: { principal_id?: string | null }, req: FastifyRequest) =>
+    !!req.caller && (job.principal_id === req.caller.principal.id || (!job.principal_id && req.caller.via === 'uat'));
+  app.addHook('preHandler', async (req, reply) => {
+    const id = (req.params as { id?: string } | undefined)?.id;
+    if (!id || !req.url.startsWith('/api/v2/jobs/')) return;
+    const job = await gen.store.getJob(id).catch(() => null);
+    if (job && !ownsJob(job, req)) return reply.code(404).send({ error: 'Job not found', category: 'not_found' });
+  });
+  registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/api/v2/status', async () => {
@@ -79,7 +107,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const brand = parseBrand((r as any).brand);
     if (typeof brand === 'string') return reply.code(400).send({ error: brand, category: 'bad_request' });
     const request: GenerationRequest = { name: String(r.name ?? '').slice(0, 120) || 'Demo', company: String(r.company ?? '').slice(0, 120), channel: r.channel, guidelines: String(r.guidelines ?? '').slice(0, 3000), ...(brand ? { brand } : {}) };
-    try { return reply.code(202).send(await gen.startPlan(request, body.brief)); } catch (e) { return sendError(reply, e); }
+    try { return reply.code(202).send(await gen.startPlan(request, body.brief, req.caller!.principal.id)); } catch (e) { return sendError(reply, e); }
   });
   // Studio AI assistant: add a new screen or change one, on the document the user is editing (it stays client-side).
   app.post('/api/v2/assist', async (req, reply) => {
@@ -95,7 +123,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
   app.get('/api/v2/jobs', async (req, reply) => {
     try {
-      const jobs = await gen.store.listJobs(Number((req.query as any)?.limit) || 20);
+      const jobs = await gen.store.listJobs(Number((req.query as any)?.limit) || 20, { principalId: req.caller!.principal.id, includeLegacy: req.caller!.via === 'uat' });
       // Keep the list light: logos are not needed to pick a job.
       return { jobs: jobs.map(j => ({ ...j, request: { ...j.request, brand: undefined } })) };
     } catch (e) { return sendError(reply, e); }

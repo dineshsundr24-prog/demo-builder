@@ -1,6 +1,8 @@
 // Entry point: configuration from environment variables only (see .env.example).
 import { Generator, MemoryStore, OpenAIProvider, SupabaseStore, defaultConfig, type JobStore } from '@demo/generator';
 import { buildServer } from './server.ts';
+import { MemoryDemoStore, SupabaseDemoStore, type DemoStore } from './demos/store.ts';
+import { jwksVerifier, supabaseVerifier } from './demos/auth.ts';
 
 // Trim pasted values: a trailing space or line break in a secret is a common cause of "Invalid API key".
 const env: Record<string, string | undefined> = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
@@ -29,8 +31,19 @@ const generator = new Generator(store, new OpenAIProvider(model, required('OPENA
 });
 // Editing an existing screen benefits from a stronger model (about USD 0.01 per edit); generation stays on OPENAI_MODEL.
 generator.assistProvider = new OpenAIProvider(env.ASSIST_MODEL || 'gpt-4.1', required('OPENAI_API_KEY'));
+// Demos, versions and publications live in the same Supabase project (migration 0002); sign-ins are
+// verified with its Auth server. Without Supabase, demos are in memory (development only).
+const demoStore: DemoStore = env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? new SupabaseDemoStore(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY) : new MemoryDemoStore();
+// Sign-ins are verified locally against the project's published signing keys (remote check only for legacy HS256 tokens).
+const verifyUser = env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? jwksVerifier(env.SUPABASE_URL, supabaseVerifier(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY)) : undefined;
+if (env.BUILDER_SESSION_SECRET && env.BUILDER_SESSION_SECRET.length < 32) { console.error('BUILDER_SESSION_SECRET must be at least 32 characters'); process.exit(1); }
+// LEGACY_UAT_TOKEN=off: only signed-in users (and, later, MEYON sessions) can use the API.
+const allowUatToken = (env.LEGACY_UAT_TOKEN ?? 'on').toLowerCase() !== 'off';
+if (!allowUatToken) console.info('Legacy shared UAT token disabled: sign-in required');
 const app = await buildServer({
-  generator, model, accessToken: required('DEMO_ACCESS_TOKEN'), logger: true,
+  generator, model, accessToken: allowUatToken ? required('DEMO_ACCESS_TOKEN') : (env.DEMO_ACCESS_TOKEN ?? ''), allowUatToken, logger: true,
+  demoStore, verifyUser, sessionSecret: env.BUILDER_SESSION_SECRET,
+  publicBaseUrl: env.PUBLIC_DEMO_BASE_URL || (env.STUDIO_HOST ? 'https://' + env.STUDIO_HOST : undefined),
   // FRONTEND_ORIGINS (comma list) and/or STUDIO_HOST (host name injected by the Render blueprint).
   origins: [...(env.FRONTEND_ORIGINS || (env.STUDIO_HOST ? '' : 'http://localhost:5173')).split(','), ...(env.STUDIO_HOST ? ['https://' + env.STUDIO_HOST] : [])].map(s => s.trim()).filter(Boolean),
 });

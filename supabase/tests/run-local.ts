@@ -28,3 +28,24 @@ const res = await db.exec(file('./rls_test.sql'), { onNotice: (n: any) => notice
 void res;
 console.log(notices.includes('RLS_TESTS_PASSED') ? 'RLS_TESTS_PASSED' : 'RLS tests did not report success: ' + notices.join(' | '));
 if (!notices.includes('RLS_TESTS_PASSED')) process.exit(1);
+
+// ---------- Migration 0002: demos, versions, publications, principals ----------
+// Match current Supabase defaults: new tables are NOT granted to API roles automatically.
+await db.exec('alter default privileges in schema public revoke all on tables from anon, authenticated, service_role');
+await db.exec(file('../migrations/0002_demos_versions_auth.sql'));
+await db.exec(file('../migrations/0003_service_role_grants.sql'));
+try { await db.exec(file('../migrations/0002_demos_versions_auth.sql')); console.log('FAIL: 0002 second run was accepted'); process.exit(1); }
+catch (e: any) { console.log('0002 second run refused:', String(e.message).slice(0, 80)); await db.exec('rollback').catch(() => {}); }
+const notices2: string[] = [];
+await db.exec('begin; ' + file('./demos_test.sql') + ' rollback;', { onNotice: (n: any) => notices2.push(n.message) } as any)
+  .catch((e: any) => { console.log('DEMOS TESTS FAILED:', e.message); process.exit(1); });
+// The API's role can use the tables; browsers cannot.
+const svc = await db.query<{ t: string; ok: boolean }>(`select t, has_table_privilege('service_role', 'public.' || t, 'insert') as ok from unnest(array['principals','workspaces','workspace_members','demos','demo_versions','demo_publications']) t`);
+if (svc.rows.some(r => !r.ok)) { console.log('FAIL: service_role cannot insert into', svc.rows.filter(r => !r.ok).map(r => r.t)); process.exit(1); }
+const upd = await db.query<{ ok: boolean }>(`select has_table_privilege('service_role', 'public.demo_versions', 'update') as ok`);
+if (upd.rows[0].ok) { console.log('FAIL: service_role can update versions'); process.exit(1); }
+console.log('SERVICE_ROLE_GRANTS_PASSED');
+for (const want of ['DEMOS_TESTS_PASSED', 'DEMOS_PRIVILEGES_PASSED']) {
+  if (!notices2.includes(want)) { console.log('missing', want, notices2.join(' | ')); process.exit(1); }
+  console.log(want);
+}

@@ -48,3 +48,10 @@ For each test: the brief you used, the job time and cost, which screens were wro
 - **AI assistant** (toolbar, or *Add screen*): describe a change ("rename Verify to Validate", "add an Emirates ID field") or a new screen ("card management: freeze card, change PIN"). Review the listed changes, then Keep or Undo. Each request costs about USD 0.002–0.004 and counts against the monthly budget.
 - **Journey templates** (sign-in, OTP, eKYC…): use *Customise texts and buttons* to edit their parts by hand. The AI assistant does this automatically.
 - **Open in new window** presents the demo full-size and follows edits live. Edits are kept in this browser; use *Download JSON* to keep or share a copy.
+
+## Saved demos and versions (Phase A1)
+- **Sign in** (or use the shared UAT access token) to save demos. Generated demos are saved automatically; imported or example demos have a **Save to my demos** button.
+- **Autosave.** The draft saves itself after each edit. If the same demo was changed in another window, the sidebar says **Changed elsewhere** and offers to load the latest draft; nothing is overwritten silently.
+- **Save version** keeps a fixed, numbered snapshot. From a version you can **Publish** (a read-only link that anyone with it can open; shown once, revocable), **Restore** (back into the draft; undo works) or **Fork** (a new independent demo).
+- **Primary.** One demo per application type is the primary baseline; use **Make primary** to change it.
+- **Start page.** Your saved demos are listed there.
