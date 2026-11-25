@@ -6,7 +6,7 @@ import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { BrandFields } from './BrandFields.tsx';
 import { DemoRuntime, type Session } from '@demo/runtime';
 import '@demo/runtime/runtime.css';
-import { validateDocument, migrateV1, DemoDocument, findNode, isContainer, insertNode, moveNode, removeNode, duplicateNode, updateNode, renameNode, nudgeNode, allIds, addScreen, updateScreen, duplicateScreen, moveScreen, removeScreen, type Issue, type MigrationNote, type NodeT } from '@demo/schema';
+import { validateDocument, migrateV1, DemoDocument, findNode, isContainer, insertNode, moveNode, removeNode, duplicateNode, updateNode, renameNode, nudgeNode, allIds, detachTemplate, addScreen, updateScreen, duplicateScreen, moveScreen, removeScreen, type Issue, type MigrationNote, type NodeT } from '@demo/schema';
 import { useHistory, saveLocal, loadLocal, DRAFT_KEY, PRESENT_KEY } from './editor/history.ts';
 import { EditorPanel } from './editor/EditorPanel.tsx';
 import { Present } from './editor/Present.tsx';
@@ -187,7 +187,7 @@ function Studio() {
     {mode === 'edit' && screen ? <EditorPanel doc={doc} screen={screen} selected={selected} select={setSelected}
       updateNode={(id, patch) => edit(d => updateNode(d, sid, id, patch), 'node:' + id + ':' + Object.keys(patch).join(','))}
       renameNode={(id, next) => edit(d => { const r = renameNode(d, sid, id, next); const before = allIds(d.screens.find(x => x.id === sid)!.children as NodeT[]); const added = [...allIds(r.screens.find(x => x.id === sid)!.children as NodeT[])].find(x => !before.has(x)); if (added) setSelected(added); return r; })}
-      insert={insertAt} move={(id, to) => edit(d => moveNode(d, sid, id, to.parentId, to.index))}
+      insert={insertAt} detach={id => edit(d => detachTemplate(d, sid, id))} move={(id, to) => edit(d => moveNode(d, sid, id, to.parentId, to.index))}
       remove={id => { edit(d => removeNode(d, sid, id)); setSelected(null); }} duplicate={id => edit(d => duplicateNode(d, sid, id))} nudge={(id, dd) => edit(d => nudgeNode(d, sid, id, dd))}
       updateScreen={patch => edit(d => updateScreen(d, sid, patch), 'screen:' + sid + ':' + Object.keys(patch).join(','))}
       duplicateScreen={() => edit(d => { const r = duplicateScreen(d, sid); setScreenId(r.id); return r.doc; })}

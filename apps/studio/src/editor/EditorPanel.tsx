@@ -1,6 +1,6 @@
 // Right-hand editor panel: Properties (selected component or the screen), Layers, Add.
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Trash2, Unlock, X } from 'lucide-react';
 import { findNode, isContainer, type DemoDocument, type NodeT, type Screen } from '@demo/schema';
 import { Inspector } from './Inspector.tsx';
 import { Layers, type Drop } from './Layers.tsx';
@@ -9,7 +9,7 @@ import { Palette } from './Palette.tsx';
 export type EditorApi = {
   doc: DemoDocument; screen: Screen; selected: string | null; select: (id: string | null) => void;
   updateNode: (id: string, patch: Record<string, unknown>) => void; renameNode: (id: string, next: string) => void;
-  insert: (type: string, to?: Drop) => void; move: (id: string, to: Drop) => void; remove: (id: string) => void; duplicate: (id: string) => void; nudge: (id: string, d: -1 | 1) => void;
+  insert: (type: string, to?: Drop) => void; detach: (id: string) => void; move: (id: string, to: Drop) => void; remove: (id: string) => void; duplicate: (id: string) => void; nudge: (id: string, d: -1 | 1) => void;
   updateScreen: (patch: Partial<Pick<Screen, 'title' | 'subtitle' | 'shell'>>) => void; duplicateScreen: () => void; moveScreen: (d: -1 | 1) => void; removeScreen: () => void;
 };
 
@@ -28,6 +28,11 @@ export function EditorPanel(api: EditorApi) {
           <button type="button" title="Delete (Del)" className="danger" onClick={() => api.remove(loc.node.id)}><Trash2 size={14} /></button>
           <button type="button" title="Deselect (Esc)" onClick={() => api.select(null)}><X size={14} /></button>
         </div>
+        {loc.node.type === 'Template' ? <div className="insp-template" data-testid="template-note">
+          <p>This is a ready-made journey step. Its texts, fields and buttons are built automatically, so they can't be edited one by one.</p>
+          <button type="button" data-testid="customise-template" onClick={() => api.detach(loc.node.id)}><Unlock size={14} />Customise texts and buttons</button>
+          <p className="insp-help">Turns it into normal components that look and work the same. You can undo this.</p>
+        </div> : null}
         <Inspector key={api.screen.id + loc.node.id} doc={api.doc} node={loc.node} onChange={p => api.updateNode(loc.node.id, p)} onRename={next => api.renameNode(loc.node.id, next)} />
       </> : <ScreenSettings {...api} />)}
       {tab === 'layers' && <Layers nodes={api.screen.children as NodeT[]} selected={api.selected} onSelect={id => { api.select(id); }} onMove={api.move} onInsertType={(t, to) => api.insert(t, to)} />}

@@ -69,6 +69,7 @@ test('reorder with drag and drop in Layers', async ({ page }) => {
 
 test('lists inside a component are editable: add a detail row', async ({ page }) => {
   await page.locator('.studio-screens button', { hasText: 'Customer Profile' }).click();
+  await expect(device(page).locator('[data-screen-id]')).toHaveAttribute('data-screen-id', 'customer-profile');
   const fields = device(page).locator('[data-node-type="RecordFields"]').first();
   const before = await fields.locator('dt').count();
   await fields.click();
@@ -105,4 +106,20 @@ test('edits survive a reload as a local draft', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('continue-draft').click();
   await expect(device(page).getByRole('heading', { name: 'Saved draft' })).toBeVisible();
+});
+
+test('a journey template can be customised: rename "Verify" to "Validate"', async ({ page }) => {
+  await page.locator('.studio-screens button', { hasText: 'OTP' }).click();
+  await device(page).getByRole('button', { name: 'Verify' }).click();
+  await expect(page.getByTestId('template-note')).toBeVisible();
+  await page.getByTestId('customise-template').click();
+  await device(page).getByRole('button', { name: 'Verify' }).click();
+  await expect(inspector(page)).toContainText('Button');
+  await inspector(page).getByLabel('Label').first().fill('Validate');
+  await expect(device(page).getByRole('button', { name: 'Validate' })).toBeVisible();
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await device(page).getByLabel('Verification code').fill('123456');
+  await device(page).getByRole('button', { name: 'Validate' }).click();
+  await expect(device(page).locator('[data-screen-id]')).not.toHaveAttribute('data-screen-id', /otp/, { timeout: 8000 });
+  await expect(page.getByTestId('validation')).toContainText('No errors');
 });

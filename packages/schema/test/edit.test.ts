@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { insertNode, moveNode, removeNode, duplicateNode, updateNode, renameNode, nudgeNode, findNode, addScreen, removeScreen, duplicateScreen, moveScreen, updateScreen, validateDocument, errorsOnly, type DemoDocument, type NodeT } from '../src/index.ts';
+import { detachTemplate, insertNode, moveNode, removeNode, duplicateNode, updateNode, renameNode, nudgeNode, findNode, addScreen, removeScreen, duplicateScreen, moveScreen, updateScreen, validateDocument, errorsOnly, type DemoDocument, type NodeT } from '../src/index.ts';
 
 const kapiko: DemoDocument = JSON.parse(readFileSync(new URL('../fixtures/kapiko-mobile.json', import.meta.url), 'utf8'));
 const ok = (d: DemoDocument) => assert.deepEqual(errorsOnly(validateDocument(d)), []);
@@ -64,4 +64,17 @@ test('screens: add, rename, duplicate, reorder, delete removes links to it', () 
   assert.ok(!doc.screens.some(s => s.id === 'income-update'));
   assert.ok(!JSON.stringify(doc).includes('"screen":"income-update"'));
   assert.deepEqual(errorsOnly(validateDocument(doc)).filter(i => i.code.startsWith('ref.')), []);
+});
+
+test('customising a template turns it into editable components with the same behaviour', () => {
+  const screen = kapiko.screens.find(s => JSON.stringify(s).includes('"template":"otp-entry"'))!;
+  const tpl = findNode(screen.children as NodeT[], (function f(ns: NodeT[]): string { for (const n of ns) { if (n.type === 'Template') return n.id; const r = n.children ? f(n.children as NodeT[]) : ''; if (r) return r; } return ''; })(screen.children as NodeT[]))!;
+  const { doc, id } = detachTemplate(kapiko, screen.id, tpl.node.id);
+  const s2 = doc.screens.find(s => s.id === screen.id)!;
+  assert.ok(!JSON.stringify(s2).includes('"type":"Template"') || JSON.stringify(screen).split('"type":"Template"').length > 2);
+  assert.ok(findNode(s2.children as NodeT[], id));
+  assert.ok(JSON.stringify(s2).includes('"label":"Verify"'));
+  ok(doc);
+  const renamed = updateNode(doc, screen.id, (function f(ns: NodeT[]): string { for (const n of ns) { if (n.type === 'Button' && n.label === 'Verify') return n.id; const r = n.children ? f(n.children as NodeT[]) : ''; if (r) return r; } return ''; })(s2.children as NodeT[]), { label: 'Validate' });
+  assert.ok(JSON.stringify(renamed).includes('"label":"Validate"'));
 });

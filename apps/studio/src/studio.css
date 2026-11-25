@@ -182,3 +182,6 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .device-portal { height: min(800px, calc(100vh - 100px)); }
 .insp-item-body { padding: 8px; display: grid; gap: 8px; }
 .studio-stage { min-height: 0; }
+.insp-template { border: 1px solid #b2ccff; background: #f5f8ff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: grid; gap: 8px; font-size: 13px; }
+.insp-template p { margin: 0; }
+.insp-template button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: #1e3a5f; color: #fff; border-radius: 8px; padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer; }

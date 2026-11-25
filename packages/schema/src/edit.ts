@@ -3,6 +3,7 @@
 // an undo history by reference. Ids stay unique per screen (the validator's rule).
 import { z } from 'zod';
 import { componentByType, containerTypes, createNode, type NodeT } from './registry.ts';
+import { expandTemplate } from './templates.ts';
 import type { DemoDocument, Screen } from './document.ts';
 
 export type NodeLocation = { parentId: string | null; index: number; path: number[] };
@@ -162,4 +163,20 @@ export function propsJsonSchema(type: string): any {
     propSchemas.set(type, def ? z.toJSONSchema(def.props, { io: 'input', unrepresentable: 'any' }) : null);
   }
   return propSchemas.get(type);
+}
+
+/**
+ * Turn a journey template into ordinary components (same look and behaviour) so every label,
+ * field and button can be edited. Returns the id of the first new component.
+ */
+export function detachTemplate(doc: DemoDocument, screenId: string, nodeId: string): { doc: DemoDocument; id: string } {
+  const screen = doc.screens.find(s => s.id === screenId);
+  if (!screen) throw Error('Unknown screen ' + screenId);
+  const loc = findNode(screen.children as NodeT[], nodeId);
+  if (!loc || loc.node.type !== 'Template') throw Error('Not a template');
+  const parts = expandTemplate(loc.node);
+  const taken = allIds(screen.children as NodeT[]); taken.delete(nodeId);
+  const fresh = parts.map(p => reId(p, taken));
+  const next = withChildren(screen.children as NodeT[], loc.parentId, list => [...list.slice(0, loc.index), ...fresh, ...list.slice(loc.index + 1)]);
+  return { doc: mapScreen(doc, screenId, s => ({ ...s, children: next })), id: fresh[0]?.id ?? nodeId };
 }
