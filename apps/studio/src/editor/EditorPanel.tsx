@@ -1,5 +1,5 @@
 // Right-hand editor panel: Properties (selected component or the screen), Layers, Add.
-import React, { useState } from 'react';
+import React from 'react';
 import { ArrowDown, ArrowUp, Copy, Trash2, Unlock, X } from 'lucide-react';
 import { findNode, isContainer, type DemoDocument, type NodeT, type Screen } from '@demo/schema';
 import { Inspector } from './Inspector.tsx';
@@ -13,13 +13,15 @@ export type EditorApi = {
   updateScreen: (patch: Partial<Pick<Screen, 'title' | 'subtitle' | 'shell'>>) => void; duplicateScreen: () => void; moveScreen: (d: -1 | 1) => void; removeScreen: () => void;
 };
 
-export function EditorPanel(api: EditorApi) {
-  const [tab, setTab] = useState<'props' | 'layers' | 'add'>('props');
+export type PanelTab = 'ai' | 'props' | 'layers' | 'add';
+export function EditorPanel(api: EditorApi & { chat: React.ReactNode; tab: PanelTab; setTab: (t: PanelTab) => void }) {
+  const { tab, setTab } = api;
   const loc = api.selected ? findNode(api.screen.children as NodeT[], api.selected) : null;
-  const tabs: [typeof tab, string][] = [['props', 'Properties'], ['layers', 'Layers'], ['add', 'Add']];
+  const tabs: [PanelTab, string][] = [['ai', 'AI'], ['props', 'Properties'], ['layers', 'Layers'], ['add', 'Add']];
   return <aside className="editor-panel" data-testid="editor-panel" aria-label="Editor">
     <div className="editor-tabs" role="tablist">{tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}</button>)}</div>
-    <div className="editor-body">
+    {tab === 'ai' ? api.chat : null}
+    <div className="editor-body" hidden={tab === 'ai'}>
       {tab === 'props' && (loc ? <>
         <div className="editor-node-tools" aria-label="Component actions">
           <button type="button" title="Move up" onClick={() => api.nudge(loc.node.id, -1)} disabled={loc.index === 0}><ArrowUp size={14} /></button>

@@ -59,7 +59,7 @@ export class Generator {
     if (req.instruction.trim().length < 3) throw Object.assign(Error('Describe what you want to add or change'), { category: 'bad_request' });
     const route = await routeInstruction(this.provider, doc, req, track);
     const summary = (r: { document: DemoDocument; screenId: string; changes: string[] }, action: 'added' | 'modified') => ({ action, document: r.document, screenId: r.screenId, changes: r.changes, costUsd: Number(cost.toFixed(5)), tokens });
-    if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.provider, doc, route.screen, req.instruction, (_k, c) => track(c)), 'modified');
+    if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.provider, doc, route.screen, req.instruction, (_k, c) => track(c), (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300))), 'modified');
     return summary(await addScreenWithAI(this.provider, doc, { requirement: req.instruction, from: req.from, to: req.to, addToMenu: req.addToMenu }, (_k, c) => track(c)), 'added');
   }
   /** Back-compat helper used by tests: add a screen. */

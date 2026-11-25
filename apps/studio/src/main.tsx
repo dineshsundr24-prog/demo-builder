@@ -10,7 +10,8 @@ import { validateDocument, migrateV1, DemoDocument, findNode, isContainer, inser
 import { useHistory, saveLocal, loadLocal, DRAFT_KEY, PRESENT_KEY } from './editor/history.ts';
 import { EditorPanel } from './editor/EditorPanel.tsx';
 import { Present } from './editor/Present.tsx';
-import { AssistPanel, type AssistOutcome } from './editor/AssistPanel.tsx';
+import { AssistChat, type AssistOutcome, type ChatMessage, type ChatMode } from './editor/AssistChat.tsx';
+import type { PanelTab } from './editor/EditorPanel.tsx';
 import kapiko from '../../../packages/schema/fixtures/kapiko-mobile.json';
 import portal from '../../../packages/schema/fixtures/staff-portal.json';
 import './studio.css';
@@ -35,8 +36,13 @@ function Studio() {
   const [editError, setEditError] = useState('');
   const [draft] = useState(() => (params.get('doc') ? null : loadLocal(DRAFT_KEY)));
   const presenting = useRef(false);
-  const [assist, setAssist] = useState<null | { mode: 'auto' | 'modify' | 'add' }>(null);
-  const [review, setReview] = useState<null | (AssistOutcome & { previousScreen: string })>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>('auto');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [rightTab, setRightTab] = useState<PanelTab>('props');
+  const undoScreen = useRef<string[]>([]);
+  const lastAi = useRef<DemoDocument | null>(null);
+  const openChat = (m: ChatMode = 'auto') => { setChatMode(m); setChatOpen(true); setRightTab('ai'); };
   // Portals render at desktop width (1280px) and are scaled to fit the stage, never squeezed.
   const stageRef = useRef<HTMLElement | null>(null);
   const [stage, setStage] = useState({ w: 1280, h: 800 });
@@ -131,6 +137,13 @@ function Studio() {
     {panel}
   </div>;
 
+  const chatEl = screen ? <AssistChat doc={doc} currentScreen={screen.id} messages={messages} setMessages={setMessages} mode={chatMode} setMode={setChatMode}
+    undoable={!!lastAi.current && history.doc === lastAi.current}
+    onApply={out => { undoScreen.current.push(screen.id); lastAi.current = out.document; history.commit(out.document); setScreenId(out.screenId); setSelected(null); }}
+    onUndo={() => { history.undo(); lastAi.current = null; const prev = undoScreen.current.pop(); if (prev) setScreenId(prev); }}
+    onOpenScreen={id => { setScreenId(id); setSelected(null); }}
+    onBlank={() => { const title = prompt('Screen title', 'New screen'); if (title?.trim()) { setRightTab('props'); setMode('edit'); } if (title?.trim()) edit(d => { const r = addScreen(d, title.trim(), screen.id); setScreenId(r.id); return r.doc; }); }} /> : null;
+
   return <div className="studio">
     <aside className="studio-side">
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
@@ -155,7 +168,7 @@ function Studio() {
           {n.some(x => x.severity === 'error') ? <XCircle size={14} className="bad" /> : n.length ? <AlertTriangle size={14} className="warn" /> : null}
         </button></li>;
       })}</ol>
-      <button type="button" className="studio-add-screen" data-testid="add-screen" onClick={() => setAssist({ mode: 'add' })}><Plus size={14} />Add screen</button>
+      <button type="button" className="studio-add-screen" data-testid="add-screen" onClick={() => openChat('add')}><Plus size={14} />Add screen</button>
       <label className="studio-label">Validation</label>
       <div className="studio-validation" data-testid="validation">
         {errors.length === 0 ? <p className="ok"><CheckCircle2 size={15} /> No errors{warnings.length ? ' · ' + warnings.length + ' warning' + (warnings.length > 1 ? 's' : '') : ''}</p> : <p className="bad"><XCircle size={15} /> {errors.length} error{errors.length > 1 ? 's' : ''}</p>}
@@ -165,9 +178,6 @@ function Studio() {
       <button type="button" className="studio-restart" onClick={() => { setScreenId(doc.screens[0].id); setRunKey(k => k + 1); }}>Restart demo</button>
     </aside>
     {panel}
-    {assist && screen ? <AssistPanel doc={doc} currentScreen={screen.id} initialMode={assist.mode} onClose={() => setAssist(null)}
-      onBlank={() => { setAssist(null); const title = prompt('Screen title', 'New screen'); if (title?.trim()) edit(d => { const r = addScreen(d, title.trim(), screen?.id); setScreenId(r.id); return r.doc; }); }}
-      onDone={out => { const prev = screen.id; history.commit(out.document); setScreenId(out.screenId); setSelected(null); setRunKey(k => k + 1); setReview({ ...out, previousScreen: prev }); setAssist(null); }} /> : null}
     <main ref={stageRef} className={'studio-stage' + (mode === 'edit' ? ' is-editing' : '')}>
       <div className="stage-toolbar" role="toolbar" aria-label="Stage">
         <div className="seg" role="group" aria-label="Mode">
@@ -176,24 +186,16 @@ function Studio() {
         </div>
         <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!history.canUndo} onClick={history.undo}><Undo2 size={15} /></button>
         <button type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!history.canRedo} onClick={history.redo}><Redo2 size={15} /></button>
-        <button type="button" className="ai-btn" data-testid="open-assist" onClick={() => setAssist({ mode: 'auto' })}><Sparkles size={14} />AI assistant</button>
+        <button type="button" className="ai-btn" data-testid="open-assist" aria-pressed={chatOpen && (mode !== 'edit' || rightTab === 'ai')} onClick={() => (chatOpen && (mode !== 'edit' || rightTab === 'ai') ? setChatOpen(false) : openChat(chatMode))}><Sparkles size={14} />AI assistant</button>
         <span className="stage-spacer" />
         <button type="button" data-testid="open-window" onClick={presentWindow}><ExternalLink size={14} />Open in new window</button>
       </div>
       {editError ? <p className="studio-error stage-error" role="alert">{editError}</p> : null}
-      {review ? <div className="assist-review" role="status" data-testid="assist-review">
-        <div><strong><Sparkles size={14} /> {review.action === 'added' ? 'AI added "' + (doc.screens.find(x => x.id === review.screenId)?.title ?? review.screenId) + '"' : 'AI changed "' + (doc.screens.find(x => x.id === review.screenId)?.title ?? review.screenId) + '"'}</strong>
-          <ul>{review.changes.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
-        <div className="assist-review-actions">
-          <button type="button" onClick={() => setReview(null)}>Keep</button>
-          <button type="button" data-testid="assist-undo" onClick={() => { history.undo(); setScreenId(review.previousScreen); setReview(null); }}>Undo</button>
-        </div>
-      </div> : null}
-      {mode === 'edit' && screen && !screen.children.length && !review ? <div className="assist-empty"><p>This screen is empty.</p>
-        <button type="button" className="ai-btn" onClick={() => setAssist({ mode: 'modify' })}><Sparkles size={14} />Build it with AI</button><span>or add components from the <strong>Add</strong> tab.</span></div> : null}
+      {mode === 'edit' && screen && !screen.children.length ? <div className="assist-empty"><p>This screen is empty.</p>
+        <button type="button" className="ai-btn" onClick={() => openChat('modify')}><Sparkles size={14} />Build it with AI</button><span>or add components from the <strong>Add</strong> tab.</span></div> : null}
       <div className={'device device-' + doc.channel} data-testid="device"
         style={doc.channel === 'portal' ? ({ width: 1280, height: Math.max(560, (stage.h - 60) / Math.min(1, Math.max(0.45, stage.w / 1280))), zoom: Math.min(1, Math.max(0.45, stage.w / 1280)) } as React.CSSProperties) : undefined}
-        onClickCapture={mode === 'edit' ? e => { const id = pick(e.target); e.preventDefault(); e.stopPropagation(); setSelected(id); } : undefined}
+        onClickCapture={mode === 'edit' ? e => { const id = pick(e.target); e.preventDefault(); e.stopPropagation(); setSelected(id); if (id) setRightTab('props'); } : undefined}
         onMouseOverCapture={mode === 'edit' ? e => setHover(pick(e.target)) : undefined} onMouseLeave={() => setHover(null)}>
         {mode === 'edit' ? <style>{(hover && hover !== selected ? '[data-testid="device"] [data-node-id="' + CSS.escape(hover) + '"]{outline:1px dashed #2563eb;outline-offset:2px;cursor:pointer}' : '')
           + (selected ? '[data-testid="device"] [data-node-id="' + CSS.escape(selected) + '"]{outline:2px solid #2563eb;outline-offset:2px;border-radius:4px}' : '')}</style> : null}
@@ -201,7 +203,7 @@ function Studio() {
           onSession={(s: Session) => { (window as any).__session = s; }} />
       </div>
     </main>
-    {mode === 'edit' && screen ? <EditorPanel doc={doc} screen={screen} selected={selected} select={setSelected}
+    {mode === 'edit' && screen ? <EditorPanel tab={rightTab} setTab={t => { setRightTab(t); if (t === 'ai') setChatOpen(true); }} chat={chatEl} doc={doc} screen={screen} selected={selected} select={setSelected}
       updateNode={(id, patch) => edit(d => updateNode(d, sid, id, patch), 'node:' + id + ':' + Object.keys(patch).join(','))}
       renameNode={(id, next) => edit(d => { const r = renameNode(d, sid, id, next); const before = allIds(d.screens.find(x => x.id === sid)!.children as NodeT[]); const added = [...allIds(r.screens.find(x => x.id === sid)!.children as NodeT[])].find(x => !before.has(x)); if (added) setSelected(added); return r; })}
       insert={insertAt} detach={id => edit(d => detachTemplate(d, sid, id))} move={(id, to) => edit(d => moveNode(d, sid, id, to.parentId, to.index))}
@@ -210,6 +212,10 @@ function Studio() {
       duplicateScreen={() => edit(d => { const r = duplicateScreen(d, sid); setScreenId(r.id); return r.doc; })}
       moveScreen={dd => edit(d => moveScreen(d, sid, dd))}
       removeScreen={() => { const i = doc.screens.findIndex(x => x.id === sid); edit(d => removeScreen(d, sid)); setScreenId(doc.screens[i === 0 ? 1 : i - 1].id); }} /> : null}
+    {mode !== 'edit' && chatOpen ? <aside className="editor-panel" aria-label="AI assistant">
+      <div className="chat-head"><Sparkles size={15} /><strong>AI assistant</strong><button type="button" aria-label="Close AI assistant" onClick={() => setChatOpen(false)}>×</button></div>
+      {chatEl}
+    </aside> : null}
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary>{params.get('present') ? <Present /> : <Studio />}</ErrorBoundary></React.StrictMode>);

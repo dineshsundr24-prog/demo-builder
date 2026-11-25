@@ -175,7 +175,7 @@ export function describeChanges(before: Screen, after: Screen): string[] {
   return out.length ? out.slice(0, 12) : ['No visible change'];
 }
 
-export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocument, screenId: string, instruction: string, onCall: (kind: 'screen' | 'repair', call: CompletionResult) => Promise<void> = async () => {}): Promise<ModifyScreenResult> {
+export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocument, screenId: string, instruction: string, onCall: (kind: 'screen' | 'repair', call: CompletionResult) => Promise<void> = async () => {}, conversation: string[] = []): Promise<ModifyScreenResult> {
   const original = doc.screens.find(s => s.id === screenId);
   if (!original) throw Object.assign(Error('Unknown screen ' + screenId), { category: 'bad_request' });
   const working = detachAll(doc, screenId);
@@ -183,7 +183,7 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   const ctx = documentContext(working);
   const schema = aiScreenSchema({ channel: doc.channel, screenIds: doc.screens.map(s => s.id), collectionIds: doc.collections.map(c => c.id) });
   const instructions = screenInstructions(doc.channel) + MODIFY_RULES;
-  const context = { app: { name: doc.name, channel: doc.channel, menu: doc.shell.items.map(i => i.label) }, allScreens: doc.screens.map(s => ({ id: s.id, title: s.title })),
+  const context = { conversationSoFar: conversation, app: { name: doc.name, channel: doc.channel, menu: doc.shell.items.map(i => i.label) }, allScreens: doc.screens.map(s => ({ id: s.id, title: s.title })),
     collections: doc.collections.map(c => ({ id: c.id, label: c.label, fields: c.fields.map(f => f.id) })) };
   const calls: CompletionResult[] = [];
   const check = (json: unknown) => {
@@ -208,7 +208,7 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
 }
 
 // ---------- One assistant entry point ----------
-export type AssistRequest = { instruction: string; currentScreen?: string | null; mode?: 'auto' | 'add' | 'modify'; from?: string | null; to?: string | null; addToMenu?: boolean };
+export type AssistRequest = { instruction: string; history?: string[]; currentScreen?: string | null; mode?: 'auto' | 'add' | 'modify'; from?: string | null; to?: string | null; addToMenu?: boolean };
 export type AssistResult = { action: 'added' | 'modified'; document: DemoDocument; screenId: string; changes: string[] };
 
 /** Decide between adding a new screen and changing an existing one (tiny call; explicit modes skip it). */
@@ -218,7 +218,7 @@ export async function routeInstruction(provider: LlmProvider, doc: DemoDocument,
   const m = z.object({ intent: z.enum(['add_screen', 'modify_screen']), screen: ScreenRef.nullable() });
   const call = await provider.complete({ purpose: 'plan', schemaName: 'route', schema: toStrictSchema(m, { screen: doc.screens.map(s => s.id) }), maxOutputTokens: 200,
     instructions: 'Classify a demo author\'s request about their clickable app. "add_screen" when they want a NEW screen/page/step; "modify_screen" when they want to change content, wording, fields, buttons or layout of an EXISTING screen (screen = which one; the current screen unless another is named).',
-    input: JSON.stringify({ request: req.instruction.slice(0, 1000), currentScreen: req.currentScreen ?? null, screens: doc.screens.map(s => ({ id: s.id, title: s.title })) }) });
+    input: JSON.stringify({ request: req.instruction.slice(0, 1000), conversationSoFar: (req.history ?? []).slice(-6), currentScreen: req.currentScreen ?? null, screens: doc.screens.map(s => ({ id: s.id, title: s.title })) }) });
   await onCall(call);
   const r = m.safeParse(call.json);
   if (!r.success) return { intent: req.currentScreen ? 'modify' : 'add', screen: req.currentScreen ?? null };

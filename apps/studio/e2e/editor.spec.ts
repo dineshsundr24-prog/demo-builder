@@ -125,40 +125,55 @@ test('a journey template can be customised: rename "Verify" to "Validate"', asyn
   await expect(page.getByTestId('validation')).toContainText('No errors');
 });
 
-test.describe('AI assistant', () => {
+test.describe('AI assistant chat', () => {
   test.beforeEach(async ({ page }) => { await page.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token')); });
+  const chat = (p: Page) => p.getByTestId('assist');
+  const say = async (p: Page, text: string) => { await p.getByLabel('Message the AI assistant').fill(text); await p.keyboard.press('Enter'); };
 
-  test('change an existing screen in plain words, review, then undo', async ({ page }) => {
+  test('docked chat: change the current screen, follow up, undo the last change', async ({ page }) => {
     await page.locator('.studio-screens button', { hasText: 'OTP' }).click();
-    await page.getByTestId('open-assist').click();
-    await page.getByLabel('Describe what you want').fill('Rename the Verify button to Validate');
-    await page.getByTestId('assist-go').click();
-    await expect(page.getByTestId('assist-review')).toContainText('Verify');
-    await expect(page.getByTestId('assist-review')).toContainText('Validate');
-    await expect(device(page).getByRole('button', { name: 'Validate' })).toBeVisible();
     await page.getByRole('button', { name: 'Preview' }).click();
+    await page.getByTestId('open-assist').click();
+    await expect(chat(page)).toBeVisible();
+    await expect(device(page)).toBeVisible(); // the demo stays visible next to the chat
+    await say(page, 'Rename the Verify button to Validate');
+    await expect(chat(page).locator('.msg-user')).toContainText('Rename the Verify button');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('"Verify" → "Validate"');
+    await expect(device(page).getByRole('button', { name: 'Validate' })).toBeVisible();
+    await say(page, 'Rename Validate to Confirm code');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('Confirm code');
+    await expect(device(page).getByRole('button', { name: 'Confirm code' })).toBeVisible();
+    await chat(page).getByTestId('assist-undo').click();
+    await expect(device(page).getByRole('button', { name: 'Validate' })).toBeVisible();
+    await expect(chat(page).locator('.msg-ai.msg-undone')).toHaveCount(1);
     await device(page).getByLabel('Verification code').fill('123456');
     await device(page).getByRole('button', { name: 'Validate' }).click();
     await expect(device(page).locator('[data-screen-id]')).not.toHaveAttribute('data-screen-id', /otp/, { timeout: 8000 });
-    await page.locator('.studio-screens button', { hasText: 'OTP' }).click();
-    await page.getByTestId('assist-undo').click();
-    await expect(device(page).getByRole('button', { name: 'Verify' })).toBeVisible();
   });
 
-  test('add a new screen from a description; it is linked from the chosen screen', async ({ page }) => {
+  test('new screen from the chat, linked from the chosen screen', async ({ page }) => {
     await page.getByTestId('add-screen').click();
-    await page.getByLabel('Describe what you want').fill('Card management: freeze card and change PIN');
-    await page.getByLabel('Opens from').selectOption({ label: 'Dashboard' });
-    await page.getByTestId('assist-go').click();
-    await expect(page.getByTestId('assist-review')).toContainText('AI added "Card Management"');
-    await expect(page.getByTestId('assist-review')).toContainText('Link:');
+    await expect(chat(page).getByRole('radio', { name: 'New screen' })).toHaveAttribute('aria-checked', 'true');
+    await chat(page).getByLabel('New screen options').click();
+    await chat(page).getByLabel('Opens from').selectOption({ label: 'Dashboard' });
+    await say(page, 'Card management: freeze card and change PIN');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('I added the screen "Card Management"');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('Link:');
     await expect(page.locator('.studio-screens')).toContainText('Card Management');
     await expect(device(page)).toContainText('Freeze card');
     await page.locator('.studio-screens button', { hasText: 'Dashboard' }).click();
     await page.getByRole('button', { name: 'Preview' }).click();
     await device(page).getByRole('button', { name: 'Cards' }).click();
     await expect(device(page).locator('[data-screen-id]')).toHaveAttribute('data-screen-id', 'card-management');
-    await expect(page.getByTestId('validation')).toContainText('No errors');
+  });
+
+  test('clicking a component in edit mode switches from the chat to its properties', async ({ page }) => {
+    await page.getByTestId('open-assist').click();
+    await expect(chat(page)).toBeVisible();
+    await device(page).getByRole('heading', { name: 'Banking that moves with you' }).click();
+    await expect(inspector(page)).toContainText('Heading');
+    await page.getByRole('tab', { name: 'AI' }).click();
+    await expect(chat(page)).toBeVisible();
   });
 
   test('palette search understands everyday words', async ({ page }) => {
