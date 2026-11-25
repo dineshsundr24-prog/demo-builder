@@ -51,6 +51,8 @@ Return the plan only. Rules:
 - archetype: the standard screen type this screen IS (each has a professionally designed layout):
 ARCHETYPE_LIST
   Use "custom" only when none fits. A dashboard/home is "dashboard"; a records/history/requests/inbox screen is "list"; its drill-down is "detail".
+  Banking (the default domain): money transfer -> "transfer"; bill/utility payment -> "bill-payment"; card management/freeze/limits -> "card-controls"; loan/finance offer or calculator -> "loan-offer"; one account's details/IBAN/statement -> "account-details"; confirm-before-submit -> "review"; receipt/confirmation -> "success"; beneficiaries/transactions/requests -> "list".
+  Staff portal: a staff view of one customer -> "customer-360"; maker review, checker approval, KYC/AML or any staff decision on a record -> "approval" (never a read-only summary); queues -> "list" with the records collection.
 - collection: the id of the collection a list/detail/dashboard/report/approval screen shows; otherwise null. Each list gets its own collection with fields matching that list (e.g. transactions: date, description, amount, status).
 - Screens: when a screen list is provided, return exactly those screens, same ids, titles and order; never add screens. Otherwise propose only the screens the brief needs (3-12; ids are lowercase-hyphen slugs).
 - purpose: one or two sentences describing the content and controls of that screen, faithful to its requirement.

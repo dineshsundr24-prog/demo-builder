@@ -3,6 +3,7 @@ import React, { useContext, useState } from 'react';
 import { ChevronRight, Eye, EyeOff, ShieldCheck, Sparkles, CheckCircle2, TrendingUp, FileCheck2 } from 'lucide-react';
 import type { Action, NodeT } from '@demo/schema';
 import { useRuntime, useText, FormContext, prettyDates } from './nodes.tsx';
+import { getPath } from './engine.ts';
 import { Icon } from './icons.tsx';
 
 const attrs = (n: NodeT, cls: string) => ({ className: 'db-' + cls, 'data-node-id': n.id, 'data-node-type': n.type });
@@ -139,4 +140,44 @@ function Chart({ node }: { node: NodeT }) {
     </svg>
   </section>;
 }
-export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo, FeatureList, Chart };
+const aed = (n: number) => 'AED ' + n.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function CardVisual({ node }: { node: NodeT }) {
+  const rt = useRuntime(), t = useText();
+  const frozen = node.frozenField ? String(getPath(rt.session.state, String(node.frozenField)) ?? '') === 'true' : false;
+  return <div {...attrs(node, 'card-visual')} data-frozen={frozen ? '' : undefined} data-kind={String(node.kind)}>
+    <div className="db-cv-top"><span>{t(node.product)}</span><span className="db-cv-kind">{String(node.kind)}</span></div>
+    <div className="db-cv-chip" aria-hidden="true" />
+    <div className="db-cv-number" aria-label={'Card ending ' + String(node.last4)}>•••• •••• •••• {String(node.last4)}</div>
+    <div className="db-cv-bottom"><span><small>Card holder</small>{t(node.holder)}</span><span><small>Expires</small>{String(node.expiry)}</span>
+      <span className="db-cv-network">{node.network === 'visa' ? 'VISA' : <span className="db-cv-mc" aria-label="Mastercard"><i /><i /></span>}</span></div>
+    {frozen ? <div className="db-cv-frozen" role="status">Card frozen</div> : null}
+  </div>;
+}
+/** Standard annuity instalment. */
+export function emi(amount: number, months: number, ratePercent: number) {
+  const r = ratePercent / 1200;
+  return r === 0 ? amount / months : (amount * r * (1 + r) ** months) / ((1 + r) ** months - 1);
+}
+function EmiCalculator({ node }: { node: NodeT }) {
+  const rt = useRuntime(), t = useText();
+  const min = Number(node.minAmount), max = Math.max(min, Number(node.maxAmount)), tenures = node.tenures as number[], key = String(node.stateKey);
+  const stored = (k: string) => Number(getPath(rt.session.state, key + '.' + k) ?? NaN);
+  const amount = Number.isFinite(stored('amount')) ? stored('amount') : Math.min(max, Math.max(min, Number(node.defaultAmount)));
+  const tenure = Number.isFinite(stored('tenure')) ? stored('tenure') : tenures[Math.min(2, tenures.length - 1)];
+  const monthly = emi(amount, tenure, Number(node.ratePercent)), total = monthly * tenure;
+  const save = (a: number, m: number) => { const e = emi(a, m, Number(node.ratePercent)); rt.setField(key + '.amount', String(a)); rt.setField(key + '.tenure', String(m)); rt.setField(key + '.emi', aed(e)); rt.setField(key + '.amountText', aed(a)); rt.setField(key + '.tenureText', m + ' months'); };
+  React.useEffect(() => { if (!Number.isFinite(stored('amount'))) save(amount, tenure); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const step = max - min > 200000 ? 5000 : 1000;
+  return <section {...attrs(node, 'emi')}>
+    <h3 className="db-pattern-title">{t(node.title)}</h3>
+    <label className="db-emi-row"><span>Amount</span><strong>{aed(amount)}</strong></label>
+    <input type="range" aria-label="Amount" min={min} max={max} step={step} value={amount} onChange={e => save(Number(e.target.value), tenure)} />
+    <div className="db-emi-scale"><span>{aed(min)}</span><span>{aed(max)}</span></div>
+    <div className="db-emi-tenures" role="group" aria-label="Tenure">{tenures.map(m => <button key={m} type="button" aria-pressed={m === tenure} onClick={() => save(amount, m)}>{m} months</button>)}</div>
+    <div className="db-emi-result"><div><small>Monthly instalment</small><strong data-testid="emi-monthly">{aed(monthly)}</strong></div>
+      <div><small>{node.rateLabel ? t(node.rateLabel) : 'Profit rate'}</small><strong>{Number(node.ratePercent).toFixed(2)}% p.a.</strong></div>
+      <div><small>Total repayable</small><strong>{aed(total)}</strong></div></div>
+    {node.note ? <p className="db-emi-note">{t(node.note)}</p> : null}
+  </section>;
+}
+export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { CardVisual, EmiCalculator, Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo, FeatureList, Chart };

@@ -68,7 +68,7 @@ test('strict AI schema is lint-clean for both channels and stays small', () => {
     const schema = aiScreenSchema({ channel: doc.channel, screenIds: doc.screens.map(s => s.id), collectionIds: doc.collections.map(c => c.id) });
     const lint = lintStrict(schema);
     assert.deepEqual(lint.problems, [], doc.channel);
-    assert.ok(lint.bytes < 25000, doc.channel + ' schema bytes ' + lint.bytes);
+    assert.ok(lint.bytes < 30000, doc.channel + ' schema bytes ' + lint.bytes); // budget for prompt size and caching (raised for banking blocks)
     assert.ok(JSON.stringify(schema).includes('"enum":["' + doc.screens[0].id + '"'));
     assert.ok(JSON.stringify(schema).includes('"format":{"anyOf"') || JSON.stringify(schema).includes('"format":{"type"'), 'column format property survives strictify');
     const portalOnly = JSON.stringify(schema).includes('"maker-review"');

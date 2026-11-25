@@ -260,6 +260,103 @@ def({ id: 'report', label: 'Report / analytics', channels: ['portal', 'mobile'],
     ...(col && c.columns?.length ? [{ type: 'Table', id: id('table'), collection: col.id, title: col.label, searchable: true, exportCsv: true, columns: c.columns.map((f: string) => ({ field: f, label: col.fields.find(x => x.id === f)?.label ?? f, ...formatFor(f) })) } as NodeT] : [])]; },
   defaults: () => ({ kpis: [{ label: 'Total', value: '0' }, { label: 'This month', value: '0' }], chart: { title: 'Trend', kind: 'bar', labels: ['Jan', 'Feb', 'Mar'], values: [1, 2, 3] }, columns: [] }) });
 
+// ---------- Banking archetypes ----------
+const Shortcut = z.object({ label: S(24), icon: Icon, target: Target });
+const shortcutsNode = (id: (b: string) => string, ctx: BuildCtx, items: any[], title = 'Quick actions'): NodeT[] => {
+  const qa = (items ?? []).filter((q: any) => q.target !== ctx.screen.id);
+  return qa.length >= 2 ? [{ type: 'QuickActions', id: id('quick'), title, items: qa.map((q: any) => ({ label: q.label, icon: q.icon, actions: q.target ? nav(q.target) : [{ type: 'toast', message: q.label + ' is simulated in this demo' }] })) } as NodeT] : [];
+};
+const Txn = z.object({ title: S(50), subtitle: S(40), amount: z.string().max(24), direction: z.enum(['in', 'out', 'neutral']), icon: Icon });
+
+def({ id: 'transfer', label: 'Money transfer', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'Send money: from account (with available balance), beneficiary, amount in AED, purpose of payment, reference; leads to a review screen. Own-account, local and international transfers.',
+  content: z.object({ intro: S(160).optional(), fromAccounts: z.array(z.object({ name: S(40), masked: S(24), balance: S(24) })).min(1).max(3),
+    beneficiaries: z.array(S(50)).min(2).max(8), purposes: z.array(S(40)).min(3).max(8), limitNote: S(160), referenceLabel: S(40).optional(),
+    primaryLabel: S(28), next: ScreenRef, addBeneficiaryTarget: Target }),
+  build: (c, ctx) => { const id = ids(), k = (l: string) => fieldKey(ctx.screen.id, l); return [
+    ...titleBlock(ctx, id, ctx.screen.title, c.intro),
+    { type: 'BalanceCard', id: id('from'), label: 'Available balance · ' + c.fromAccounts[0].name, amount: c.fromAccounts[0].balance, caption: c.fromAccounts[0].masked },
+    { type: 'Form', id: id('form'), children: [
+      { type: 'Select', id: id('from-account'), field: k('fromAccount'), label: 'From account', required: true, options: c.fromAccounts.map((a: any) => a.name + ' ' + a.masked) },
+      { type: 'Select', id: id('beneficiary'), field: k('beneficiary'), label: 'To beneficiary', required: true, options: c.beneficiaries },
+      ...(c.addBeneficiaryTarget ? [{ type: 'Button', id: id('add-beneficiary'), label: 'Add a new beneficiary', variant: 'link', actions: nav(c.addBeneficiaryTarget) } as NodeT] : []),
+      { type: 'Input', id: id('amount'), field: k('amount'), label: 'Amount (AED)', inputType: 'currency', required: true, placeholder: '0.00' },
+      { type: 'Select', id: id('purpose'), field: k('purpose'), label: 'Purpose of payment', required: true, options: c.purposes },
+      { type: 'Input', id: id('reference'), field: k('reference'), label: c.referenceLabel ?? 'Reference (optional)', inputType: 'text', required: false },
+      { type: 'Notice', id: id('limits'), tone: 'info', title: 'Transfer limits', body: c.limitNote },
+      actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, ...nav(c.next)] }, { label: 'Cancel', actions: [{ type: 'back' }] })] }]; },
+  defaults: ctx => ({ fromAccounts: [{ name: 'Current account', masked: '•••• 0019', balance: 'AED 48,750.50' }], beneficiaries: ['Sara Al Mansoori · Emirates NBD', 'Omar Haddad · ADCB'], purposes: ['Family support', 'Rent', 'Personal expenses', 'Education'],
+    limitNote: 'Daily transfer limit AED 50,000. Transfers to new beneficiaries are available after a 12-hour cooling period (simulated).', primaryLabel: 'Review transfer', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
+
+def({ id: 'bill-payment', label: 'Bill payment', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'Pay utility, telecom and government bills (e.g. DEWA, Etisalat, du, Salik, ADDC): upcoming bills, biller, account/consumer number, amount, save as favourite.',
+  content: z.object({ intro: S(160).optional(), upcoming: z.array(z.object({ biller: S(40), account: S(40), due: S(40), icon: Icon })).max(4), billers: z.array(S(40)).min(3).max(10),
+    accountLabel: S(40), primaryLabel: S(28), next: ScreenRef }),
+  build: (c, ctx) => { const id = ids(), k = (l: string) => fieldKey(ctx.screen.id, l); return [
+    ...titleBlock(ctx, id, ctx.screen.title, c.intro),
+    ...(c.upcoming?.length ? [{ type: 'FeatureList', id: id('upcoming'), title: 'Upcoming bills', items: c.upcoming.map((u: any) => ({ icon: u.icon, title: u.biller, text: u.account, meta: u.due })) } as NodeT] : []),
+    { type: 'Form', id: id('form'), children: [
+      { type: 'Select', id: id('biller'), field: k('biller'), label: 'Biller', required: true, options: c.billers },
+      { type: 'Input', id: id('account'), field: k('accountNumber'), label: c.accountLabel, inputType: 'text', required: true },
+      { type: 'Input', id: id('amount'), field: k('amount'), label: 'Amount (AED)', inputType: 'currency', required: true, placeholder: '0.00' },
+      { type: 'Toggle', id: id('favourite'), field: k('saveFavourite'), label: 'Save as favourite biller' },
+      actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, { type: 'simulate', label: 'Processing payment (simulated)', durationMs: 900, outcome: 'success' }, ...nav(c.next)] }, { label: 'Cancel', actions: [{ type: 'back' }] })] }]; },
+  defaults: ctx => ({ upcoming: [], billers: ['DEWA', 'Etisalat by e&', 'du', 'Salik'], accountLabel: 'Account / consumer number', primaryLabel: 'Pay now', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
+
+def({ id: 'card-controls', label: 'Card management', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'Manage a debit/credit card: card visual, freeze/unfreeze, usage controls (online, international, contactless), spending limit, and actions like change PIN, replace or report lost.',
+  content: z.object({ product: S(40), holder: S(40), last4: S(4).describe('last 4 digits'), expiry: S(5).describe('MM/YY'), network: z.enum(['visa', 'mastercard']), kind: z.enum(['debit', 'credit', 'prepaid']),
+    details: z.array(Pair).max(4), controls: z.array(S(40)).min(1).max(4), limitLabel: S(40).optional(), actions: z.array(Shortcut).max(4) }),
+  build: (c, ctx) => { const id = ids(), k = (l: string) => fieldKey(ctx.screen.id, l); return [
+    ...titleBlock(ctx, id, ctx.screen.title),
+    { type: 'CardVisual', id: id('card'), product: c.product, holder: c.holder.toUpperCase(), last4: (String(c.last4).replace(/\D/g, '') + '4821').slice(0, 4), expiry: /^\d{2}\/\d{2}$/.test(c.expiry) ? c.expiry : '08/29', network: c.network, kind: c.kind, frozenField: k('freeze') },
+    ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details } as NodeT] : []),
+    { type: 'Form', id: id('form'), title: 'Card controls', children: [
+      { type: 'Toggle', id: id('freeze'), field: k('freeze'), label: 'Freeze card' },
+      ...c.controls.map((l: string) => ({ type: 'Toggle', id: id(l), field: k(l), label: l }) as NodeT),
+      ...(c.limitLabel ? [{ type: 'Input', id: id('limit'), field: k('limit'), label: c.limitLabel, inputType: 'currency', required: false } as NodeT] : []),
+      actionBar(id, { label: 'Save settings', actions: [{ type: 'submit', validate: true }, { type: 'toast', message: 'Card settings saved' }] })] },
+    ...(c.actions?.length ? [{ type: 'MenuList', id: id('more'), title: 'More options', items: c.actions.filter((a: any) => a.target !== ctx.screen.id).map((a: any) => ({ label: a.label, icon: a.icon, actions: a.target ? nav(a.target) : [{ type: 'toast', message: a.label + ' is simulated in this demo' }] })) } as NodeT] : [])]; },
+  defaults: ctx => ({ product: 'Platinum Debit', holder: personName(ctx), last4: '4821', expiry: '08/29', network: 'visa', kind: 'debit', details: [], controls: ['Online payments', 'International use'], limitLabel: 'Daily spending limit (AED)', actions: [{ label: 'Change PIN', icon: 'lock' }, { label: 'Replace card', icon: 'credit-card' }] }) });
+
+def({ id: 'loan-offer', label: 'Loan / finance offer', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'Personal/auto/home finance product: key features, interactive instalment calculator (amount, tenure, rate), eligibility, disclaimer, apply.',
+  content: z.object({ intro: S(200).optional(), features: z.array(z.object({ icon: Icon, title: S(40), text: S(100) })).max(4), calculatorTitle: S(60),
+    minAmount: z.number().min(1000).max(1e8), maxAmount: z.number().min(1000).max(1e8), defaultAmount: z.number().min(1000).max(1e8), tenures: z.array(z.number().int().min(3).max(360)).min(2).max(8), ratePercent: z.number().min(0).max(40), rateLabel: S(40).optional(),
+    eligibility: z.array(Pair).max(5), disclaimer: S(240), primaryLabel: S(28), next: ScreenRef }),
+  build: (c, ctx) => { const id = ids(); const min = Math.min(c.minAmount, c.maxAmount), max = Math.max(c.minAmount, c.maxAmount); return [
+    ...titleBlock(ctx, id, ctx.screen.title, c.intro),
+    ...(c.features?.length ? [{ type: 'FeatureList', id: id('features'), items: c.features } as NodeT] : []),
+    { type: 'EmiCalculator', id: id('calculator'), title: c.calculatorTitle, minAmount: min, maxAmount: max, defaultAmount: Math.min(max, Math.max(min, c.defaultAmount)), tenures: [...new Set(c.tenures as number[])].sort((a, b) => a - b), ratePercent: c.ratePercent, ...(c.rateLabel ? { rateLabel: c.rateLabel } : {}), stateKey: camel(ctx.screen.id) + '.calc', note: 'Indicative figures for this demo; the final rate depends on eligibility.' },
+    ...(c.eligibility?.length ? [{ type: 'Card', id: id('eligibility'), title: 'Eligibility', children: [{ type: 'RecordFields', id: id('eligibility-items'), items: c.eligibility }] } as NodeT] : []),
+    { type: 'Text', id: id('disclaimer'), text: c.disclaimer, tone: 'small' },
+    actionBar(id, { label: c.primaryLabel, actions: nav(c.next) })]; },
+  defaults: ctx => ({ calculatorTitle: 'Calculate your instalment', minAmount: 10000, maxAmount: 500000, defaultAmount: 100000, tenures: [12, 24, 36, 48], ratePercent: 6.49, eligibility: [], features: [], disclaimer: 'Subject to bank approval. Terms and conditions apply.', primaryLabel: 'Apply now', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
+
+def({ id: 'account-details', label: 'Account details & statement', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'One account: balance, IBAN and account details, actions (transfer, statement, share IBAN), recent transactions.',
+  content: z.object({ accountName: S(40), balance: S(30), iban: S(34).describe('UAE IBAN, e.g. AE07 0331 2345 6789 0123 456'), details: z.array(Pair).min(1).max(6), actions: z.array(Shortcut).max(4),
+    transactions: z.object({ title: S(40), items: z.array(Txn).min(2).max(8) }) }),
+  build: (c, ctx) => { const id = ids(); return [
+    { type: 'BalanceCard', id: id('balance'), label: c.accountName, amount: c.balance, accountNumber: c.iban.replace(/\s+/g, ''), accountName: personName(ctx).slice(0, 40) },
+    ...shortcutsNode(id, ctx, c.actions),
+    { type: 'Card', id: id('details'), title: 'Account details', children: [{ type: 'RecordFields', id: id('details-items'), items: [{ label: 'IBAN', value: c.iban }, ...c.details.filter((d: any) => !/iban/i.test(d.label))] }] },
+    { type: 'TransactionList', id: id('transactions'), title: c.transactions.title, items: c.transactions.items }]; },
+  defaults: ctx => ({ accountName: 'Current account', balance: 'AED 48,750.50', iban: 'AE07 0331 2345 6789 0123 456', details: [{ label: 'Account type', value: 'Current account' }, { label: 'Currency', value: 'AED' }], actions: [],
+    transactions: { title: 'Recent transactions', items: [{ title: 'Salary', subtitle: '2026-11-25', amount: '+ AED 16,000.00', direction: 'in', icon: 'banknote' }, { title: 'DEWA', subtitle: '2026-11-22', amount: '- AED 480.00', direction: 'out', icon: 'receipt' }] } }) });
+
+def({ id: 'customer-360', label: 'Customer 360 (staff)', channels: ['portal'], shell: () => 'default',
+  description: 'Staff view of one customer: profile header (CIF, segment, risk), KPIs (relationship balance, products, open cases), grouped details, products/cases table, actions.',
+  content: z.object({ name: S(60), subtitle: S(80), badge: z.string().max(24).optional(), kpis: z.array(z.object({ label: S(40), value: S(24), delta: z.string().max(24).optional() })).min(2).max(4),
+    groups: z.array(z.object({ title: S(40), items: z.array(Pair).min(1).max(8) })).min(1).max(3), tableTitle: S(60).optional(), columns: z.array(Field).max(6), primary: Act.optional(), secondary: Act.optional() }),
+  build: (c, ctx) => { const id = ids(), col = ctx.collection; return [
+    { type: 'ProfileHeader', id: id('header'), name: c.name, subtitle: c.subtitle, ...(c.badge ? { badge: c.badge } : {}) },
+    { type: 'Grid', id: id('kpis'), columns: String(Math.min(4, Math.max(2, c.kpis.length))), gap: 'md', children: c.kpis.map((k: any) => ({ type: 'Stat', id: id(k.label), label: k.label, value: k.value, ...(k.delta ? { delta: k.delta } : {}) })) },
+    ...((cards: NodeT[]) => (cards.length > 1 ? [{ type: 'Grid', id: id('groups'), columns: String(Math.min(3, cards.length)), gap: 'md', children: cards } as NodeT] : cards))(c.groups.map((g: any) => ({ type: 'Card', id: id(g.title), title: g.title, children: [{ type: 'RecordFields', id: id(g.title + '-items'), items: g.items }] }) as NodeT)),
+    ...(col && c.columns?.length ? [{ type: 'Table', id: id('table'), collection: col.id, title: c.tableTitle ?? col.label, searchable: true, columns: c.columns.map((f: string) => ({ field: f, label: col.fields.find(x => x.id === f)?.label ?? f, ...formatFor(f) })) } as NodeT] : []),
+    ...(c.primary ? [actionBar(id, { label: c.primary.label, actions: c.primary.target ? nav(c.primary.target) : [{ type: 'toast', message: c.primary.label + ' (simulated)' }] }, c.secondary ? { label: c.secondary.label, actions: c.secondary.target ? nav(c.secondary.target) : [{ type: 'back' }] } : undefined)] : [])]; },
+  defaults: ctx => ({ name: personName(ctx), subtitle: 'CIF 100245 · Retail customer', kpis: [{ label: 'Total relationship', value: 'AED 312,400' }, { label: 'Products', value: '4' }], groups: [{ title: 'Contact', items: [{ label: 'Mobile', value: '+971 50 123 4567' }] }], columns: [] }) });
+
 function formatFor(field: string, statusField?: string): { format?: 'aed' | 'date' | 'status' } {
   if (field === statusField || /status|state/i.test(field)) return { format: 'status' };
   if (/amount|balance|salary|price|fee|total|aed/i.test(field)) return { format: 'aed' };
