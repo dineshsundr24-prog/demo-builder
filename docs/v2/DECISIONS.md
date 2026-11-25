@@ -134,3 +134,9 @@ Estimate per 12-screen generation (to be verified against current provider prici
 - **Real capabilities instead of fakes.** Tables have search, up to 3 dropdown filters and a date-range filter. Lists have search and filter chips. An edit that adds inputs outside a form (which do nothing) is refused and repaired once.
 - **Model.** Edits to existing screens use `ASSIST_MODEL` (default `gpt-4.1`, about USD 0.004–0.02 per edit). Generation and new screens stay on `OPENAI_MODEL` (`gpt-4.1-mini`).
 **Evidence.** In the live evaluation (`packages/generator/scripts/edit-eval.ts`, 10 banking requests), 10 of 10 were correct: 8 precise edits with other screens untouched and 0 validation errors, and 2 honest "not possible" replies with an alternative. Total USD 0.09.
+**Follow-up, 26 Nov 2026 (UAT, Customer Search).** The assistant said it had replaced a form with a table, but only a section title changed. Cause: replacing a container kept its old children and silently dropped the new ones. Fixes:
+- A container replace now takes the new children; an empty list keeps the current ones.
+- **Every operation is verified after it is applied.** An operation without effect is an error, repaired once and then refused, so a reply can never claim a change that did not happen.
+- **New `data` operation.** The AI creates fitting sample data during an edit, e.g. customers for a customer search, instead of reusing unrelated records.
+- **Broken parts are flagged.** The outline marks buttons without actions and inputs outside forms "[does nothing]", so "rework" or "clean up" removes them.
+Live: the UAT request handled correctly 3 of 3 times; the 10-case evaluation 10 of 10.

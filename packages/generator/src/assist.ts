@@ -178,16 +178,19 @@ export function describeChanges(before: Screen, after: Screen): string[] {
 
 const OPS_RULES = `You edit ONE screen of a clickable demo app for its author. You receive the screen (an outline and its components) and the author's request.
 Return a short "reply" to the author and the smallest list of "operations" that does what they asked:
-- replace: give the component's full new version (same id). Its children stay as they are; edit children with their own operations.
+- replace: give the component's full new version (same id). For a container (Section, Card, Form, Grid, Stack), "children" is its complete new content: restate children you keep (same ids) and add new ones; an empty children list keeps the current content.
 - insert: a new component inside "parent" (null = screen top level) right after "after" (null = first position).
 - remove: delete a component. move: put an existing component inside "parent" after "after".
-- screen: change the screen title/subtitle (only when asked).
+- screen: change the screen title/subtitle (only when asked, or when they no longer describe the screen).
+- Data must match what the screen is about: a customer search shows customers (name, CIF, mobile, Emirates ID, segment, customer since), not loan applications. If no listed collection holds the right records, add them with a data operation.
+- "Rework", "improve" or "clean up" means: make the screen a proper banking screen for its purpose; remove parts marked [does nothing] and fix a subtitle that no longer fits.
+- data: add a new sample data set (realistic FICTIONAL UAE banking records; key = the unique field) when a table/list needs records no listed collection holds; components then use collection "new-data".
 Rules:
 - Touch nothing the author did not ask about. Never rename, reword or restyle other components.
 - Prefer built-in capabilities over new parts: tables have search, dropdown filters (filterField, moreFilters) and a date-range filter (dateFilterField); lists have search (searchable) and a filter chip row (filterField). Switch these on with a replace of the table/list. Never add loose inputs to filter or search data.
 - Inputs only work inside a Form with a submit button. Buttons need actions (navigate to a listed screen, toast, simulate...).
 - If the request is unclear or impossible with the available components, return no operations and say in "reply" what you can do instead.
-- reply: one or two plain sentences on what you changed (or why not). No ids.
+- reply: one or two plain sentences describing exactly what your operations do (or why you made none). Never claim a change your operations do not make. No ids.
 ${''}`;
 
 const OpRef = z.string().min(1).meta({ ref: 'node' });
@@ -200,6 +203,9 @@ function opsModel() {
       z.object({ op: z.literal('remove'), target: OpRef }),
       z.object({ op: z.literal('move'), target: OpRef, parent: OpRef.nullable(), after: OpRef.nullable() }),
       z.object({ op: z.literal('screen'), title: z.string().max(85).nullable(), subtitle: z.string().max(140).nullable() }),
+      z.object({ op: z.literal('data'), label: z.string().min(1).max(60), key: z.string().min(1).max(40),
+        fields: z.array(z.object({ id: z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/), label: z.string().min(1).max(40) })).min(2).max(10),
+        rows: z.array(z.array(z.string().max(120))).min(3).max(12) }),
     ])).max(15),
   });
 }
@@ -209,38 +215,70 @@ type Op = z.infer<ReturnType<typeof opsModel>>['operations'][number];
 export function outlineOf(screen: Screen): string {
   const lines: string[] = [];
   const text = (n: NodeT) => { const t = n.label ?? n.text ?? n.title ?? (n as any).primary?.label ?? n.name ?? n.headline; return t ? ' "' + String(t).slice(0, 60) + '"' : ''; };
-  const walk = (ns: NodeT[], d: number) => ns.forEach(n => { lines.push('  '.repeat(d) + '- ' + n.type + ' #' + n.id + text(n)); if (n.children) walk(n.children as NodeT[], d + 1); });
-  walk(screen.children as NodeT[], 0);
+  // Flag parts that do nothing, so a "rework/clean up" request removes or fixes them.
+  const note = (n: NodeT, inForm: boolean) => n.type === 'Button' && !(n.actions as unknown[] | undefined)?.length ? '  [does nothing: no actions]'
+    : ['Input', 'Select', 'Radio', 'Checkbox', 'Upload', 'Toggle'].includes(n.type) && !inForm ? '  [does nothing: outside a form]' : '';
+  const walk = (ns: NodeT[], d: number, inForm: boolean) => ns.forEach(n => { lines.push('  '.repeat(d) + '- ' + n.type + ' #' + n.id + text(n) + note(n, inForm)); if (n.children) walk(n.children as NodeT[], d + 1, inForm || n.type === 'Form'); });
+  walk(screen.children as NodeT[], 0, false);
   return 'Screen "' + screen.title + '"' + (screen.subtitle ? ' (subtitle "' + screen.subtitle + '")' : '') + '\n' + lines.join('\n');
 }
 
-/** Apply operations with the editor's own command layer (same rules as manual editing). */
+/** Apply operations with the editor's own command layer (same rules as manual editing), and verify that
+ *  each one actually took effect, so the reply can never describe a change that did not happen. */
 export function applyOps(doc: DemoDocument, screenId: string, ops: Op[]): { doc: DemoDocument; skipped: string[] } {
   const skipped: string[] = [];
+  // New sample data first; components reference it as "new-data".
+  let dataId: string | null = null;
+  for (const op of ops) if (op.op === 'data' && !dataId) {
+    const base = op.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'records';
+    let id = base, n = 2; while (doc.collections.some(c => c.id === id)) id = base + '-' + n++;
+    const fields = op.fields.filter((f, i, all) => all.findIndex(x => x.id === f.id) === i);
+    const key = fields.some(f => f.id === op.key) ? op.key : fields[0].id, seen = new Set<string>();
+    const rows = op.rows.map(r => Object.fromEntries(fields.map((f, i) => [f.id, String(r[i] ?? '')]))).filter(r => r[key] && !seen.has(r[key]) && seen.add(r[key]));
+    doc = { ...doc, collections: [...doc.collections, { id, label: op.label, key, fields, rows }] }; dataId = id;
+  }
+  const remap = (v: any): any => Array.isArray(v) ? v.map(remap) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === 'collection' && x === 'new-data' ? (dataId ?? x) : remap(x)])) : v;
   const nodesOf = (d: DemoDocument) => d.screens.find(s => s.id === screenId)!.children as NodeT[];
   const indexAfter = (d: DemoDocument, parent: string | null, after: string | null) => {
     if (!after) return 0;
     const loc = findNode(nodesOf(d), after);
     return loc && loc.parentId === parent ? loc.index + 1 : (parent ? ((findNode(nodesOf(d), parent)?.node.children as NodeT[] | undefined)?.length ?? 0) : nodesOf(d).length);
   };
-  for (const op of ops) {
+  const canon = (v: any): any => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter(k => k !== 'children' && k !== 'id').sort().map(k => [k, canon(v[k])])) : v;
+  for (const raw of ops) {
+    if (raw.op === 'data') continue;
+    const op: any = remap(raw);
     try {
-      if (op.op === 'screen') { const patch: any = {}; if (op.title) patch.title = op.title; if (op.subtitle !== null && op.subtitle !== undefined) patch.subtitle = op.subtitle; doc = updateScreen(doc, screenId, patch); }
-      else if (op.op === 'remove') { if (!findNode(nodesOf(doc), op.target)) throw Error('no ' + op.target); doc = removeNode(doc, screenId, op.target); }
-      else if (op.op === 'insert') doc = insertNode(doc, screenId, op.parent, indexAfter(doc, op.parent, op.after), stripNulls(op.node) as NodeT).doc;
-      else if (op.op === 'move') doc = moveNode(doc, screenId, op.target, op.parent, indexAfter(doc, op.parent, op.after));
-      else if (op.op === 'replace') {
-        const loc = findNode(nodesOf(doc), op.target); if (!loc) throw Error('no ' + op.target);
+      if (op.op === 'screen') {
+        const patch: any = {}; if (op.title) patch.title = op.title; if (op.subtitle !== null && op.subtitle !== undefined) patch.subtitle = op.subtitle;
+        doc = updateScreen(doc, screenId, patch);
+        const s = doc.screens.find(x => x.id === screenId)!;
+        if ((patch.title && s.title !== patch.title) || (patch.subtitle !== undefined && (s.subtitle ?? '') !== patch.subtitle)) throw Error('screen title/subtitle not applied');
+      } else if (op.op === 'remove') {
+        if (!findNode(nodesOf(doc), op.target)) throw Error('no component ' + op.target);
+        doc = removeNode(doc, screenId, op.target);
+      } else if (op.op === 'insert') {
+        const r = insertNode(doc, screenId, op.parent, indexAfter(doc, op.parent, op.after), stripNulls(op.node) as NodeT);
+        doc = r.doc; if (!findNode(nodesOf(doc), r.id)) throw Error('insert had no effect');
+      } else if (op.op === 'move') {
+        doc = moveNode(doc, screenId, op.target, op.parent, indexAfter(doc, op.parent, op.after));
+      } else if (op.op === 'replace') {
+        const loc = findNode(nodesOf(doc), op.target); if (!loc) throw Error('no component ' + op.target);
         const next = stripNulls(op.node) as NodeT;
-        if (next.type === loc.node.type) {
+        const newKids = Array.isArray(next.children) && next.children.length ? next.children as NodeT[] : null;
+        if (next.type === loc.node.type && !newKids) {
           const { type: _t, id: _i, children: _c, ...props } = next; void _t; void _i; void _c;
           const patch: Record<string, unknown> = { ...props };
           for (const k of Object.keys(loc.node)) if (!['type', 'id', 'children'].includes(k) && !(k in props)) patch[k] = undefined;
           doc = updateNode(doc, screenId, op.target, patch);
         } else {
-          const kept = Array.isArray(loc.node.children) && isContainer(next.type) ? { ...next, children: loc.node.children } : next;
-          doc = insertNode(removeNode(doc, screenId, op.target), screenId, loc.parentId, loc.index, { ...kept, id: op.target } as NodeT).doc;
+          // New content (or a different component type): swap the whole subtree, keeping the id and position.
+          const keepKids = !newKids && Array.isArray(loc.node.children) && isContainer(next.type) ? { children: loc.node.children } : {};
+          const node = { ...next, ...keepKids, id: op.target } as NodeT;
+          doc = insertNode(removeNode(doc, screenId, op.target), screenId, loc.parentId, loc.index, node).doc;
         }
+        const now = findNode(nodesOf(doc), op.target);
+        if (!now || JSON.stringify(canon(now.node)) !== JSON.stringify(canon({ ...next, id: op.target })) || (newKids && ((now.node.children as NodeT[]) ?? []).length !== newKids.length)) throw Error('replace of ' + op.target + ' did not take effect');
       }
     } catch (e) { skipped.push(op.op + ': ' + (e instanceof Error ? e.message : String(e))); }
   }
@@ -259,10 +297,9 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   if (!doc.screens.some(s => s.id === screenId)) throw Object.assign(Error('Unknown screen ' + screenId), { category: 'bad_request' });
   const working = detachAll(doc, screenId);
   const current = working.screens.find(s => s.id === screenId)!;
-  const ctx = documentContext(working);
   const ids = [...allIds(current.children as NodeT[])];
   const m = opsModel();
-  const schema = toStrictSchema(m, { screen: doc.screens.map(s => s.id), collection: doc.collections.map(c => c.id), template: templates.filter(t => t.channels.includes(doc.channel)).map(t => t.id), node: ids });
+  const schema = toStrictSchema(m, { screen: doc.screens.map(s => s.id), collection: [...doc.collections.map(c => c.id), 'new-data'], template: templates.filter(t => t.channels.includes(doc.channel)).map(t => t.id), node: ids });
   const instructions = OPS_RULES + '\n' + componentGuide(doc.channel);
   const context = { conversationSoFar: conversation, app: { name: doc.name, channel: doc.channel, menu: doc.shell.items.map(i => i.label) }, allScreens: doc.screens.map(s => ({ id: s.id, title: s.title })),
     collections: doc.collections.map(c => ({ id: c.id, label: c.label, fields: c.fields.map(f => ({ id: f.id, label: f.label })), sampleRow: c.rows[0] })) };
@@ -278,6 +315,7 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
     let { doc: next, skipped } = applyOps(working, screenId, parsed.data.operations);
     let screen = next.screens.find(s => s.id === screenId)!;
     // Known model artifact (stray braces such as "Reference},{"): clean deterministically.
+    const ctx = documentContext(next);
     const cleaned = stripArtifacts(screen, validateScreen(screen, ctx, 'screen'));
     if (cleaned) { screen = cleaned; next = { ...next, screens: next.screens.map(s => (s.id === screenId ? cleaned : s)) }; }
     const issues: Issue[] = [...validateScreen(screen, ctx, 'screen'), ...skipped.map(x => ({ path: 'operations', code: 'ops.skipped', severity: 'error', message: 'Could not apply ' + x } as Issue))];
@@ -286,7 +324,7 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   };
   const errs = (i: Issue[]) => i.filter(x => x.severity === 'error');
   const input = { request: instruction.slice(0, 2000), outline: outlineOf(current), components: current.children, context };
-  const ask = (extra: object = {}) => provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, ...extra }), schemaName: 'screen_edit', schema, maxOutputTokens: 6000 });
+  const ask = (extra: object = {}) => provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, ...extra }), schemaName: 'screen_edit', schema, maxOutputTokens: 10000 });
   let call: CompletionResult;
   try { call = await ask(); }
   catch (e) {
@@ -296,7 +334,7 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   calls.push(call); await onCall('screen', call);
   let out = attempt(call.json);
   if (errs(out.issues).length) {
-    const fix = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, task: 'Your operations had these problems. Return corrected operations for the ORIGINAL screen.', problems: errs(out.issues).map(i => i.message), previousOperations: out.ops }), schemaName: 'screen_edit', schema, maxOutputTokens: 6000 });
+    const fix = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, task: 'Your operations had these problems. Return corrected operations for the ORIGINAL screen.', problems: errs(out.issues).map(i => i.message), previousOperations: out.ops }), schemaName: 'screen_edit', schema, maxOutputTokens: 10000 });
     calls.push(fix); await onCall('repair', fix);
     out = attempt(fix.json);
     if (errs(out.issues).length) throw Object.assign(Error('I could not make that change validly (' + errs(out.issues)[0].message + '). Try rephrasing it, or edit the screen directly.'), { category: 'parse' });
@@ -304,8 +342,9 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   const after = out.doc.screens.find(s => s.id === screenId)!;
   const changed = JSON.stringify(after) !== JSON.stringify(current);
   // Templates are only flattened when the edit actually changed the screen.
-  const document: DemoDocument = changed ? { ...doc, screens: doc.screens.map(s => (s.id === screenId ? after : s)) } : doc;
-  return { document, screenId, changes: changed ? describeChanges(current, after) : ['No visible change'], calls, reply: out.reply };
+  const document: DemoDocument = changed ? { ...doc, collections: out.doc.collections, screens: doc.screens.map(s => (s.id === screenId ? after : s)) } : doc;
+  const newData = out.doc.collections.filter(c => !doc.collections.some(x => x.id === c.id)).map(c => 'New sample data "' + c.label + '" (' + c.rows.length + ' records)');
+  return { document, screenId, changes: changed ? [...describeChanges(current, after), ...newData] : ['No visible change'], calls, reply: out.reply };
 }
 
 // ---------- One assistant entry point ----------

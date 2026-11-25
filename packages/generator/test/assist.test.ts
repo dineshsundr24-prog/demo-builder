@@ -138,3 +138,31 @@ test('change summaries ignore property order and equivalent form references', ()
   const shuffled = JSON.parse(JSON.stringify(s), (_k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v));
   assert.deepEqual(describeChanges(s, shuffled), ['No visible change']);
 });
+
+const portal: DemoDocument = JSON.parse(readFileSync(new URL('../../schema/fixtures/staff-portal.json', import.meta.url), 'utf8'));
+const withSearch = (): DemoDocument => { const d = structuredClone(portal); d.screens.push({ id: 'customer-search', title: 'Customer Search', shell: 'default', children: [
+  { type: 'Section', id: 'search', title: 'Search', children: [{ type: 'Form', id: 'f', children: [{ type: 'Input', id: 'val', field: 'search.value', label: 'Search value', inputType: 'text', required: true },
+    { type: 'Button', id: 'apply', label: 'Apply Filters', variant: 'primary', actions: [{ type: 'submit', validate: true }] }] }] }] } as any); return d; };
+const edit = (ops: object[], reply = 'Done') => new FakeProvider(req => req.schemaName === 'screen_edit' ? { reply, operations: ops } : { intent: 'modify_screen', screen: 'customer-search' });
+
+test('replacing a section with new content swaps its children (UAT: only the title changed before)', async () => {
+  const p = edit([
+    { op: 'data', label: 'Customers', key: 'cif', fields: [{ id: 'cif', label: 'CIF' }, { id: 'name', label: 'Name' }, { id: 'mobile', label: 'Mobile' }, { id: 'opened', label: 'Customer since' }],
+      rows: [['CIF-1001', 'Sara Al Mansoori', '+971 50 111 2233', '2021-03-14'], ['CIF-1002', 'Omar Haddad', '+971 55 222 3344', '2019-07-02'], ['CIF-1003', 'Fatima Al Suwaidi', '+971 52 333 4455', '2023-01-20']] },
+    { op: 'replace', target: 'search', node: { type: 'Section', id: 'search', title: 'Customers', children: [
+      { type: 'Table', id: 'customers', collection: 'new-data', searchable: true, dateFilterField: 'opened', columns: [{ field: 'cif', label: 'CIF' }, { field: 'name', label: 'Name' }, { field: 'mobile', label: 'Mobile' }, { field: 'opened', label: 'Customer since', format: 'date' }] }] } }]);
+  const out = await new Generator(new MemoryStore(), p, defaultConfig).assist(withSearch(), { instruction: 'Rework this screen', currentScreen: 'customer-search' });
+  const s = JSON.stringify(out.document.screens.find(x => x.id === 'customer-search'));
+  assert.ok(s.includes('"type":"Table"') && !s.includes('Apply Filters'), 'the old form is gone and the table is there');
+  const data = out.document.collections.find(c => c.label === 'Customers')!;
+  assert.equal(data.rows.length, 3);
+  assert.ok(s.includes('"collection":"' + data.id + '"'), 'the table uses the new data');
+  assert.ok(out.changes.some(c => c.startsWith('New sample data')));
+  assert.deepEqual(errorsOnly(validateDocument(out.document)), []);
+});
+
+test('an operation that would not take effect is refused, never reported as done', async () => {
+  // Same-type replace that tries to change the id-less "type" of nothing: target does not exist.
+  const p = edit([{ op: 'remove', target: 'does-not-exist' }], 'I removed the old filters');
+  await assert.rejects(new Generator(new MemoryStore(), p, defaultConfig).assist(withSearch(), { instruction: 'Remove filters', currentScreen: 'customer-search' }), /could not make that change/);
+});
