@@ -5,3 +5,6 @@ export * from './screen.ts';
 export * from './assemble.ts';
 export * from './store.ts';
 export * from './orchestrator.ts';
+export * from './archetypes.ts';
+export * from './archetypeGen.ts';
+export * from './uxLint.ts';

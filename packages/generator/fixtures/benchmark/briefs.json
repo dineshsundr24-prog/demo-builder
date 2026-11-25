@@ -1,8 +1,37 @@
 [
-  { "file": "ididi-mobile.md", "channel": "mobile", "name": "IDIDI BANK" },
-  { "file": "kapiko-mobile.md", "channel": "mobile", "name": "Kapiko Bank Mobile" },
-  { "file": "safedrive-mobile.md", "channel": "mobile", "name": "SafeDrive Claims" },
-  { "file": "kapiko-portal.md", "channel": "portal", "name": "Kapiko Staff Portal" },
-  { "file": "hr-leave-portal.md", "channel": "portal", "name": "PeopleFirst HR Portal" },
-  { "file": "clinic-mobile.md", "channel": "mobile", "name": "CareWell Clinics" }
+ {
+  "file": "nexa-mobile.md",
+  "channel": "mobile",
+  "name": "Nexa Digital Banking"
+ },
+ {
+  "file": "ididi-mobile.md",
+  "channel": "mobile",
+  "name": "IDIDI BANK"
+ },
+ {
+  "file": "kapiko-mobile.md",
+  "channel": "mobile",
+  "name": "Kapiko Bank Mobile"
+ },
+ {
+  "file": "safedrive-mobile.md",
+  "channel": "mobile",
+  "name": "SafeDrive Claims"
+ },
+ {
+  "file": "kapiko-portal.md",
+  "channel": "portal",
+  "name": "Kapiko Staff Portal"
+ },
+ {
+  "file": "hr-leave-portal.md",
+  "channel": "portal",
+  "name": "PeopleFirst HR Portal"
+ },
+ {
+  "file": "clinic-mobile.md",
+  "channel": "mobile",
+  "name": "CareWell Clinics"
+ }
 ]

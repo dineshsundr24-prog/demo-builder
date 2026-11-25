@@ -123,6 +123,13 @@ define({ type: 'Promo', label: 'Promo banner', category: 'pattern', ai: 'Highlig
   props: z.object({ title: Bound(60), body: Bound(160).optional(), icon: Icon, cta: z.object({ label: z.string().min(1).max(24), actions: Act }).optional() }),
   create: () => ({ title: 'Offer', icon: 'gift' }) });
 
+define({ type: 'FeatureList', label: 'Feature list', category: 'pattern', ai: 'Icon + title + short text rows: welcome highlights, help topics, notifications, messages.',
+  props: z.object({ title: Bound(40).optional(), items: z.array(z.object({ icon: Icon, title: Bound(60), text: Bound(160).optional(), meta: z.string().max(30).optional() })).min(1).max(10) }),
+  create: () => ({ items: [{ icon: 'star', title: 'Feature', text: 'Description' }] }) });
+define({ type: 'Chart', label: 'Chart', category: 'pattern', ai: 'Simple bar or line chart of up to 12 labelled values (portal dashboards and reports).',
+  props: z.object({ title: Bound(60), kind: z.enum(['bar', 'line']), labels: z.array(z.string().min(1).max(16)).min(2).max(12), values: z.array(z.number().min(0).max(1e12)).min(2).max(12), unit: z.string().max(12).optional() }),
+  create: () => ({ title: 'Trend', kind: 'bar', labels: ['Jan', 'Feb', 'Mar'], values: [3, 5, 4] }) });
+
 // ---------- Templates ----------
 define({ type: 'Template', label: 'Journey template', category: 'template', ai: 'Prebuilt, professionally designed block (sign-in, sign-up and, when listed, simulated UAE PASS/OTP/eKYC/face/upload/maker-checker). next = screen after success; alt = secondary link (e.g. sign-up from sign-in).',
   props: z.object({ template: TemplateRef, next: ScreenRef.optional(), alt: ScreenRef.optional() }), create: () => ({ template: 'sign-in' }) });

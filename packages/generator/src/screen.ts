@@ -4,6 +4,9 @@ import type { LlmProvider, CompletionResult } from './provider.ts';
 import { ProviderError } from './provider.ts';
 import type { Plan, PlanScreen } from './plan.ts';
 import { normalizeDesign, coverageIssues } from './design.ts';
+import { generateArchetypeScreen } from './archetypeGen.ts';
+import { uxIssues } from './uxLint.ts';
+import { ARCHETYPES, buildArchetypeScreen } from './archetypes.ts';
 
 export type ScreenOutcome = { screen: Screen; status: 'valid' | 'repaired' | 'fallback'; issues: Issue[]; calls: CompletionResult[]; failure?: string };
 
@@ -55,6 +58,7 @@ export function planDocument(plan: Plan, screens: Screen[] = []): DemoDocument {
 const errorsOf = (issues: Issue[]) => issues.filter(i => i.severity === 'error');
 
 export async function generateScreen(provider: LlmProvider, plan: Plan, target: PlanScreen, onCall: (kind: 'screen' | 'repair', call: CompletionResult) => Promise<void> = async () => {}): Promise<ScreenOutcome> {
+  if (target.archetype && ARCHETYPES[target.archetype]) return generateArchetypeScreen(provider, plan, target, onCall);
   const schema = aiScreenSchema({ channel: plan.channel, screenIds: plan.screens.map(s => s.id), collectionIds: plan.collections.map(c => c.id), templateIds: plan.templates });
   const ctx = documentContext(planDocument(plan));
   const instructions = screenInstructions(plan.channel, plan.templates);
@@ -64,10 +68,10 @@ export async function generateScreen(provider: LlmProvider, plan: Plan, target: 
     const issues0 = validateScreen(raw, ctx, 'screen');
     if (errorsOf(issues0).some(i => i.code.startsWith('schema.'))) return { screen: raw, issues: issues0 };
     const { screen } = normalizeDesign(raw);
-    return { screen, issues: [...validateScreen(screen, ctx, 'screen'), ...coverageIssues(screen, target.mustInclude)] };
+    return { screen, issues: [...validateScreen(screen, ctx, 'screen'), ...uxIssues(screen, plan.channel), ...coverageIssues(screen, target.mustInclude).map(i => ({ ...i, severity: 'warning' as const }))] };
   };
   // Missing requirement items trigger a repair, but never a fallback: after the repair they become warnings.
-  const accept = (issues: Issue[]) => issues.map(i => (i.code === 'coverage.missing' ? { ...i, severity: 'warning' as const } : i));
+  const accept = (issues: Issue[]) => issues.map(i => (i.code === 'coverage.missing' || i.code.startsWith('ux.') ? { ...i, severity: 'warning' as const } : i));
   let first: ReturnType<typeof check> | null = null;
   let failure = '';
   try {
@@ -161,8 +165,14 @@ export function shortenTooLong(screen: Screen, issues: Issue[]): Screen | null {
   return copy;
 }
 
-/** Deterministic, valid placeholder that keeps the journey navigable and says it needs attention. */
+/** Deterministic, valid, presentable screen that keeps the journey navigable (the job reports the failure). */
 export function fallbackScreen(plan: Plan, s: PlanScreen, reason: string): Screen {
+  if (!s.template) {
+    const ctx = { plan, screen: s, channel: plan.channel, collection: undefined };
+    const info = { items: [{ icon: 'help', title: s.title.slice(0, 60), text: s.purpose.slice(0, 160) }], ...(s.links[0] ? { primary: { label: 'Continue', target: s.links[0] } } : {}) };
+    const built = buildArchetypeScreen('info', info, ctx);
+    return { ...built, shell: s.shell };
+  }
   const title = (id: string) => plan.screens.find(x => x.id === id)?.title ?? id;
   const children: NodeT[] = [
     { type: 'Heading', id: 'fallback-title', text: s.title, level: '2' },

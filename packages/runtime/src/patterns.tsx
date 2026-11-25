@@ -7,12 +7,15 @@ import { Icon } from './icons.tsx';
 
 const attrs = (n: NodeT, cls: string) => ({ className: 'db-' + cls, 'data-node-id': n.id, 'data-node-type': n.type });
 /** Brand mark: uploaded logo, otherwise initials on a brand gradient. */
+const GENERIC_BRAND_WORDS = /^(bank|banking|digital|app|mobile|portal|staff|online|the|of|and|services?|group|llc|pjsc|clinics?|claims|hr)$/i;
 export function BrandMark({ size = 64 }: { size?: number }) {
   const rt = useRuntime();
   const logo = rt.doc.theme.logo;
   if (logo) return <img className="db-brandmark db-brandmark-img" src={logo} alt={rt.doc.shell.brand + ' logo'} style={{ maxHeight: size, maxWidth: size * 3 }} />;
-  const words = rt.doc.shell.brand.replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
-  const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? 'D').slice(0, 2)).toUpperCase();
+  // "Nexa Digital Banking" -> "N", "CareWell Clinics" -> "C": generic words never become initials.
+  const all = rt.doc.shell.brand.replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+  const words = all.filter(w => !GENERIC_BRAND_WORDS.test(w));
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? all[0] ?? 'D')[0]).toUpperCase();
   return <span className="db-brandmark" style={{ width: size, height: size, fontSize: size * 0.36 }} aria-label={rt.doc.shell.brand + ' logo'} role="img">{initials}</span>;
 }
 function useRun() {
@@ -109,4 +112,31 @@ function Promo({ node }: { node: NodeT }) {
     <div><strong>{t(node.title)}</strong>{node.body ? <p>{t(node.body)}</p> : null}
       {cta ? <button type="button" className="db-link" onClick={() => run(cta.actions)}>{t(cta.label)} →</button> : null}</div></section>;
 }
-export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo };
+function FeatureList({ node }: { node: NodeT }) {
+  const t = useText();
+  const items = node.items as { icon: string; title: string; text?: string; meta?: string }[];
+  return <section {...attrs(node, 'features')}>
+    {node.title ? <h3 className="db-pattern-title">{t(node.title)}</h3> : null}
+    <ul>{items.map((it, i) => <li key={i}><span className="db-feature-icon"><Icon name={it.icon} size={18} /></span>
+      <span className="db-feature-main"><strong>{t(it.title)}</strong>{it.text ? <small>{t(it.text)}</small> : null}</span>{it.meta ? <span className="db-feature-meta">{t(it.meta)}</span> : null}</li>)}</ul>
+  </section>;
+}
+function Chart({ node }: { node: NodeT }) {
+  const labels = node.labels as string[], values = (node.values as number[]).slice(0, labels.length);
+  const max = Math.max(...values, 1), w = 320, h = 150, pad = 24, step = (w - pad) / values.length;
+  const fmt = (v: number) => (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'k' : String(v));
+  const y = (v: number) => h - 18 - (v / max) * (h - 36);
+  return <section {...attrs(node, 'chart')}>
+    <div className="db-pattern-head"><h3 className="db-pattern-title">{String(node.title)}</h3>{node.unit ? <small>{String(node.unit)}</small> : null}</div>
+    <svg viewBox={'0 0 ' + w + ' ' + h} role="img" aria-label={String(node.title)}>
+      <line x1={pad} x2={w} y1={h - 18} y2={h - 18} className="db-chart-axis" />
+      {node.kind === 'line'
+        ? <><polyline className="db-chart-line" points={values.map((v, i) => (pad + step * i + step / 2) + ',' + y(v)).join(' ')} />
+            {values.map((v, i) => <circle key={i} className="db-chart-dot" cx={pad + step * i + step / 2} cy={y(v)} r={3.5}><title>{labels[i] + ': ' + v}</title></circle>)}</>
+        : values.map((v, i) => <rect key={i} className="db-chart-bar" x={pad + step * i + step * 0.2} width={step * 0.6} y={y(v)} height={h - 18 - y(v)} rx={4}><title>{labels[i] + ': ' + v}</title></rect>)}
+      {labels.map((l, i) => <text key={i} className="db-chart-label" x={pad + step * i + step / 2} y={h - 4} textAnchor="middle">{l}</text>)}
+      <text className="db-chart-label" x={2} y={14}>{fmt(max)}</text>
+    </svg>
+  </section>;
+}
+export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo, FeatureList, Chart };
