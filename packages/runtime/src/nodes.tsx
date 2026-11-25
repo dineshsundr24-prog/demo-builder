@@ -131,7 +131,9 @@ function Table({ node }: { node: NodeT }) {
   const rows = rt.session.collections[String(node.collection)] ?? [];
   const fieldsOf = useMemo(() => new Map((rt.doc.collections.find(c => c.id === node.collection)?.fields ?? []).map(f => [f.id, f.label])), [rt.doc.collections, node.collection]);
   const [q, setQ] = useState(''), [equals, setEquals] = useState<Record<string, string>>({}), [from, setFrom] = useState(''), [to, setTo] = useState('');
-  const filterFields = [node.filterField, ...((node.moreFilters as string[] | undefined) ?? [])].filter((f): f is string => typeof f === 'string' && !!f);
+  // A dropdown over unique values (names, ids) filters nothing useful: such filters are not shown.
+  const categorical = (f: string) => rows.length < 4 || new Set(rows.map(r => r[f])).size < rows.length;
+  const filterFields = [node.filterField, ...((node.moreFilters as string[] | undefined) ?? [])].filter((f): f is string => typeof f === 'string' && !!f && categorical(f));
   const dateField = node.dateFilterField ? String(node.dateFilterField) : undefined;
   const options = useMemo(() => Object.fromEntries(filterFields.map(f => [f, [...new Set(rows.map(r => r[f]).filter(Boolean))]])), [rows, filterFields.join()]);
   const shown = filterRows(rows, { search: node.searchable ? q : '', fields: columns.map(c => c.field), equals, ...(dateField ? { date: { field: dateField, from, to } } : {}) });

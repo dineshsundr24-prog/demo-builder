@@ -187,6 +187,8 @@ Return a short "reply" to the author and the smallest list of "operations" that 
 - data: add a new sample data set (realistic FICTIONAL UAE banking records; key = the unique field) when a table/list needs records no listed collection holds; components then use collection "new-data".
 Rules:
 - Touch nothing the author did not ask about. Never rename, reword or restyle other components.
+- Dropdown filters are for categories with repeating values (status, segment, emirate, product, branch), never for names, ids or phone numbers (search covers those).
+- On a staff portal, buttons size to their label; to make one smaller or quieter use variant "secondary" or "link"; a button with no actions does nothing: give it one or remove it.
 - Prefer built-in capabilities over new parts: tables have search, dropdown filters (filterField, moreFilters) and a date-range filter (dateFilterField); lists have search (searchable) and a filter chip row (filterField). Switch these on with a replace of the table/list. Never add loose inputs to filter or search data.
 - Inputs only work inside a Form with a submit button. Buttons need actions (navigate to a listed screen, toast, simulate...).
 - If the request is unclear or impossible with the available components, return no operations and say in "reply" what you can do instead.
@@ -344,7 +346,9 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
   // Templates are only flattened when the edit actually changed the screen.
   const document: DemoDocument = changed ? { ...doc, collections: out.doc.collections, screens: doc.screens.map(s => (s.id === screenId ? after : s)) } : doc;
   const newData = out.doc.collections.filter(c => !doc.collections.some(x => x.id === c.id)).map(c => 'New sample data "' + c.label + '" (' + c.rows.length + ' records)');
-  return { document, screenId, changes: changed ? [...describeChanges(current, after), ...newData] : ['No visible change'], calls, reply: out.reply };
+  // Never let a reply claim a change that did not happen.
+  const reply = !changed && out.ops.length ? 'I made no change: the screen already looks like that. Tell me more specifically what should change (for example "make the Filters button a small link" or "remove the Filters button").' : out.reply;
+  return { document, screenId, changes: changed ? [...describeChanges(current, after), ...newData] : ['No visible change'], calls, reply };
 }
 
 // ---------- One assistant entry point ----------

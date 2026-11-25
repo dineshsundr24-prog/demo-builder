@@ -271,3 +271,5 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 .db-date-range input { padding: 6px 8px; font-size: 13px; }
 .db-table-count { margin: 8px 2px 0; font-size: 12px; color: var(--db-muted); }
 .db-list li.db-empty { padding: 14px; color: var(--db-muted); text-align: center; }
+/* Desktop portals: standalone buttons size to their label (mobile keeps full-width primary actions). */
+.db-app[data-channel="portal"] .db-button:not(.db-actionbar .db-button):not([data-variant="link"]) { align-self: flex-start; width: auto; min-width: 120px; padding: 9px 16px; }

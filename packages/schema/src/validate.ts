@@ -99,6 +99,7 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
       }
     }
     // Actions
+    if (n.type === 'Button' && !(n.actions as unknown[] | undefined)?.length) out.push(issue(path + '.actions', 'ux.dead-button', 'Button "' + String(n.label ?? n.id) + '" does nothing: give it an action or remove it', 'warning'));
     actionsOf(n).forEach((a, i) => {
       const ap = path + '.actions[' + i + ']';
       if (a.type === 'navigate' && !ctx.screenIds.has(a.screen)) out.push(issue(ap + '.screen', 'route.unknown', 'Destination "' + a.screen + '" is not a screen'));
