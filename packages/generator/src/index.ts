@@ -8,3 +8,4 @@ export * from './orchestrator.ts';
 export * from './archetypes.ts';
 export * from './archetypeGen.ts';
 export * from './uxLint.ts';
+export * from './assist.ts';

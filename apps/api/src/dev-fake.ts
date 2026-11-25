@@ -9,6 +9,16 @@ const screens = { mobile: new Map(fixture('kapiko-mobile.json').screens.map((s: 
 const provider = new FakeProvider(async (req: CompletionRequest) => {
   const input = JSON.parse(req.input);
   await new Promise(r => setTimeout(r, 150)); // make progress visible
+  // Studio assistant (deterministic): route, plan a new "info" screen, or apply "rename X to Y".
+  if (req.schemaName === 'route') return { intent: /\b(new|add|create)\b.*\b(screen|page)\b/i.test(input.request) ? 'add_screen' : 'modify_screen', screen: input.currentScreen };
+  if (req.schemaName === 'new_screen') return { title: 'Card Management', archetype: 'info', purpose: 'Manage the debit card.', mustInclude: ['freeze card'], openFrom: input.openFromGiven ?? input.screens[0].id,
+    entryLabel: 'Cards', entryIcon: 'credit-card', leadsTo: [], collection: null, newCollection: null, sampleFacts: [] };
+  if (req.schemaName.startsWith('content_')) return { intro: 'Control your debit card.', items: [{ icon: 'lock', title: 'Freeze card', text: 'Temporarily block all card payments.', meta: null }, { icon: 'shield', title: 'Change PIN', text: 'Set a new 4-digit PIN.', meta: null }], primary: null };
+  if (req.schemaName === 'screen' && input.instruction) {
+    const m = /rename\s+(?:the\s+)?"?(.+?)"?\s+(?:button\s+)?to\s+"?(.+?)"?$/i.exec(input.instruction.trim());
+    const s = JSON.stringify(input.screen ?? input.previousScreen);
+    return JSON.parse(m ? s.replaceAll('"' + m[1].replace(/\s+button$/i, '') + '"', JSON.stringify(m[2])) : s);
+  }
   if (req.purpose === 'plan') {
     const list = input.screenList ?? [{ id: 'home', title: 'Home' }, { id: 'details', title: 'Details' }];
     return { theme: { primary: '#17365D', secondary: '#0E9389', accent: '#F58220' }, sampleFacts: [{ label: 'Customer', value: 'Ahmed Al Hammadi' }], shellKind: 'tabs',

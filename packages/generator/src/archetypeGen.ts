@@ -1,5 +1,5 @@
 // Archetype path: the AI writes a small content contract; the archetype builder lays out the screen.
-import { toStrictSchema, clampToSchema, stripNulls, validateScreen, documentContext, type Issue, type Screen } from '@demo/schema';
+import { toStrictSchema, clampToSchema, stripNulls, validateScreen, documentContext, ICON_NAMES, type Issue, type Screen } from '@demo/schema';
 import type { LlmProvider, CompletionResult } from './provider.ts';
 import { ProviderError } from './provider.ts';
 import type { Plan, PlanScreen } from './plan.ts';
@@ -19,6 +19,7 @@ Rules:
 - Reuse sampleFacts exactly (names, numbers, amounts). Fictional, locale-appropriate data (UAE/AED unless the brief says otherwise).
 - Targets: only the given screen ids; choose the screen the action really leads to (see leadsTo). Never target the current screen.
 - Field references (columns, titleField...) use only the given collection field ids.
+- Form fields are only what the user types or chooses; guidance, instructions and explanations go in intro text, never as fields.
 - Forms: include every field the requirement and mustInclude ask for, with the right kind (email, phone, currency, date, select with options, upload...). No navigation items or success messages inside forms.
 - Cover the requirement and mustInclude with content; navigation (tabs, back) is handled by the app, never add "Home"/"Menu"/"Back" actions.
 - Dates are realistic relative to "today" (recent activity in the last 90 days, upcoming items soon), written as YYYY-MM-DD in data or "9 Jun 2026" in text.
@@ -56,7 +57,17 @@ export function sanitizeContent(v: any, ctx: BuildCtx): any {
     }
     return out;
   };
-  return walk(v);
+  const out = walk(v);
+  // Never use a column of icon names or ids as the visible row title.
+  if (ctx.collection && typeof out?.titleField === 'string') {
+    const looksLikeCode = (f: string) => ctx.collection!.rows.length > 0 && ctx.collection!.rows.every(r => (ICON_NAMES as readonly string[]).includes(String(r[f] ?? '')) || /^[a-z]+(-[a-z]+)*$/.test(String(r[f] ?? '')));
+    if (looksLikeCode(out.titleField)) {
+      const better = ctx.collection.fields.map(f => f.id).find(f => f !== out.titleField && f !== out.statusField && !looksLikeCode(f));
+      if (better) { if (out.subtitleField === better) delete out.subtitleField; out.titleField = better; }
+    }
+    if (Array.isArray(out.columns)) out.columns = out.columns.filter((f: string) => !ctx.collection!.rows.every(r => (ICON_NAMES as readonly string[]).includes(String(r[f] ?? '')))) ;
+  }
+  return out;
 }
 
 export type ArchetypeOutcome = { screen: Screen; status: 'valid' | 'repaired' | 'fallback'; issues: Issue[]; calls: CompletionResult[]; failure?: string };

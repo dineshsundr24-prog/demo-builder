@@ -12,9 +12,9 @@ type PlanScreen = { id: string; title: string; purpose: string; requirement: str
 type Job = { id: string; status: string; plan: { screens: PlanScreen[]; notes?: string[] } | null; warnings: string[]; error: { category: string; message: string; traceId: string } | null; cost_usd: number; input_tokens: number; output_tokens: number; trace_id: string };
 type ScreenRow = { screen_id: string; title: string; status: string; attempts: number; issues: { code?: string; message?: string }[] };
 const DONE = ['completed', 'completed_with_warnings', 'failed', 'cancelled'];
-const token = () => { try { return sessionStorage.getItem('db-access') ?? ''; } catch { return ''; } };
+export const token = () => { try { return sessionStorage.getItem('db-access') ?? ''; } catch { return ''; } };
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(API + path, { ...init, headers: { 'content-type': 'application/json', 'x-builder-access': token(), ...(init.headers || {}) } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw Error((body as any).error ?? 'Request failed (' + res.status + ')');

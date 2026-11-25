@@ -10,6 +10,7 @@ import { validateDocument, migrateV1, DemoDocument, findNode, isContainer, inser
 import { useHistory, saveLocal, loadLocal, DRAFT_KEY, PRESENT_KEY } from './editor/history.ts';
 import { EditorPanel } from './editor/EditorPanel.tsx';
 import { Present } from './editor/Present.tsx';
+import { AssistPanel, type AssistOutcome } from './editor/AssistPanel.tsx';
 import kapiko from '../../../packages/schema/fixtures/kapiko-mobile.json';
 import portal from '../../../packages/schema/fixtures/staff-portal.json';
 import './studio.css';
@@ -34,6 +35,8 @@ function Studio() {
   const [editError, setEditError] = useState('');
   const [draft] = useState(() => (params.get('doc') ? null : loadLocal(DRAFT_KEY)));
   const presenting = useRef(false);
+  const [assist, setAssist] = useState<null | { mode: 'auto' | 'modify' | 'add' }>(null);
+  const [review, setReview] = useState<null | (AssistOutcome & { previousScreen: string })>(null);
   // Portals render at desktop width (1280px) and are scaled to fit the stage, never squeezed.
   const stageRef = useRef<HTMLElement | null>(null);
   const [stage, setStage] = useState({ w: 1280, h: 800 });
@@ -152,7 +155,7 @@ function Studio() {
           {n.some(x => x.severity === 'error') ? <XCircle size={14} className="bad" /> : n.length ? <AlertTriangle size={14} className="warn" /> : null}
         </button></li>;
       })}</ol>
-      <button type="button" className="studio-add-screen" onClick={() => { const title = prompt('Screen title', 'New screen'); if (title?.trim()) edit(d => { const r = addScreen(d, title.trim(), screen?.id); setScreenId(r.id); return r.doc; }); }}><Plus size={14} />Add screen</button>
+      <button type="button" className="studio-add-screen" data-testid="add-screen" onClick={() => setAssist({ mode: 'add' })}><Plus size={14} />Add screen</button>
       <label className="studio-label">Validation</label>
       <div className="studio-validation" data-testid="validation">
         {errors.length === 0 ? <p className="ok"><CheckCircle2 size={15} /> No errors{warnings.length ? ' · ' + warnings.length + ' warning' + (warnings.length > 1 ? 's' : '') : ''}</p> : <p className="bad"><XCircle size={15} /> {errors.length} error{errors.length > 1 ? 's' : ''}</p>}
@@ -162,6 +165,9 @@ function Studio() {
       <button type="button" className="studio-restart" onClick={() => { setScreenId(doc.screens[0].id); setRunKey(k => k + 1); }}>Restart demo</button>
     </aside>
     {panel}
+    {assist && screen ? <AssistPanel doc={doc} currentScreen={screen.id} initialMode={assist.mode} onClose={() => setAssist(null)}
+      onBlank={() => { setAssist(null); const title = prompt('Screen title', 'New screen'); if (title?.trim()) edit(d => { const r = addScreen(d, title.trim(), screen?.id); setScreenId(r.id); return r.doc; }); }}
+      onDone={out => { const prev = screen.id; history.commit(out.document); setScreenId(out.screenId); setSelected(null); setRunKey(k => k + 1); setReview({ ...out, previousScreen: prev }); setAssist(null); }} /> : null}
     <main ref={stageRef} className={'studio-stage' + (mode === 'edit' ? ' is-editing' : '')}>
       <div className="stage-toolbar" role="toolbar" aria-label="Stage">
         <div className="seg" role="group" aria-label="Mode">
@@ -170,10 +176,21 @@ function Studio() {
         </div>
         <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!history.canUndo} onClick={history.undo}><Undo2 size={15} /></button>
         <button type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!history.canRedo} onClick={history.redo}><Redo2 size={15} /></button>
+        <button type="button" className="ai-btn" data-testid="open-assist" onClick={() => setAssist({ mode: 'auto' })}><Sparkles size={14} />AI assistant</button>
         <span className="stage-spacer" />
         <button type="button" data-testid="open-window" onClick={presentWindow}><ExternalLink size={14} />Open in new window</button>
       </div>
       {editError ? <p className="studio-error stage-error" role="alert">{editError}</p> : null}
+      {review ? <div className="assist-review" role="status" data-testid="assist-review">
+        <div><strong><Sparkles size={14} /> {review.action === 'added' ? 'AI added "' + (doc.screens.find(x => x.id === review.screenId)?.title ?? review.screenId) + '"' : 'AI changed "' + (doc.screens.find(x => x.id === review.screenId)?.title ?? review.screenId) + '"'}</strong>
+          <ul>{review.changes.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
+        <div className="assist-review-actions">
+          <button type="button" onClick={() => setReview(null)}>Keep</button>
+          <button type="button" data-testid="assist-undo" onClick={() => { history.undo(); setScreenId(review.previousScreen); setReview(null); }}>Undo</button>
+        </div>
+      </div> : null}
+      {mode === 'edit' && screen && !screen.children.length && !review ? <div className="assist-empty"><p>This screen is empty.</p>
+        <button type="button" className="ai-btn" onClick={() => setAssist({ mode: 'modify' })}><Sparkles size={14} />Build it with AI</button><span>or add components from the <strong>Add</strong> tab.</span></div> : null}
       <div className={'device device-' + doc.channel} data-testid="device"
         style={doc.channel === 'portal' ? ({ width: 1280, height: Math.max(560, (stage.h - 60) / Math.min(1, Math.max(0.45, stage.w / 1280))), zoom: Math.min(1, Math.max(0.45, stage.w / 1280)) } as React.CSSProperties) : undefined}
         onClickCapture={mode === 'edit' ? e => { const id = pick(e.target); e.preventDefault(); e.stopPropagation(); setSelected(id); } : undefined}

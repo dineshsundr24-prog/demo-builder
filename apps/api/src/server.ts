@@ -1,9 +1,9 @@
 // Demo Builder v2 API: job-based generation with persisted progress.
+import { DemoDocument, LogoDataUrl } from '@demo/schema';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { timingSafeEqual } from 'node:crypto';
 import { Generator, JobError, ProviderError, StoreError, type GenerationRequest, type Plan, type Brand } from '@demo/generator';
-import { LogoDataUrl } from '@demo/schema';
 
 export type ServerOptions = { generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean };
 
@@ -80,6 +80,18 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (typeof brand === 'string') return reply.code(400).send({ error: brand, category: 'bad_request' });
     const request: GenerationRequest = { name: String(r.name ?? '').slice(0, 120) || 'Demo', company: String(r.company ?? '').slice(0, 120), channel: r.channel, guidelines: String(r.guidelines ?? '').slice(0, 3000), ...(brand ? { brand } : {}) };
     try { return reply.code(202).send(await gen.startPlan(request, body.brief)); } catch (e) { return sendError(reply, e); }
+  });
+  // Studio AI assistant: add a new screen or change one, on the document the user is editing (it stays client-side).
+  app.post('/api/v2/assist', async (req, reply) => {
+    const body = req.body as { document?: unknown; instruction?: unknown; currentScreen?: unknown; mode?: unknown; from?: unknown; to?: unknown; addToMenu?: unknown } | undefined;
+    const parsed = DemoDocument.safeParse(body?.document);
+    if (!parsed.success) return reply.code(400).send({ error: 'Send {document, instruction}: the document is not a valid v2 document (' + (parsed.error.issues[0]?.message ?? '') + ')', category: 'bad_request' });
+    if (typeof body?.instruction !== 'string' || body.instruction.trim().length < 3) return reply.code(400).send({ error: 'Describe what you want to add or change', category: 'bad_request' });
+    const mode = body.mode === 'add' || body.mode === 'modify' ? body.mode : 'auto';
+    if (mode !== 'modify' && parsed.data.screens.length >= gen.config.maxScreensPerJob) return reply.code(400).send({ error: 'This demo already has ' + parsed.data.screens.length + ' screens (limit ' + gen.config.maxScreensPerJob + ')', category: 'budget' });
+    const ref = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(v) ? v : null);
+    try { return await gen.assist(parsed.data, { instruction: body.instruction, currentScreen: ref(body.currentScreen), mode, from: ref(body.from), to: ref(body.to), addToMenu: body.addToMenu === true }); }
+    catch (e) { const c = (e as any)?.category; if (c === 'parse' || c === 'bad_request') return reply.code(422).send({ error: (e as Error).message, category: c }); return sendError(reply, e); }
   });
   app.get('/api/v2/jobs', async (req, reply) => {
     try {

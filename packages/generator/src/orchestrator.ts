@@ -7,6 +7,8 @@ import type { Screen } from '@demo/schema';
 import { ProviderError, costUsd, type LlmProvider, type CompletionResult } from './provider.ts';
 import { createPlan, type GenerationRequest, type Plan } from './plan.ts';
 import { generateScreen, refineBindings } from './screen.ts';
+import { addScreenWithAI, modifyScreenWithAI, routeInstruction, type AddScreenRequest, type AssistRequest } from './assist.ts';
+import type { DemoDocument } from '@demo/schema';
 import { validateScreen, documentContext } from '@demo/schema';
 import { assemble } from './assemble.ts';
 import type { JobRow, JobStore, ScreenRow } from './store.ts';
@@ -45,6 +47,23 @@ export class Generator {
     void next.finally(() => { if (this.accounting.get(jobId) === next) this.accounting.delete(jobId); }).catch(() => {});
     return next;
   }
+  /** Studio AI assistant: add a new linked screen or change an existing one (usage kind "assist", no job). */
+  async assist(doc: DemoDocument, req: AssistRequest) {
+    const b = await this.budgetStatus();
+    if (b.remainingUsd <= 0) throw new ProviderError('budget', 'Monthly AI budget of USD ' + b.limitUsd + ' is used up (USD ' + b.spentUsd.toFixed(2) + ' spent). Raise MONTHLY_AI_BUDGET_USD to continue.', false);
+    let cost = 0, tokens = 0;
+    const track = async (call: CompletionResult) => {
+      const c = costUsd(call.model, call.usage); cost += c; tokens += call.usage.inputTokens + call.usage.outputTokens;
+      await this.store.addUsage({ job_id: null, kind: 'assist', model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: c });
+    };
+    if (req.instruction.trim().length < 3) throw Object.assign(Error('Describe what you want to add or change'), { category: 'bad_request' });
+    const route = await routeInstruction(this.provider, doc, req, track);
+    const summary = (r: { document: DemoDocument; screenId: string; changes: string[] }, action: 'added' | 'modified') => ({ action, document: r.document, screenId: r.screenId, changes: r.changes, costUsd: Number(cost.toFixed(5)), tokens });
+    if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.provider, doc, route.screen, req.instruction, (_k, c) => track(c)), 'modified');
+    return summary(await addScreenWithAI(this.provider, doc, { requirement: req.instruction, from: req.from, to: req.to, addToMenu: req.addToMenu }, (_k, c) => track(c)), 'added');
+  }
+  /** Back-compat helper used by tests: add a screen. */
+  async addScreen(doc: DemoDocument, req: AddScreenRequest) { return this.assist(doc, { instruction: req.requirement, mode: 'add', from: req.from, to: req.to, addToMenu: req.addToMenu }); }
   /** Retry transient provider failures with backoff; never retry invalid requests. */
   private async withRetry<T>(job: JobRow, work: () => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {

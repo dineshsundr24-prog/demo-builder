@@ -82,7 +82,8 @@ test('screens: rename, add and delete', async ({ page }) => {
   await page.getByLabel('Title', { exact: true }).fill('Get started');
   await expect(page.locator('.studio-screens')).toContainText('Get started');
   page.once('dialog', d => d.accept('Card services'));
-  await page.getByRole('button', { name: 'Add screen' }).click();
+  await page.getByTestId('add-screen').click();
+  await page.getByRole('button', { name: 'Create a blank screen instead' }).click();
   await expect(page.locator('.studio-screens')).toContainText('Card services');
   page.once('dialog', d => d.accept());
   await page.getByTitle('Delete screen').click();
@@ -122,4 +123,48 @@ test('a journey template can be customised: rename "Verify" to "Validate"', asyn
   await device(page).getByRole('button', { name: 'Validate' }).click();
   await expect(device(page).locator('[data-screen-id]')).not.toHaveAttribute('data-screen-id', /otp/, { timeout: 8000 });
   await expect(page.getByTestId('validation')).toContainText('No errors');
+});
+
+test.describe('AI assistant', () => {
+  test.beforeEach(async ({ page }) => { await page.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token')); });
+
+  test('change an existing screen in plain words, review, then undo', async ({ page }) => {
+    await page.locator('.studio-screens button', { hasText: 'OTP' }).click();
+    await page.getByTestId('open-assist').click();
+    await page.getByLabel('Describe what you want').fill('Rename the Verify button to Validate');
+    await page.getByTestId('assist-go').click();
+    await expect(page.getByTestId('assist-review')).toContainText('Verify');
+    await expect(page.getByTestId('assist-review')).toContainText('Validate');
+    await expect(device(page).getByRole('button', { name: 'Validate' })).toBeVisible();
+    await page.getByRole('button', { name: 'Preview' }).click();
+    await device(page).getByLabel('Verification code').fill('123456');
+    await device(page).getByRole('button', { name: 'Validate' }).click();
+    await expect(device(page).locator('[data-screen-id]')).not.toHaveAttribute('data-screen-id', /otp/, { timeout: 8000 });
+    await page.locator('.studio-screens button', { hasText: 'OTP' }).click();
+    await page.getByTestId('assist-undo').click();
+    await expect(device(page).getByRole('button', { name: 'Verify' })).toBeVisible();
+  });
+
+  test('add a new screen from a description; it is linked from the chosen screen', async ({ page }) => {
+    await page.getByTestId('add-screen').click();
+    await page.getByLabel('Describe what you want').fill('Card management: freeze card and change PIN');
+    await page.getByLabel('Opens from').selectOption({ label: 'Dashboard' });
+    await page.getByTestId('assist-go').click();
+    await expect(page.getByTestId('assist-review')).toContainText('AI added "Card Management"');
+    await expect(page.getByTestId('assist-review')).toContainText('Link:');
+    await expect(page.locator('.studio-screens')).toContainText('Card Management');
+    await expect(device(page)).toContainText('Freeze card');
+    await page.locator('.studio-screens button', { hasText: 'Dashboard' }).click();
+    await page.getByRole('button', { name: 'Preview' }).click();
+    await device(page).getByRole('button', { name: 'Cards' }).click();
+    await expect(device(page).locator('[data-screen-id]')).toHaveAttribute('data-screen-id', 'card-management');
+    await expect(page.getByTestId('validation')).toContainText('No errors');
+  });
+
+  test('palette search understands everyday words', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Add' }).click();
+    await page.getByLabel('Search components').fill('back button');
+    await expect(page.getByTestId('palette')).toContainText('back arrow appears automatically');
+    await expect(page.getByTestId('palette').getByRole('button', { name: 'Button', exact: true })).toBeVisible();
+  });
 });

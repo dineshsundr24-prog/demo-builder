@@ -67,6 +67,8 @@ Direct editing on the runtime render (Decision D3a):
 - portal scaled at desktop width.
 
 Exit gate: 9 Playwright editing tests (26 browser tests in total).
+**AI assistant** (branch `v2/ai-screen`). One box in the studio: the AI either changes an existing screen or adds a new, linked screen built with the archetype engine. `POST /api/v2/assist` routes the request and logs its cost as `assist` usage. Changes appear with a Keep/Undo review.
+Live check on Nexa: 4 of 4 requests valid; 4–6 s and USD 0.002–0.004 each.
 Still to do in Phase 3: drag and drop on the canvas; editing the app menu, data collections and theme in place; a Flow view of the screen links.
 
 ## Environment notes

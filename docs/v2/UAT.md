@@ -42,3 +42,9 @@ For each test: the brief you used, the job time and cost, which screens were wro
 - No visual editing yet (Phase 3). Changes happen by editing the plan and regenerating screens.
 - One shared access token, no per-user accounts (Phase 6). Use fictional data only.
 - The free API instance sleeps when idle (first request after idle takes about 1 minute).
+
+## Editing (Phase 3)
+- **Edit mode:** click any component on the screen to change it in the Properties panel. Layers lets you reorder components by drag and drop. Add inserts components. Undo/redo with Ctrl+Z.
+- **AI assistant** (toolbar, or *Add screen*): describe a change ("rename Verify to Validate", "add an Emirates ID field") or a new screen ("card management: freeze card, change PIN"). Review the listed changes, then Keep or Undo. Each request costs about USD 0.002–0.004 and counts against the monthly budget.
+- **Journey templates** (sign-in, OTP, eKYC…): use *Customise texts and buttons* to edit their parts by hand. The AI assistant does this automatically.
+- **Open in new window** presents the demo full-size and follows edits live. Edits are kept in this browser; use *Download JSON* to keep or share a copy.
