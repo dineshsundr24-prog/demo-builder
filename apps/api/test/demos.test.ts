@@ -91,6 +91,10 @@ test('published links are read-only, show one exact version and can be revoked',
   assert.equal(viewed.status, 200, 'no sign-in needed');
   assert.equal(viewed.body.version, 1);
   assert.equal(viewed.body.document.name, doc.name, 'later draft edits never leak into a published link');
+  // Only the demo itself: no ids, notes, version metadata, workspace, requirements or editing links.
+  assert.deepEqual(Object.keys(viewed.body).sort(), ['channel', 'document', 'name', 'publishedAt', 'version']);
+  assert.ok(!/brief|requirement|metadata|workspace|principal|token_hash|demo_id/i.test(JSON.stringify(Object.keys(viewed.body))));
+  assert.equal((await call('PUT', `/api/v2/demos/${id}/draft`, undefined, { expectedRevision: 2, document: doc })).status, 401, 'the public token grants nothing else');
   const list = await call('GET', `/api/v2/demos/${id}`, 'tok-alice');
   await call('POST', `/api/v2/demos/${id}/publications/${list.body.publications[0].id}/revoke`, 'tok-alice');
   assert.equal((await call('GET', '/api/v2/public/' + pub.body.token)).status, 404);
@@ -162,4 +166,44 @@ test('generation jobs are visible only to whoever started them', async () => {
   assert.equal((await call('GET', '/api/v2/jobs/' + job.body.id, 'tok-bob')).status, 404);
   assert.equal((await call('GET', '/api/v2/jobs/' + job.body.id, 'uat')).status, 404);
   assert.equal((await call('GET', '/api/v2/jobs/' + job.body.id, 'tok-alice')).status, 200);
+});
+
+test('with the legacy UAT token switched off, only signed-in users get in', async () => {
+  const store = new MemoryDemoStore();
+  const gen = new Generator(new MemoryStore(), new FakeProvider(() => ({})), defaultConfig);
+  const app = await buildServer({ generator: gen, accessToken: 'uat-token', allowUatToken: false, origins: [], model: 'fake', demoStore: store, verifyUser: async t => (users[t] ? { id: users[t].id, email: users[t].email } : null) });
+  const r = await app.inject({ method: 'GET', url: '/api/v2/demos', headers: { 'x-builder-access': 'uat-token' } });
+  assert.equal(r.statusCode, 401);
+  const jobs = await app.inject({ method: 'POST', url: '/api/v2/jobs', headers: { 'x-builder-access': 'uat-token' }, payload: { request: { name: 'x', channel: 'mobile' }, brief: 'A mobile banking app with transfers and bills.' } });
+  assert.equal(jobs.statusCode, 401, 'paid generation also needs a signed-in user');
+  assert.equal((await app.inject({ method: 'GET', url: '/api/v2/demos', headers: { authorization: 'Bearer tok-alice' } })).statusCode, 200);
+});
+
+test('Supabase tokens are verified locally: signature, issuer, audience, expiry, role; key rotation', async () => {
+  const { generateKeyPairSync, sign } = await import('node:crypto');
+  const { jwksVerifier } = await import('../src/demos/auth.ts');
+  const URL_ = 'https://proj.supabase.co';
+  const mk = () => { const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' }); return { privateKey, jwk: { ...publicKey.export({ format: 'jwk' }), kid: 'k' + Math.random().toString(36).slice(2, 6), alg: 'ES256' } }; };
+  let current = mk();
+  let fetches = 0;
+  const fetcher = (async () => { fetches++; return new Response(JSON.stringify({ keys: [current.jwk] })); }) as typeof fetch;
+  const jwt = (claims: object, k = current) => {
+    const h = Buffer.from(JSON.stringify({ alg: 'ES256', kid: k.jwk.kid, typ: 'JWT' })).toString('base64url');
+    const b = Buffer.from(JSON.stringify(claims)).toString('base64url');
+    return h + '.' + b + '.' + sign('sha256', Buffer.from(h + '.' + b), { key: k.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
+  };
+  const good = { iss: URL_ + '/auth/v1', aud: 'authenticated', role: 'authenticated', sub: 'user-1', email: 'u@example.com', exp: Math.floor(Date.now() / 1000) + 600 };
+  const v = jwksVerifier(URL_, undefined, fetcher);
+  assert.equal((await v(jwt(good)))?.id, 'user-1');
+  assert.equal(await v(jwt({ ...good, exp: 1 })), null, 'expired');
+  assert.equal(await v(jwt({ ...good, iss: 'https://other.supabase.co/auth/v1' })), null, 'other project');
+  assert.equal(await v(jwt({ ...good, role: 'anon' })), null, 'anon key is not a user');
+  assert.equal(await v(jwt({ ...good, role: 'service_role', sub: undefined })), null, 'service key is not a user');
+  const t = jwt(good); assert.equal(await v(t.slice(0, -4) + 'AAAA'), null, 'tampered signature');
+  const forged = mk(); forged.jwk.kid = current.jwk.kid;
+  assert.equal(await v(jwt(good, forged)), null, 'signed with a different key');
+  const before = fetches; current = mk(); // rotation: a new kid triggers one refresh
+  assert.equal((await v(jwt(good)))?.id, 'user-1');
+  assert.equal(fetches, before + 1);
+  assert.equal(await v('not.a.jwt'), null);
 });

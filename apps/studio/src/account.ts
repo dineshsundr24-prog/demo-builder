@@ -30,16 +30,19 @@ async function auth(path: string, body: unknown, bearer?: string) {
 const store = (d: any) => write({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + Number(d.expires_in ?? 3600) * 1000, email: d.user?.email ?? memory?.email ?? '' });
 
 export async function signInWithPassword(email: string, password: string) { store(await auth('token?grant_type=password', { email, password })); }
-/** Creates the account; Supabase sends a confirmation email whose link returns to this Studio. */
-export async function signUp(email: string, password: string) {
-  const d = await auth('signup?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { email, password });
-  if (d.access_token) store(d); // projects without email confirmation sign in immediately
-  return !!d.access_token;
-}
-export async function sendSignInLink(email: string) { await auth('otp?redirect_to=' + encodeURIComponent(location.origin + location.pathname), { email, create_user: true }); }
 export async function signOut() { const s = memory; write(null); if (s) await auth('logout', {}, s.access_token).catch(() => {}); }
 
-/** After an email link, Supabase returns to the Studio with the session in the URL fragment. */
+/** Set or change the signed-in user's password (also used after a one-time password-setup link). */
+export async function setPassword(password: string) {
+  const s = await fresh();
+  if (!s) throw Error('Sign in first');
+  const res = await fetch(SB_URL + '/auth/v1/user', { method: 'PUT', headers: { apikey: SB_KEY, 'content-type': 'application/json', authorization: 'Bearer ' + s.access_token }, body: JSON.stringify({ password }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Error(String(data.error_description ?? data.msg ?? data.message ?? 'Could not set the password (' + res.status + ')'));
+}
+
+/** After a one-time setup link, Supabase returns to the Studio with a session in the URL fragment.
+ *  Returns 'recovery' when the user must now choose a password, an error message, or null. */
 export async function completeRedirect(): Promise<string | null> {
   if (!authConfigured || !location.hash.includes('access_token=')) {
     const err = /error_description=([^&]+)/.exec(location.hash)?.[1];
@@ -52,7 +55,7 @@ export async function completeRedirect(): Promise<string | null> {
   let email = '';
   try { const r = await fetch(SB_URL + '/auth/v1/user', { headers: { apikey: SB_KEY, authorization: 'Bearer ' + access } }); email = (await r.json()).email ?? ''; } catch { /* email shown later */ }
   write({ access_token: access, refresh_token: refresh, expires_at: Date.now() + Number(p.get('expires_in') ?? 3600) * 1000, email });
-  return null;
+  return p.get('type') === 'recovery' || p.get('type') === 'invite' ? 'recovery' : null;
 }
 
 let refreshing: Promise<void> | null = null;

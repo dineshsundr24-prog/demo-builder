@@ -14,6 +14,7 @@ export type ServerOptions = {
   /** Supabase Auth verification for standalone users (absent: shared UAT token only). */ verifyUser?: VerifyUser;
   /** HMAC secret for Builder sessions (MEYON launches). */ sessionSecret?: string;
   /** Studio origin used to build public demo links. */ publicBaseUrl?: string;
+  /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
 };
 
 function tokenOk(given: unknown, expected: string) {
@@ -71,7 +72,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   const paid = (url: string) => /^\/api\/v2\/(jobs|assist)/.test(url);
   app.addHook('onRequest', async (req, reply) => {
     if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status' || req.url.startsWith('/api/v2/public/')) return;
-    try { req.caller = await resolveCaller({ store: demoStore, uatToken: opts.accessToken, sessionSecret: opts.sessionSecret, verifyUser: opts.verifyUser }, req.headers); }
+    try { req.caller = await resolveCaller({ store: demoStore, uatToken: opts.allowUatToken === false ? undefined : opts.accessToken, sessionSecret: opts.sessionSecret, verifyUser: opts.verifyUser }, req.headers); }
     catch (e) {
       if (e instanceof AuthError) return reply.code(e.status).send({ error: e.message, category: 'auth' });
       reply.log.error(e); return reply.code(503).send({ error: 'Sign-in could not be verified right now; try again shortly', category: 'auth_unavailable' });

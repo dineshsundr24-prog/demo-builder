@@ -58,7 +58,8 @@ function Studio() {
   const [saveError, setSaveError] = useState('');
   const [myDemos, setMyDemos] = useState<DemoMeta[] | null>(null);
   const [cloudError, setCloudError] = useState('');
-  useEffect(() => { void completeRedirect().then(err => { if (err) setAuthNotice(err); }); }, []);
+  const [mustSetPassword, setMustSetPassword] = useState(false);
+  useEffect(() => { void completeRedirect().then(r => { if (r === 'recovery') setMustSetPassword(true); else if (r) setAuthNotice(r); }); }, []);
   const refreshList = useCallback(() => { if (!hasCredentials()) { setMyDemos(null); return; } demosApi.list().then(setMyDemos, () => setMyDemos(null)); }, []);
   useEffect(() => { refreshList(); }, [signedIn, refreshList]);
   const openChat = (m: ChatMode = 'auto') => { setChatMode(m); setChatOpen(true); setRightTab('ai'); };
@@ -175,7 +176,7 @@ function Studio() {
 
   if (!doc) return <div className="studio-welcome">
     <main>
-      <div className="welcome-top"><div className="studio-brand">MEYON Demo Builder <span>v2 preview</span></div><AccountBox compact /></div>
+      <div className="welcome-top"><div className="studio-brand">MEYON Demo Builder <span>v2 preview</span></div><AccountBox compact mustSetPassword={mustSetPassword} /></div>
       {authNotice ? <p className="studio-error" role="alert">{authNotice}</p> : null}
       <h1>Create a new demo</h1>
       <p>Describe your business requirements; AI drafts a screen plan you can edit, then generates a clickable application.</p>
@@ -210,7 +211,7 @@ function Studio() {
   return <div className="studio">
     <aside className="studio-side">
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
-      <AccountBox />
+      <AccountBox mustSetPassword={mustSetPassword} />
       <button type="button" className="studio-generate" onClick={() => openGenerator(doc.channel)}><Sparkles size={15} />Generate with AI</button>
       <label className="studio-label">Project</label>
       <div className="studio-projects">

@@ -9,7 +9,7 @@
 //     NOT an individual identity: every holder is the same 'uat' principal in one 'UAT' workspace.
 //
 // Authorization = workspace role (owner/editor/viewer) ∩ session scope (when the caller is a session).
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify as verifySig, type KeyObject } from 'node:crypto';
 import type { DemoRow, DemoStore, Principal, Role } from './store.ts';
 
 export type Op = 'read' | 'edit' | 'version' | 'publish' | 'fork' | 'primary' | 'create' | 'archive';
@@ -63,6 +63,45 @@ export function supabaseVerifier(url: string, apikey: string): VerifyUser {
     cache.set(key, { user, until: Date.now() + 60_000 });
     if (cache.size > 2000) for (const [k, v] of cache) if (v.until < Date.now()) cache.delete(k);
     return user;
+  };
+}
+
+/**
+ * Verifies Supabase access tokens locally against the project's published signing keys (JWKS, ES256/RS256):
+ * signature, issuer, audience, expiry and role. No per-request call to the Auth server. Unknown key ids
+ * trigger one JWKS refresh (key rotation). Tokens signed with the legacy shared secret (HS256) fall back
+ * to `fallback` (remote check). Revocation takes effect at token expiry (1 hour by default).
+ */
+export function jwksVerifier(url: string, fallback?: VerifyUser, fetcher: typeof fetch = fetch): VerifyUser {
+  let keys = new Map<string, { key: KeyObject; alg: string }>(), loadedAt = 0;
+  const load = async () => {
+    const res = await fetcher(url + '/auth/v1/.well-known/jwks.json');
+    if (!res.ok) throw Error('Supabase signing keys unavailable (' + res.status + ')');
+    const body = await res.json() as { keys?: (JsonWebKey & { kid?: string; alg?: string })[] };
+    keys = new Map((body.keys ?? []).filter(k => k.kid).map(k => [k.kid!, { key: createPublicKey({ key: k as unknown as import('node:crypto').JsonWebKey, format: 'jwk' }), alg: k.alg ?? (k.kty === 'EC' ? 'ES256' : 'RS256') }]));
+    loadedAt = Date.now();
+  };
+  const b64 = (v: string) => Buffer.from(v, 'base64url');
+  return async token => {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    let header: { alg?: string; kid?: string }, claims: Record<string, any>;
+    try { header = JSON.parse(b64(parts[0]).toString()); claims = JSON.parse(b64(parts[1]).toString()); } catch { return null; }
+    if (header.alg === 'HS256') return fallback ? fallback(token) : null;
+    if (!header.kid || !['ES256', 'RS256'].includes(String(header.alg))) return null;
+    if (!keys.has(header.kid) || Date.now() - loadedAt > 10 * 60_000) await load();
+    const k = keys.get(header.kid);
+    if (!k || k.alg !== header.alg) return null;
+    const signed = Buffer.from(parts[0] + '.' + parts[1]);
+    const good = header.alg === 'ES256'
+      ? verifySig('sha256', signed, { key: k.key, dsaEncoding: 'ieee-p1363' }, b64(parts[2]))
+      : verifySig('sha256', signed, k.key, b64(parts[2]));
+    if (!good) return null;
+    const now = Math.floor(Date.now() / 1000);
+    const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+    if (claims.iss !== url + '/auth/v1' || !aud.includes('authenticated') || claims.role !== 'authenticated') return null;
+    if (typeof claims.exp !== 'number' || claims.exp <= now || typeof claims.sub !== 'string' || !claims.sub) return null;
+    return { id: claims.sub, email: claims.email ?? null, user_metadata: claims.user_metadata ?? {} };
   };
 }
 
