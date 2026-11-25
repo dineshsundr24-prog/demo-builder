@@ -19,7 +19,19 @@ let memory: Session | null = read();
 export const signedInEmail = () => memory?.email ?? null;
 /** The shared UAT access token (session tab only), used when nobody is signed in. */
 export const uatToken = () => { try { return sessionStorage.getItem('db-access') ?? ''; } catch { return ''; } };
-export const hasCredentials = () => !!memory || !!uatToken();
+
+// ---------- MEYON launch session (this tab only) ----------
+// Opening Demo Builder from MEYON gives this browser tab a Builder session scoped to one project. It lives in
+// sessionStorage, so it never leaks into other tabs and ends when the tab closes; it takes precedence in this tab.
+export type MeyonSession = { session: string; expiresAt: string; launchId: string };
+const MEYON_KEY = 'db-meyon';
+export function meyonSession(): MeyonSession | null {
+  try { const v = JSON.parse(sessionStorage.getItem(MEYON_KEY) ?? 'null') as MeyonSession | null; return v && Date.parse(v.expiresAt) > Date.now() ? v : null; } catch { return null; }
+}
+export function setMeyonSession(s: MeyonSession | null) { try { if (s) sessionStorage.setItem(MEYON_KEY, JSON.stringify(s)); else sessionStorage.removeItem(MEYON_KEY); } catch { /* storage blocked */ } emit(); }
+/** Someone the API recognises without the shared token: a signed-in user or a MEYON session. */
+export const hasIdentity = () => !!memory || !!meyonSession();
+export const hasCredentials = () => hasIdentity() || !!uatToken();
 
 async function auth(path: string, body: unknown, bearer?: string) {
   const res = await fetch(SB_URL + '/auth/v1/' + path, { method: 'POST', headers: { apikey: SB_KEY, 'content-type': 'application/json', ...(bearer ? { authorization: 'Bearer ' + bearer } : {}) }, body: JSON.stringify(body) });
@@ -67,8 +79,10 @@ async function fresh(): Promise<Session | null> {
   await refreshing;
   return memory;
 }
-/** Headers for Builder API calls: the signed-in user, otherwise the shared UAT token. */
+/** Headers for Builder API calls: this tab's MEYON session, else the signed-in user, else the shared UAT token. */
 export async function authHeaders(): Promise<Record<string, string>> {
+  const m = meyonSession();
+  if (m) return { authorization: 'Bearer ' + m.session };
   const s = await fresh();
   if (s) return { authorization: 'Bearer ' + s.access_token };
   const t = uatToken();

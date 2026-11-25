@@ -17,14 +17,19 @@ import { VersionsPanel, type SaveState } from './editor/Versions.tsx';
 import { PublicView } from './editor/PublicView.tsx';
 import { demosApi, type DemoDetail, type DemoMeta } from './editor/demosApi.ts';
 import { completeRedirect, hasCredentials } from './account.ts';
+import { API } from './GeneratePanel.tsx';
+import { LaunchGate, takeLaunchCode, type LaunchContext } from './editor/Launch.tsx';
+import { CoveragePanel, storiesOf } from './editor/Coverage.tsx';
+import { SimLauncher } from './editor/SimLauncher.tsx';
 import kapiko from '../../../packages/schema/fixtures/kapiko-mobile.json';
 import portal from '../../../packages/schema/fixtures/staff-portal.json';
 import './studio.css';
 
 const samples: Record<string, DemoDocument> = { kapiko: kapiko as DemoDocument, portal: portal as DemoDocument };
 const params = new URLSearchParams(location.search);
+const launchCode = takeLaunchCode();
 
-function Studio() {
+function Studio({ launch }: { launch?: LaunchContext | null }) {
   // No sample is loaded by default: the studio opens on "Create a new demo" (examples are optional).
   const history = useHistory(samples[params.get('doc') ?? ''] ?? null);
   const doc = history.doc;
@@ -62,6 +67,9 @@ function Studio() {
   useEffect(() => { void completeRedirect().then(r => { if (r === 'recovery') setMustSetPassword(true); else if (r) setAuthNotice(r); }); }, []);
   const refreshList = useCallback(() => { if (!hasCredentials()) { setMyDemos(null); return; } demosApi.list().then(setMyDemos, () => setMyDemos(null)); }, []);
   useEffect(() => { refreshList(); }, [signedIn, refreshList]);
+  // The MEYON simulator is offered to signed-in users when the API has it switched on (UAT/testing only).
+  const [simulator, setSimulator] = useState(false);
+  useEffect(() => { if (!signedIn || launch) return; fetch(API + '/api/v2/status').then(r => r.json()).then(s => setSimulator(!!s?.meyonSimulator), () => setSimulator(false)); }, [signedIn, launch]);
   const openChat = (m: ChatMode = 'auto') => { setChatMode(m); setChatOpen(true); setRightTab('ai'); };
   // Portals render at desktop width (1280px) and are scaled to fit the stage, never squeezed.
   const stageRef = useRef<HTMLElement | null>(null);
@@ -90,7 +98,7 @@ function Studio() {
   const refreshDetail = async () => { const c = cloudRef.current; if (!c) return; const detail = await demosApi.get(c.demo.id); setCloud({ ...detail, document: c.document }); };
   /** Save the current document as a new saved demo (it becomes the primary baseline if it is the first of its type). */
   const saveAsNew = async (d: DemoDocument): Promise<string | null> => {
-    try { const meta = await demosApi.create(d); const detail = await demosApi.get(meta.id); setCloud(detail); cloudRef.current = detail; savedDoc.current = d; setSaveState('saved'); refreshList(); return meta.id; }
+    try { const meta = await demosApi.create(d, undefined, launch?.launch.id); const detail = await demosApi.get(meta.id); setCloud(detail); cloudRef.current = detail; savedDoc.current = d; setSaveState('saved'); refreshList(); return meta.id; }
     catch (e) { setCloudError(e instanceof Error ? e.message : String(e)); return null; }
   };
   /** Push the draft now (compare-and-swap on the draft revision). */
@@ -161,6 +169,16 @@ function Studio() {
   };
   const presentWindow = () => { if (!doc) return; presenting.current = true; saveLocal(PRESENT_KEY, doc); window.open(location.pathname + '?present=1', 'demo-present'); };
   const openGenerator = (c: 'mobile' | 'portal', jobId?: string) => { setChannel(c); setResume(jobId); setGenOpen(true); };
+  // Continue a confirmed MEYON launch: its saved demo, else its generation (plan review), else the base demo (Extend).
+  const launched = useRef(false);
+  useEffect(() => {
+    if (!launch || launched.current) return; launched.current = true;
+    const { launch: l, result } = launch;
+    if (l.demoId ?? result.demoId) void openSaved((l.demoId ?? result.demoId)!);
+    else if (result.jobId ?? l.jobId) openGenerator(l.channel, (result.jobId ?? l.jobId)!);
+  }, [launch]); // eslint-disable-line react-hooks/exhaustive-deps
+  const launchStory = launch?.launch.story;
+  const coverageStories = doc ? [...new Set([...(launchStory ? [launchStory.id] : []), ...storiesOf(doc)])] : [];
   const download = () => {
     if (!doc) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
@@ -186,10 +204,12 @@ function Studio() {
       </div>
       <div className="welcome-more">
         <button type="button" onClick={() => openGenerator('mobile')}><FolderOpen size={15} />Open a previous generation</button>
-        {importInput}
+        {launch ? null : importInput}
+        {simulator ? <a className="welcome-sim" data-testid="open-sim" href={location.pathname + '?sim=meyon'} target="_blank" rel="noopener">Try opening a story from MEYON (simulator)</a> : null}
       </div>
-      {myDemos && myDemos.length ? <section className="saved-demos" data-testid="saved-demos"><h2>Your saved demos</h2><ul>{myDemos.map(d => <li key={d.id}>
-        <button type="button" onClick={() => openSaved(d.id)}>{d.channel === 'mobile' ? <Smartphone size={16} /> : <Monitor size={16} />}<strong>{d.name}</strong>
+      {launch ? <p className="launch-banner" data-testid="launch-banner">Opened from MEYON for <strong>{launch.launch.story.id}</strong> · {launch.launch.story.title}</p> : null}
+      {myDemos && myDemos.length ? <section className="saved-demos" data-testid="saved-demos"><h2>{launch ? 'Demos of this project' : 'Your saved demos'}</h2><ul>{myDemos.map(d => <li key={d.id}>
+        <button type="button" data-demo-id={d.id} onClick={() => openSaved(d.id)}>{d.channel === 'mobile' ? <Smartphone size={16} /> : <Monitor size={16} />}<strong>{d.name}</strong>
           <span className="muted">{d.latestVersion ? 'v' + d.latestVersion : 'No versions yet'}{d.forkedFromVersionId ? ' · fork' : ''}</span>{d.isPrimary ? <span className="badge-primary">Primary</span> : null}</button></li>)}</ul></section> : null}
       {cloudError ? <p className="studio-error" role="alert">{cloudError}</p> : null}
       {draft ? <button type="button" className="welcome-draft" data-testid="continue-draft" onClick={() => load(draft)}><History size={15} />Continue editing <strong>{draft.name}</strong></button> : null}
@@ -212,17 +232,18 @@ function Studio() {
     <aside className="studio-side">
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
       <AccountBox mustSetPassword={mustSetPassword} />
+      {launch ? <p className="launch-banner" data-testid="launch-banner">From MEYON · <strong>{launch.launch.story.id}</strong> v{launch.launch.story.artifactVersion}<span>{launch.launch.project.name}</span></p> : null}
       <button type="button" className="studio-generate" onClick={() => openGenerator(doc.channel)}><Sparkles size={15} />Generate with AI</button>
       <label className="studio-label">Project</label>
       <div className="studio-projects">
         <p className="studio-current">{doc.channel === 'mobile' ? <Smartphone size={15} /> : <Monitor size={15} />}<strong>{doc.name}</strong></p>
-        <button type="button" onClick={() => { void saveNow(); history.reset(null); setCloud(null); savedDoc.current = null; setNotes([]); setSelected(null); saveLocal(DRAFT_KEY, null); refreshList(); }}><Plus size={15} />New demo</button>
+        {launch ? null : <button type="button" onClick={() => { void saveNow(); history.reset(null); setCloud(null); savedDoc.current = null; setNotes([]); setSelected(null); saveLocal(DRAFT_KEY, null); refreshList(); }}><Plus size={15} />New demo</button>}
         <button type="button" onClick={download}><Download size={15} />Download JSON</button>
         <details className="studio-brand-edit"><summary>Brand</summary>
           <BrandFields compact value={{ logo: doc.theme.logo, primary: doc.theme.primary, secondary: doc.theme.secondary, accent: doc.theme.accent, font: doc.theme.font }}
             onChange={b => history.commit({ ...doc, theme: { ...doc.theme, primary: b.primary ?? doc.theme.primary, secondary: b.secondary ?? doc.theme.secondary, accent: b.accent ?? doc.theme.accent, font: b.font ?? doc.theme.font, ...(b.logo ? { logo: b.logo } : { logo: undefined }) } })} />
         </details>
-        {importInput}
+        {launch ? null : importInput}
       </div>
       {importError ? <p className="studio-error" role="alert">{importError}</p> : null}
       {cloud ? <VersionsPanel detail={cloud} saveState={saveState} saveError={saveError}
@@ -235,6 +256,9 @@ function Studio() {
         onReloadLatest={async () => { await openSaved(cloud.demo.id); }} />
         : hasCredentials() ? <button type="button" className="studio-save-cloud" data-testid="save-cloud" onClick={() => saveAsNew(doc)}>Save to my demos</button> : null}
       {cloudError && doc ? <p className="studio-error" role="alert">{cloudError}</p> : null}
+      {coverageStories.map(st => <CoveragePanel key={st} doc={doc} story={st} currentScreen={screen?.id ?? ''}
+        title={st === launchStory?.id ? launchStory.title : undefined} criteria={st === launchStory?.id ? launch!.launch.approved.acceptanceCriteria : undefined}
+        onOpen={id => { setScreenId(id); setSelected(null); }} onChange={d => history.commit(d)} />)}
       <label className="studio-label">Screens · {doc.screens.length}</label>
       <ol className="studio-screens">{doc.screens.map((s, i) => {
         const n = issues.filter(x => x.screenId === s.id);
@@ -293,4 +317,5 @@ function Studio() {
     </aside> : null}
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary>{params.get('p') ? <PublicView token={params.get('p')!} /> : params.get('present') ? <Present /> : <Studio />}</ErrorBoundary></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><ErrorBoundary>{params.get('p') ? <PublicView token={params.get('p')!} /> : params.get('present') ? <Present /> : params.get('sim') === 'meyon' ? <SimLauncher />
+  : <LaunchGate code={launchCode} render={ctx => <Studio launch={ctx} />} />}</ErrorBoundary></React.StrictMode>);

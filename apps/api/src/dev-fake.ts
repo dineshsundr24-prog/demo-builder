@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { FakeProvider, Generator, MemoryStore, defaultConfig, type CompletionRequest } from '@demo/generator';
 import { buildServer } from './server.ts';
+import { httpMeyonClient } from './launch/meyon.ts';
 
 const fixture = (f: string) => JSON.parse(readFileSync(new URL('../../../packages/schema/fixtures/' + f, import.meta.url), 'utf8'));
 const screens = { mobile: new Map(fixture('kapiko-mobile.json').screens.map((s: any) => [s.id, s])), portal: new Map(fixture('staff-portal.json').screens.map((s: any) => [s.id, s])) };
@@ -40,7 +41,9 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
       menu: list.some((s: any) => s.id === 'dashboard') ? [{ label: 'Home', icon: 'home', screen: 'dashboard' }, { label: 'Requests', icon: 'list', screen: 'my-service-requests' }, { label: 'Profile', icon: 'user', screen: 'customer-profile' }] : [],
       collections: [{ id: 'service-requests', label: 'Service requests', key: 'ref', fields: [{ id: 'ref', label: 'Reference' }, { id: 'type', label: 'Type' }, { id: 'status', label: 'Status' }, { id: 'date', label: 'Submitted' }],
         rows: [['KPK-INC-2026-00125', 'Income update', 'In review', '24 Nov 2026'], ['KPK-CRD-2026-00087', 'Card replacement', 'Completed', '02 Nov 2026']] }],
-      screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Fictional ' + s.title + ' screen', template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default', mustInclude: [] })) };
+      // Launched stories: spread the approved criteria over the screens (the first screen gets the rest).
+      screens: list.map((s: any, i: number) => ({ id: s.id, title: s.title, purpose: 'Fictional ' + s.title + ' screen', template: null, links: list[i + 1] ? [list[i + 1].id] : [], shell: 'default', mustInclude: [],
+        ...(input.acceptanceCriteria ? { criteria: input.acceptanceCriteria.filter((_: any, k: number) => k % list.length === i).map((c: any) => c.id) } : {}) })) };
   }
   const id = input.screen?.id ?? input.context?.screen?.id;
   const channel = (input.app ?? input.context?.app)?.channel === 'portal' ? 'portal' : 'mobile';
@@ -49,5 +52,9 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
     ? [{ type: 'Hero', id: 'hero', title: input.screen.title, subtitle: 'Generated content', showLogo: true, illustration: 'none' }]
     : [{ type: 'Heading', id: 'h', text: input.screen.title, level: '2' }, { type: 'Text', id: 't', text: 'Generated content' }] };
 });
-const app = await buildServer({ generator: new Generator(new MemoryStore(), provider, { ...defaultConfig, retryDelaysMs: [10] }), accessToken: 'e2e-token', model: 'fake', origins: ['http://localhost:5174', 'http://localhost:5173'] });
-await app.listen({ port: Number(process.env.PORT || 8788), host: '127.0.0.1' });
+// Launches from a simulated MEYON (grants may be prepared with the e2e token here; production requires a sign-in).
+const port = Number(process.env.PORT || 8788), integrationKey = 'dev-fake-integration-key-0123456789abcdef';
+const app = await buildServer({ generator: new Generator(new MemoryStore(), provider, { ...defaultConfig, retryDelaysMs: [10] }), accessToken: 'e2e-token', model: 'fake', origins: ['http://localhost:5174', 'http://localhost:5173'],
+  sessionSecret: 'dev-fake-session-secret-0123456789abcdef', meyon: httpMeyonClient('http://127.0.0.1:' + port + '/sim/meyon', integrationKey),
+  meyonSimulator: { integrationKey, allowSharedToken: true }, publicBaseUrl: 'http://localhost:5174', rateLimitPerMinute: 500 }); // parallel browser tests share one client address
+await app.listen({ port, host: '127.0.0.1' });

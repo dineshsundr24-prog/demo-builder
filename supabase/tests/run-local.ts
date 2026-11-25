@@ -49,3 +49,15 @@ for (const want of ['DEMOS_TESTS_PASSED', 'DEMOS_PRIVILEGES_PASSED']) {
   if (!notices2.includes(want)) { console.log('missing', want, notices2.join(' | ')); process.exit(1); }
   console.log(want);
 }
+
+// ---------- Migration 0004: launches from MEYON ----------
+await db.exec(file('../migrations/0004_demo_launches.sql'));
+try { await db.exec(file('../migrations/0004_demo_launches.sql')); console.log('FAIL: 0004 second run was accepted'); process.exit(1); }
+catch (e: any) { console.log('0004 second run refused:', String(e.message).slice(0, 80)); await db.exec('rollback').catch(() => {}); }
+const notices4: string[] = [];
+await db.exec('begin; ' + file('./launches_test.sql') + ' rollback;', { onNotice: (n: any) => notices4.push(n.message) } as any)
+  .catch((e: any) => { console.log('LAUNCHES TESTS FAILED:', e.message); process.exit(1); });
+for (const want of ['LAUNCHES_TESTS_PASSED', 'LAUNCHES_PRIVILEGES_PASSED', 'LAUNCHES_SERVER_ROLE_PASSED']) {
+  if (!notices4.includes(want)) { console.log('missing', want, notices4.join(' | ')); process.exit(1); }
+  console.log(want);
+}

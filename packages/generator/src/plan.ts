@@ -6,8 +6,11 @@ import type { LlmProvider, CompletionResult } from './provider.ts';
 import { ARCHETYPES, archetypesFor } from './archetypes.ts';
 
 export type Brand = { logo?: string; primary?: string; secondary?: string; accent?: string; font?: 'system' | 'inter' | 'serif' | 'rounded' };
-export type GenerationRequest = { name: string; company?: string; channel: 'mobile' | 'portal'; guidelines?: string; brand?: Brand };
-export type PlanScreen = { id: string; title: string; requirement: string; purpose: string; template: string | null; links: string[]; shell: 'default' | 'hidden'; locked: boolean; mustInclude?: string[]; archetype?: string; collection?: string | null };
+/** Approved requirements a demo must demonstrate (from a MEYON launch). Ids are stable MEYON references. */
+export type Requirement = { story: string; title?: string; criteria: { id: string; text: string }[] };
+export type GenerationRequest = { name: string; company?: string; channel: 'mobile' | 'portal'; guidelines?: string; brand?: Brand; requirements?: Requirement[] };
+export type PlanScreen = { id: string; title: string; requirement: string; purpose: string; template: string | null; links: string[]; shell: 'default' | 'hidden'; locked: boolean; mustInclude?: string[]; archetype?: string; collection?: string | null;
+  /** Acceptance-criterion ids this screen demonstrates. */ criteria?: string[] };
 export type Plan = {
   appName: string; brandName: string; channel: 'mobile' | 'portal';
   theme: { primary: string; secondary: string; accent: string };
@@ -16,12 +19,15 @@ export type Plan = {
   brand?: { logo?: string; font?: Brand['font'] }; // applied to the document, never sent to the AI
   templates: string[];               // templates allowed for this brief (journey templates need a mention)
   globalContext: string; notes: string[];
+  /** Approved requirements (copied from the request; never editable through plan approval). */ requirements?: Requirement[];
 };
+/** All criterion ids of the requirements, with their story. */
+export const criteriaOf = (reqs: Requirement[] = []) => reqs.flatMap(r => r.criteria.map(c => ({ ...c, story: r.story })));
 export const ICONS = ['home', 'list', 'user', 'layout-dashboard', 'folder', 'check', 'bar-chart', 'settings', 'bell', 'credit-card', 'file'] as const;
 const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const Slug = z.string().regex(/^[a-z][a-z0-9-]{0,47}$/);
 
-function planModel(locked: boolean, channel: 'mobile' | 'portal' = 'mobile') {
+function planModel(locked: boolean, channel: 'mobile' | 'portal' = 'mobile', criteriaIds: string[] = []) {
   const archetype = z.enum([...archetypesFor(channel).map(a => a.id), 'custom'] as unknown as [string, ...string[]]);
   const screenId = locked ? ScreenRef : Slug;
   const link = locked ? ScreenRef : Slug;
@@ -41,6 +47,7 @@ function planModel(locked: boolean, channel: 'mobile' | 'portal' = 'mobile') {
       archetype: archetype.optional(), collection: Slug.nullable().optional(),
       template: TemplateRef.nullable(), links: z.array(link).max(6), shell: z.enum(['default', 'hidden']),
       mustInclude: z.array(z.string().min(2).max(48)).max(10),
+      ...(criteriaIds.length ? { criteria: z.array(z.enum(criteriaIds as [string, ...string[]])).max(20) } : {}),
     })).min(1).max(60),
   });
 }
@@ -66,7 +73,8 @@ ARCHETYPE_LIST
 - Dates in data are realistic relative to "today": history within the last 90 days, upcoming items within the next 30 days; format "YYYY-MM-DD".
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
 - theme: use brand colours from the brief when given; otherwise a professional banking palette.
-- Never claim real integrations; never use real personal data.`;
+- Never claim real integrations; never use real personal data.
+- acceptanceCriteria (when given) are APPROVED requirements: every one must be demonstrated by at least one screen. criteria: the ids of the acceptance criteria each screen demonstrates (often one or two per screen; [] for screens that demonstrate none). Never invent ids, never reword or drop approved criteria.`;
 const planInstructions = (channel: 'mobile' | 'portal') => PLAN_INSTRUCTIONS_BASE.replace('ARCHETYPE_LIST', archetypesFor(channel).map(a => '  - ' + a.id + ': ' + a.description).join('\n'));
 
 export async function createPlan(provider: LlmProvider, req: GenerationRequest, brief: string, opts: { maxScreens: number }): Promise<{ plan: Plan; call: CompletionResult }> {
@@ -76,19 +84,25 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   if (parsed && parsed.screens.length > opts.maxScreens) throw Object.assign(Error('The brief lists ' + parsed.screens.length + ' screens; this workspace allows up to ' + opts.maxScreens + ' per generation. Split the journey or raise MAX_SCREENS_PER_JOB.'), { category: 'budget' });
   const allowed = allowedTemplates(req.channel, brief + '\n' + (req.guidelines ?? ''));
   const tmpl = templates.filter(t => allowed.includes(t.id));
-  const schema = toStrictSchema(planModel(locked, req.channel), { screen: lockedIds, template: allowed });
+  const criteria = criteriaOf(req.requirements);
+  const criteriaIds = criteria.map(c => c.id);
+  const schema = toStrictSchema(planModel(locked, req.channel, criteriaIds), { screen: lockedIds, template: allowed });
   const input = JSON.stringify({
     today: new Date().toISOString().slice(0, 10),
     project: { name: req.name, company: req.company ?? '', channel: req.channel, designGuidelines: (req.guidelines ?? '').slice(0, 1500) },
     templates: tmpl.map(t => ({ id: t.id, description: t.description })),
+    ...(criteria.length ? { acceptanceCriteria: criteria.map(c => ({ id: c.id, story: c.story, text: c.text })) } : {}),
     ...(parsed ? { screenList: parsed.screens.map(s => ({ id: s.id, title: s.title, requirement: s.requirement })), globalRequirements: parsed.globalContext } : { brief: brief.slice(0, 12000) }),
   });
   const call = await provider.complete({ purpose: 'plan', instructions: planInstructions(req.channel), input, schemaName: 'plan', schema, maxOutputTokens: 8000 });
   // The plan schema has no optional fields; null is meaningful (e.g. template: null), so do not strip it.
-  const model = planModel(locked, req.channel);
+  const model = planModel(locked, req.channel, criteriaIds);
   const raw: any = structuredClone(call.json);
   if (raw && raw.brandName === null) delete raw.brandName;
   for (const s of raw?.screens ?? []) if (s && s.archetype === null) delete s.archetype;
+  // Unknown criterion ids are dropped rather than failing the plan (the approved list is authoritative).
+  for (const s of raw?.screens ?? []) if (s && Array.isArray(s.criteria)) s.criteria = s.criteria.filter((id: unknown) => criteriaIds.includes(String(id)));
+  for (const s of raw?.screens ?? []) if (s && !criteriaIds.length) delete s.criteria;
   const result = model.safeParse(clampToSchema(model, raw));
   if (!result.success) throw Object.assign(Error('The plan did not match the plan schema at ' + (result.error.issues[0]?.path ?? []).join('.') + ': ' + result.error.issues[0]?.message), { category: 'parse' });
   return { plan: normalizePlan(result.data, req, brief, parsed, allowed), call };
@@ -103,14 +117,14 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     screens = parsed.screens.map(l => {
       const s = byId.get(l.id);
       if (!s) notes.push('Planner omitted "' + l.title + '"; it was kept with its original requirement');
-      return { id: l.id, title: l.title, requirement: l.requirement, purpose: s?.purpose ?? l.requirement.slice(0, 400), template: s?.template ?? null, links: s?.links ?? [], shell: s?.shell ?? 'default', locked: true, mustInclude: s?.mustInclude ?? [], archetype: s?.archetype ?? 'custom', collection: s?.collection ?? null };
+      return { id: l.id, title: l.title, requirement: l.requirement, purpose: s?.purpose ?? l.requirement.slice(0, 400), template: s?.template ?? null, links: s?.links ?? [], shell: s?.shell ?? 'default', locked: true, mustInclude: s?.mustInclude ?? [], archetype: s?.archetype ?? 'custom', collection: s?.collection ?? null, criteria: (s as { criteria?: string[] } | undefined)?.criteria ?? [] };
     });
     for (const s of p.screens) if (!parsed.screens.some(l => l.id === s.id)) notes.push('Ignored unlisted screen "' + s.title + '"');
   } else {
     const used = new Set<string>();
     screens = p.screens.map(s => {
       let id = s.id, n = 2; while (used.has(id)) id = s.id + '-' + n++; used.add(id);
-      return { id, title: s.title, requirement: s.purpose, purpose: s.purpose, template: s.template, links: s.links, shell: s.shell, locked: false, mustInclude: s.mustInclude, archetype: s.archetype, collection: s.collection };
+      return { id, title: s.title, requirement: s.purpose, purpose: s.purpose, template: s.template, links: s.links, shell: s.shell, locked: false, mustInclude: s.mustInclude, archetype: s.archetype, collection: s.collection, criteria: (s as { criteria?: string[] }).criteria ?? [] };
     });
   }
   for (const s of screens) if (s.template && !allowed.includes(s.template)) { notes.push('Ignored template "' + s.template + '" for "' + s.title + '" (not requested in the brief)'); s.template = null; }
@@ -136,6 +150,7 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     if (s.archetype === 'list' && !s.collection) s.archetype = 'custom';
   }
   for (const s of screens) s.links = [...new Set(s.links.filter(l => ids.has(l) && l !== s.id))];
+  notes.push(...traceNotes(screens, req.requirements));
   // Colour priority: uploaded brand > colours written in the brief > the planner's palette.
   const colours = briefColours(brief + ' ' + (req.guidelines ?? ''));
   const b = req.brand ?? {};
@@ -153,6 +168,16 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     return { id: c.id, label: c.label, key, fields, rows };
   });
   const brandName = (p.brandName || req.company || req.name).trim().slice(0, 30);
-  return { appName: req.name, brandName, channel: req.channel, theme, shell: { kind: items.length ? kind : 'none', brand: brandName.slice(0, 60), showBack: true, items },
+  return { ...(req.requirements?.length ? { requirements: req.requirements } : {}), appName: req.name, brandName, channel: req.channel, theme, shell: { kind: items.length ? kind : 'none', brand: brandName.slice(0, 60), showBack: true, items },
     collections, screens, sampleFacts: p.sampleFacts, templates: allowed, ...(b.logo || b.font ? { brand: { ...(b.logo ? { logo: b.logo } : {}), ...(b.font ? { font: b.font } : {}) } } : {}), globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
+}
+
+/** Keep only known criterion ids on each screen; note approved criteria no screen demonstrates. Mutates `screens`. */
+export function traceNotes(screens: PlanScreen[], requirements: Requirement[] = []): string[] {
+  const all = criteriaOf(requirements);
+  if (!all.length) { for (const s of screens) delete s.criteria; return []; }
+  const known = new Set(all.map(c => c.id));
+  for (const s of screens) s.criteria = [...new Set((s.criteria ?? []).filter(id => known.has(id)))];
+  const used = new Set(screens.flatMap(s => s.criteria ?? []));
+  return all.filter(c => !used.has(c.id)).map(c => 'Acceptance criterion ' + c.id + ' ("' + c.text.slice(0, 80) + '") is not demonstrated by any screen yet');
 }

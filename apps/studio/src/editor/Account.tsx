@@ -1,7 +1,7 @@
 // Account box: signed-in user (Supabase Auth) or the shared UAT access token.
 import React, { useEffect, useState } from 'react';
 import { KeyRound, LogIn, LogOut, UserRound } from 'lucide-react';
-import { authConfigured, onAuthChange, setPassword, signedInEmail, signInWithPassword, signOut, uatToken } from '../account.ts';
+import { authConfigured, meyonSession, onAuthChange, setMeyonSession, setPassword, signedInEmail, signInWithPassword, signOut, uatToken } from '../account.ts';
 
 export function useSignedIn() {
   const [email, setEmail] = useState(signedInEmail());
@@ -13,6 +13,9 @@ export function AccountBox({ compact = false, mustSetPassword = false }: { compa
   const email = useSignedIn();
   const [open, setOpen] = useState(false), [pwOpen, setPwOpen] = useState(mustSetPassword);
   useEffect(() => { if (mustSetPassword) setPwOpen(true); }, [mustSetPassword]);
+  // A tab opened from MEYON works in that launch's project only, as the MEYON tenant.
+  if (meyonSession()) return <div className={'account' + (compact ? ' compact' : '')} data-testid="account"><span className="account-line"><UserRound size={14} />Opened from MEYON</span>
+    <span className="account-actions"><button type="button" className="account-btn" title="End the MEYON session in this tab" onClick={() => { setMeyonSession(null); location.assign(location.pathname); }}><LogOut size={13} />Leave</button></span></div>;
   if (!authConfigured) return uatToken() ? <p className="account-line" data-testid="account"><UserRound size={14} />Shared UAT access</p> : null;
   return <div className={'account' + (compact ? ' compact' : '')} data-testid="account">
     {email ? <><span className="account-line"><UserRound size={14} /><span title={email}>{email}</span></span>

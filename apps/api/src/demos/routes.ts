@@ -2,6 +2,7 @@
 // forks and read-only publications. Every route authorizes the caller against the demo's workspace.
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { DemoDocument, validateDocument } from '@demo/schema';
+import { JobError } from '@demo/generator';
 import { authorize, AuthError, newToken, sha256, type Caller, type Op } from './auth.ts';
 import { DemoConflict, DemoNotFound, DemoStoreError, type DemoRow, type DemoStore } from './store.ts';
 
@@ -15,9 +16,26 @@ export function contentHash(doc: unknown): string {
   return sha256(JSON.stringify(canon(doc)));
 }
 
+/** Requirement coverage of a document: story -> criterion -> screens that demonstrate it (with the best confidence). */
+export function traceSummary(doc: unknown) {
+  const rank = { high: 3, medium: 2, low: 1 } as const;
+  const stories: Record<string, Record<string, { screens: string[]; confidence: 'high' | 'medium' | 'low' }>> = {};
+  for (const s of ((doc as any)?.screens ?? []) as { id: string; trace?: { story: string; criteria: string[]; confidence: 'high' | 'medium' | 'low' }[] }[]) {
+    for (const t of s.trace ?? []) for (const c of t.criteria) {
+      const e = ((stories[t.story] ??= {})[c] ??= { screens: [], confidence: t.confidence });
+      if (!e.screens.includes(s.id)) e.screens.push(s.id);
+      if (rank[t.confidence] > rank[e.confidence]) e.confidence = t.confidence;
+    }
+  }
+  return stories;
+}
+/** A published copy carries the demo only: traceability references stay internal. */
+const publicDocument = (doc: Record<string, unknown>) => ({ ...doc, screens: ((doc.screens ?? []) as Record<string, unknown>[]).map(({ trace: _t, ...s }) => (void _t, s)) });
+
 export function demoErrorReply(reply: FastifyReply, e: unknown) {
   if (e instanceof AuthError) return reply.code(e.status).send({ error: e.message, category: e.status === 401 ? 'auth' : e.status === 403 ? 'forbidden' : 'not_found' });
   if (e instanceof DemoConflict) { const s = (e as { status?: number }).status ?? 409; return reply.code(s).send({ error: e.message, category: s === 422 ? 'invalid' : 'conflict' }); }
+  if (e instanceof JobError) return reply.code(e.status).send({ error: e.message, category: e.category });
   if (e instanceof DemoNotFound) return reply.code(404).send({ error: 'Not found', category: 'not_found' });
   if (e instanceof DemoStoreError) {
     const ref = 'err_' + Math.random().toString(36).slice(2, 10);
@@ -72,7 +90,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
   }));
 
   app.post('/api/v2/demos', route(async (req, c) => {
-    const b = (req.body ?? {}) as { workspaceId?: string; name?: string; projectRef?: string; document?: unknown; primary?: boolean };
+    const b = (req.body ?? {}) as { workspaceId?: string; name?: string; projectRef?: string; document?: unknown; primary?: boolean; launchId?: string };
     const workspaceId = typeof b.workspaceId === 'string' && UUID.test(b.workspaceId) ? b.workspaceId : c.defaultWorkspaceId;
     const projectRef = c.scope ? c.scope.projectRef : text(b.projectRef, 200);
     await authorize(store, c, 'create', workspaceId, { project_ref: projectRef });
@@ -82,6 +100,11 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     // The first demo of a project + type becomes its primary baseline automatically.
     const siblings = (await store.listDemos([workspaceId], { projectRef })).filter(x => x.channel === d.channel && x.is_primary);
     if (b.primary === true || !siblings.length) { await authorize(store, c, 'primary', workspaceId, d); await store.setPrimary(d.id); d = (await store.getDemo(d.id))!; }
+    // The demo generated from a MEYON launch is linked to it (once; only by that launch's own session).
+    if (c.scope?.launchId && b.launchId === c.scope.launchId) {
+      const l = await store.getLaunch(b.launchId);
+      if (l && l.workspace_id === workspaceId && l.mode === 'create' && l.status === 'confirmed' && !l.demo_id) await store.updateLaunch(l.id, { demo_id: d.id }, 'confirmed');
+    }
     return { demo: versionView(d), document: d.draft };
   }));
 
@@ -117,7 +140,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     if (!Number.isInteger(b.expectedRevision)) throw new DemoConflict('expectedRevision is required');
     const issues = validateDocument(d.draft);
     const metadata = { validation: { errors: issues.filter(i => i.severity === 'error').length, warnings: issues.filter(i => i.severity === 'warning').length },
-      screens: Array.isArray((d.draft as any).screens) ? (d.draft as any).screens.length : 0, savedVia: c.via };
+      screens: Array.isArray((d.draft as any).screens) ? (d.draft as any).screens.length : 0, savedVia: c.via, trace: traceSummary(d.draft) };
     const v = await store.saveVersion(d.id, c.principal.id, b.expectedRevision!, contentHash(d.draft), text(b.note, 500), metadata);
     return { version: { id: v.id, number: v.number, note: v.note, createdAt: v.created_at, contentHash: v.content_hash, metadata: v.metadata } };
   }));
@@ -173,7 +196,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
       const hit = await store.publicationByHash(sha256(req.params.token));
       if (!hit || hit.demo.archived_at) return reply.code(404).send({ error: 'This demo link is not available', category: 'not_found' });
       reply.header('cache-control', 'no-store');
-      return { name: hit.demo.name, channel: hit.demo.channel, version: hit.version.number, publishedAt: hit.publication.created_at, document: hit.version.document };
+      return { name: hit.demo.name, channel: hit.demo.channel, version: hit.version.number, publishedAt: hit.publication.created_at, document: publicDocument(hit.version.document) };
     } catch (e) { return demoErrorReply(reply, e); }
   });
 }

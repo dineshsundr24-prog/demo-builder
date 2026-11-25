@@ -7,6 +7,9 @@ import { Generator, JobError, ProviderError, StoreError, type GenerationRequest,
 import { resolveCaller, AuthError, type VerifyUser } from './demos/auth.ts';
 import { registerDemoRoutes } from './demos/routes.ts';
 import { MemoryDemoStore, type DemoStore } from './demos/store.ts';
+import { registerLaunchRoutes } from './launch/routes.ts';
+import { registerMeyonSimulator } from './launch/simulator.ts';
+import type { MeyonClient } from './launch/meyon.ts';
 
 export type ServerOptions = {
   generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean;
@@ -15,6 +18,9 @@ export type ServerOptions = {
   /** HMAC secret for Builder sessions (MEYON launches). */ sessionSecret?: string;
   /** Studio origin used to build public demo links. */ publicBaseUrl?: string;
   /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
+  /** MEYON server-to-server client (launch grants). Absent: launches from MEYON are not available. */ meyon?: MeyonClient;
+  /** Requests per minute per client for paid actions and for launch exchanges (default 20). */ rateLimitPerMinute?: number;
+  /** Simulated MEYON for testing/UAT (never with a real MEYON). */ meyonSimulator?: { integrationKey: string; /** tests only: the shared UAT token may prepare launches */ allowSharedToken?: boolean };
 };
 
 function tokenOk(given: unknown, expected: string) {
@@ -51,14 +57,16 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   await app.register(cors, { origin: opts.origins, methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'], allowedHeaders: ['content-type', 'x-builder-access', 'authorization'] });
   const demoStore = opts.demoStore ?? new MemoryDemoStore();
 
-  // Simple in-process rate limit for paid actions: 20 per minute per client.
+  // Simple in-process rate limits per client: paid actions (generation, assistant, launch confirmation) and
+  // launch-code exchanges are counted separately (default 20 per minute each).
+  const perMinute = opts.rateLimitPerMinute ?? 20;
   const hits = new Map<string, { t: number; n: number }>();
-  const limited = (req: FastifyRequest) => {
-    const key = String(req.headers['x-forwarded-for'] ?? req.ip).split(',')[0].trim();
+  const limited = (req: FastifyRequest, bucket: 'paid' | 'launch' = 'paid') => {
+    const key = bucket + ':' + String(req.headers['x-forwarded-for'] ?? req.ip).split(',')[0].trim();
     const now = Date.now(), h = hits.get(key) ?? { t: now, n: 0 };
     if (now - h.t > 60000) { h.t = now; h.n = 0; }
     h.n++; hits.set(key, h);
-    return h.n > 20;
+    return h.n > perMinute;
   };
   // Job and screen ids are validated before they reach the database layer.
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,9 +77,12 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
   // Every route except health, status and public demo links needs a caller: a Supabase sign-in, a Builder
   // session (MEYON launch) or the shared UAT token (confined to its own UAT workspace).
-  const paid = (url: string) => /^\/api\/v2\/(jobs|assist)/.test(url);
+  const paid = (url: string) => /^\/api\/v2\/(jobs|assist)|^\/api\/v2\/launches\/[^/]+\/confirm$/.test(url);
   app.addHook('onRequest', async (req, reply) => {
     if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status' || req.url.startsWith('/api/v2/public/')) return;
+    // Launch codes are exchanged before any session exists (rate-limited); MEYON's own endpoint checks its integration key.
+    if (req.url === '/api/v2/launch/exchange') { if (req.method === 'POST' && limited(req, 'launch')) return reply.code(429).send({ error: 'Too many launch attempts; wait a minute', category: 'rate_limit' }); return; }
+    if (opts.meyonSimulator && req.url.startsWith('/sim/meyon/demo-builder/')) return;
     try { req.caller = await resolveCaller({ store: demoStore, uatToken: opts.allowUatToken === false ? undefined : opts.accessToken, sessionSecret: opts.sessionSecret, verifyUser: opts.verifyUser }, req.headers); }
     catch (e) {
       if (e instanceof AuthError) return reply.code(e.status).send({ error: e.message, category: 'auth' });
@@ -89,6 +100,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     if (job && !ownsJob(job, req)) return reply.code(404).send({ error: 'Job not found', category: 'not_found' });
   });
   registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl });
+  registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret });
+  if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/api/v2/status', async () => {
@@ -97,7 +110,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     let storage: 'connected' | 'unavailable' = 'connected';
     try { budget = await gen.budgetStatus(); }
     catch (e) { storage = 'unavailable'; budget = null; app.log.error({ detail: e instanceof Error ? e.message : String(e) }, 'status: storage check failed'); }
-    return { ready: Boolean(opts.accessToken) && storage === 'connected', model: opts.model, store: gen.store.kind, storage, budget, maxScreensPerJob: gen.config.maxScreensPerJob };
+    return { ready: Boolean(opts.accessToken) && storage === 'connected', launches: !!(opts.meyon && opts.sessionSecret), meyonSimulator: !!opts.meyonSimulator, model: opts.model, store: gen.store.kind, storage, budget, maxScreensPerJob: gen.config.maxScreensPerJob };
   });
 
   app.post('/api/v2/jobs', async (req, reply) => {

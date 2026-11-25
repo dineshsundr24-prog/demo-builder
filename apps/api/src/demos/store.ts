@@ -19,6 +19,16 @@ export type VersionRow = { id: string; demo_id: string; workspace_id: string; nu
 export type VersionSummary = Omit<VersionRow, 'document'>;
 export type PublicationRow = { id: string; demo_id: string; workspace_id: string; version_id: string; token_hash: string; created_by: string | null; created_at: string; revoked_at: string | null };
 
+export type LaunchStatus = 'pending' | 'confirming' | 'confirmed' | 'cancelled';
+/** A launch from MEYON (migration 0004): the validated launch package and what became of it. */
+export type LaunchRow = {
+  id: string; workspace_id: string; principal_id: string | null; grant_id: string; project_ref: string; story_ref: string; story_version: number;
+  mode: 'create' | 'extend'; channel: Channel; base_demo_id: string | null; base_version: number | null;
+  package: Record<string, unknown>; package_hash: string; status: LaunchStatus; demo_id: string | null; job_id: string | null; created_at: string; confirmed_at: string | null;
+};
+export type NewLaunch = Omit<LaunchRow, 'id' | 'status' | 'demo_id' | 'job_id' | 'created_at' | 'confirmed_at'>;
+export type LaunchPatch = Partial<Pick<LaunchRow, 'status' | 'demo_id' | 'job_id' | 'confirmed_at'>>;
+
 /** Domain errors the API maps to HTTP statuses. */
 export class DemoConflict extends Error { readonly status = 409; }
 export class DemoNotFound extends Error { readonly status = 404; }
@@ -47,6 +57,11 @@ export interface DemoStore {
   listPublications(demoId: string): Promise<PublicationRow[]>;
   revokePublication(id: string): Promise<PublicationRow | null>;
   publicationByHash(hash: string): Promise<{ publication: PublicationRow; version: VersionRow; demo: DemoSummary } | null>;
+  /** Record a launch; a grant id that was already recorded throws DemoConflict (replay). */
+  createLaunch(l: NewLaunch): Promise<LaunchRow>;
+  getLaunch(id: string): Promise<LaunchRow | null>;
+  /** Update a launch; with `ifStatus`, only when it is currently in that status (returns null otherwise). */
+  updateLaunch(id: string, patch: LaunchPatch, ifStatus?: LaunchStatus): Promise<LaunchRow | null>;
 }
 
 const now = () => new Date().toISOString();
@@ -137,6 +152,18 @@ export class MemoryDemoStore implements DemoStore {
     if (!p) return null;
     const v = this.versions.get(p.version_id)!, d = this.demos.get(p.demo_id)!;
     return { publication: clone(p), version: clone(v), demo: summary(clone(d)) };
+  }
+  launches = new Map<string, LaunchRow>();
+  async createLaunch(l: NewLaunch) {
+    if ([...this.launches.values()].some(x => x.grant_id === l.grant_id)) throw new DemoConflict('This launch was already used');
+    const row: LaunchRow = { ...clone(l), id: randomUUID(), status: 'pending', demo_id: null, job_id: null, created_at: now(), confirmed_at: null };
+    this.launches.set(row.id, row); return clone(row);
+  }
+  async getLaunch(id: string) { const l = this.launches.get(id); return l ? clone(l) : null; }
+  async updateLaunch(id: string, patch: LaunchPatch, ifStatus?: LaunchStatus) {
+    const l = this.launches.get(id);
+    if (!l || (ifStatus && l.status !== ifStatus)) return null;
+    Object.assign(l, patch); return clone(l);
   }
 }
 
@@ -244,5 +271,14 @@ export class SupabaseDemoStore implements DemoStore {
     const v = ((await this.req('demo_versions?id=eq.' + enc(p.version_id) + '&limit=1')) as VersionRow[])[0];
     const d = ((await this.req('demos?select=' + SUMMARY_COLS + '&id=eq.' + enc(p.demo_id) + '&limit=1')) as DemoSummary[])[0];
     return v && d ? { publication: p, version: v, demo: d } : null;
+  }
+  async createLaunch(l: NewLaunch) {
+    try { return ((await this.req('demo_launches', { method: 'POST', body: l, prefer: 'return=representation' })) as LaunchRow[])[0]; }
+    catch (e) { if (e instanceof DemoConflict) throw new DemoConflict('This launch was already used'); throw e; }
+  }
+  async getLaunch(id: string) { return ((await this.req('demo_launches?id=eq.' + enc(id) + '&limit=1')) as LaunchRow[])[0] ?? null; }
+  async updateLaunch(id: string, patch: LaunchPatch, ifStatus?: LaunchStatus) {
+    const rows = await this.req('demo_launches?id=eq.' + enc(id) + (ifStatus ? '&status=eq.' + ifStatus : ''), { method: 'PATCH', body: patch, prefer: 'return=representation' }) as LaunchRow[];
+    return rows[0] ?? null;
   }
 }
