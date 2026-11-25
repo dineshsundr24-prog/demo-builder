@@ -51,8 +51,23 @@ Generated documents are kept as replay fixtures in `packages/generator/fixtures/
 ## Generation quality (branch `v2/quality`, awaiting owner review)
 RCA of UAT job 8ac2784f and fixes: see `docs/v2/QUALITY.md` (pattern library, requirement fidelity, design clean-up, coverage check, optional brand assets, benchmark).
 
-## Next: Phase 3 (Visual Studio editor)
-Puck on top of the shared runtime; config generated from the registry; select, edit, drag and drop of nested components; inspector; undo; screens panel; mobile header and footer placement. Exit gate: Playwright editing tests.
+## Screen archetypes (merged to v2/foundation, deployed to UAT 25 Nov 2026)
+- 14 designed screen types: the AI writes content only, and builders own the layout. The enforced UX lint is reported in `docs/v2/UX_CHECKLIST.md`: 61/61 screens pass the structural checks.
+
+## Phase 3: Visual editor (branch `v2/editor`, awaiting owner review)
+Direct editing on the runtime render (Decision D3a):
+- select on the canvas;
+- property panel generated from the registry;
+- Layers with drag and drop;
+- component palette;
+- screens (add, rename, reorder, duplicate, delete, navigation);
+- undo and redo;
+- local draft;
+- "Open in new window" presenter with live updates;
+- portal scaled at desktop width.
+
+Exit gate: 9 Playwright editing tests (26 browser tests in total).
+Still to do in Phase 3: drag and drop on the canvas; editing the app menu, data collections and theme in place; a Flow view of the screen links.
 
 ## Environment notes
 - Cloud environment `demo-builder`: `api.openai.com` and the Supabase project host are reachable; keys are proxy-injected network secrets (OpenAI as Bearer, Supabase as `apikey`).

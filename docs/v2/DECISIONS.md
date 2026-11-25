@@ -111,3 +111,17 @@ Estimate per 12-screen generation (to be verified against current provider prici
 - The prose generation prompt, `normalizeGeneratedDemo`, `validDemo`, `explainGeneratedDemo` and their duplicates.
 - About 15 regex-routed chat-edit modules. These are replaced by "AI proposes registry-validated editor commands".
 - URL-fragment publishing, the shared access token, the hard 12-screen limit, and the duplicated renderer in `PublishedViewer.tsx`.
+
+## D3a. Editor: direct editing on the runtime render (supersedes Puck in D3), 25 Nov 2026
+**Decision.** The visual editor edits on the real `DemoRuntime` render instead of a Puck canvas. Puck is not used.
+**Why.**
+- Puck draws the canvas with its own component implementations. That is a second renderer, and it breaks the "editor = preview = published" guarantee. Our designed patterns and templates also need the runtime's contexts (session, forms, theme).
+- Every rendered node already carries `data-node-id`, so selection on the real render is exact. Template parts select their template.
+- Smaller bundle: the whole studio is 122 KB gzipped, versus about 360 KB for the Puck editor alone. No external font fetch, and no new dependency.
+**How.**
+- Pure, immutable edit operations live in `packages/schema/src/edit.ts`: insert, move, duplicate, remove, rename, nudge and screen operations. Ids stay unique and invalid nesting is refused. All are unit-tested.
+- The property panel is generated from each component's JSON Schema, derived from the registry. Screen, collection and template references become pickers. Discriminated unions (actions) become a type picker plus that type's fields. New components get an editor automatically.
+- Layers is a tree with HTML5 drag and drop (before, after, inside), plus toolbar buttons and keyboard shortcuts: Delete, Ctrl+D, Esc, Ctrl+Z, Ctrl+Shift+Z.
+- Undo history: 100 steps, and typing into one field merges into a single step. A local draft survives reloads. The presenter window (`?present=1`) follows edits live.
+- Portals render at 1280 px and are scaled to fit the stage, never reflowed into a narrow column.
+**Trade-off.** Drag and drop happens in Layers, not on the canvas itself. Canvas drag can be added later on `@dnd-kit` without changing the operations layer.

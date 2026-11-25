@@ -102,7 +102,7 @@ function StatusTimeline({ node }: { node: NodeT }) {
   return <section {...attrs(node, 'timeline')}>
     {node.title ? <h3 className="db-pattern-title">{t(node.title)}</h3> : null}
     <ol>{steps.map((s, i) => <li key={i} data-state={s.state}><span className="db-tl-dot">{s.state === 'done' ? <CheckCircle2 size={16} /> : null}</span>
-      <span><strong>{t(s.label)}</strong>{s.detail ? <small>{t(s.detail)}</small> : null}</span></li>)}</ol>
+      <span><strong>{t(s.label)}</strong>{s.detail ? <small>{prettyDates(t(s.detail))}</small> : null}</span></li>)}</ol>
   </section>;
 }
 function Promo({ node }: { node: NodeT }) {

@@ -7,3 +7,4 @@ export * from './templates.ts';
 export * from './validate.ts';
 export * from './aiSchema.ts';
 export * from './migrateV1.ts';
+export * from './edit.ts';

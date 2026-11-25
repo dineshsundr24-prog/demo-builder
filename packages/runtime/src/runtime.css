@@ -237,7 +237,7 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 .db-promo { display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 14px 16px; border-radius: var(--db-radius); background: color-mix(in srgb, var(--db-accent) 14%, white); border: 1px solid color-mix(in srgb, var(--db-accent) 30%, white); }
 .db-promo-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--db-accent); color: #fff; }
 .db-promo p { margin: 2px 0 6px; color: var(--db-muted); font-size: 14px; } .db-promo .db-link { padding: 0; }
-.db-fields dd { overflow-wrap: anywhere; }
+.db-fields dd { overflow-wrap: break-word; }
 
 .db-features ul { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .db-features li { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; background: var(--db-surface); border: 1px solid var(--db-line); border-radius: var(--db-radius); padding: 12px 14px; }
@@ -252,5 +252,11 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 /* Long text in a KPI tile (e.g. "Blood sugar, cholesterol") reads as a value, not a headline. */
 .db-stat-value[data-long] { font-size: 16px; line-height: 1.3; letter-spacing: 0; }
 /* Quick action labels wrap to two lines instead of being cut off. */
-.db-quick-item { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+.db-quick-item { min-width: 0; overflow-wrap: break-word; hyphens: auto; }
 .db-quick-item > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Label/value rows in narrow cards (portal grids) stack instead of breaking words mid-value. */
+.db-fields { container-type: inline-size; }
+@container (max-width: 320px) {
+  .db-fields > div { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .db-fields dd { text-align: left; }
+}
