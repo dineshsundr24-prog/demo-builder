@@ -133,18 +133,27 @@ export function duplicateScreen(doc: DemoDocument, screenId: string): { doc: Dem
 /** Delete a screen; navigation to it is removed and shell items pointing to it are dropped. */
 export function removeScreen(doc: DemoDocument, screenId: string): DemoDocument {
   if (doc.screens.length <= 1) throw Error('A demo needs at least one screen');
+  const goesThere = (a: any) => a && typeof a === 'object' && a.type === 'navigate' && a.screen === screenId;
+  const onlyThere = (acts: unknown) => Array.isArray(acts) && acts.some(goesThere) && acts.every(a => goesThere(a) || (a as any)?.type === 'toast');
+  // Buttons, quick actions and menu rows whose only purpose was to open the deleted screen disappear;
+  // other actions just lose that navigation step.
   const strip = (v: any): any => {
-    if (Array.isArray(v)) return v.filter(x => !(x && typeof x === 'object' && x.type === 'navigate' && x.screen === screenId)).map(strip);
+    if (Array.isArray(v)) return v.filter(x => !(x && typeof x === 'object' && (goesThere(x) || (x.type === 'Button' && onlyThere(x.actions)) || (!x.type && 'label' in x && onlyThere(x.actions))))).map(strip);
     if (v && typeof v === 'object') {
       const out: any = {};
-      for (const [k, x] of Object.entries(v)) { if ((k === 'next' || k === 'alt') && x === screenId) continue; if ((k === 'rowAction' || k === 'itemAction') && (x as any)?.screen === screenId) continue; out[k] = strip(x); }
+      for (const [k, x] of Object.entries(v)) {
+        if ((k === 'next' || k === 'alt' || k === 'addScreen') && x === screenId) continue;
+        if ((k === 'rowAction' || k === 'itemAction') && (x as any)?.screen === screenId) continue;
+        if ((k === 'secondary' || k === 'cta' || k === 'viewAll') && onlyThere((x as any)?.actions)) continue;
+        out[k] = strip(x);
+      }
       return out;
     }
     return v;
   };
-  const screens = doc.screens.filter(s => s.id !== screenId).map(s => ({ ...s, children: strip(s.children) }));
-  const items = doc.shell.items.filter(i => i.screen !== screenId);
-  return { ...doc, screens, shell: { ...doc.shell, items, kind: items.length ? doc.shell.kind : doc.shell.kind } };
+  const screens = doc.screens.filter(s => s.id !== screenId).map(s => ({ ...s, children: (strip(s.children) as NodeT[]).filter(n => !(n.type === 'QuickActions' && !(n.items as unknown[] | undefined)?.length)) }));
+  const items = doc.shell.items.filter(i => i.screen !== screenId).map(i => (i.children ? { ...i, children: i.children.filter(c => c.screen !== screenId) } : i));
+  return { ...doc, screens, shell: { ...doc.shell, items } };
 }
 export function moveScreen(doc: DemoDocument, screenId: string, delta: -1 | 1): DemoDocument {
   const i = doc.screens.findIndex(s => s.id === screenId), j = i + delta;

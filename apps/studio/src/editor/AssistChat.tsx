@@ -5,13 +5,13 @@ import { ArrowUp, Loader2, Settings2, Sparkles, Undo2 } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
 import { call, token } from '../GeneratePanel.tsx';
 
-export type AssistOutcome = { action: 'added' | 'modified' | 'none'; document: DemoDocument; screenId: string; changes: string[]; reply?: string; costUsd: number };
-export type ChatMode = 'auto' | 'modify' | 'add';
+export type AssistOutcome = { action: 'added' | 'modified' | 'flow' | 'none'; document: DemoDocument; screenId: string; changes: string[]; reply?: string; costUsd: number };
+export type ChatMode = 'auto' | 'modify' | 'add' | 'flow';
 export type ChatMessage =
   | { id: number; role: 'user'; text: string; mode: ChatMode; screenTitle: string }
   | { id: number; role: 'assistant'; text: string; changes?: string[]; screenId?: string; costUsd?: number; state: 'applied' | 'undone' | 'error' | 'info' };
 
-const EXAMPLES = ['Rename the Verify button to Validate', 'Add a new screen to freeze my card and change the PIN', 'Add an Emirates ID field after the mobile number', 'Make the main button say "Continue securely"'];
+const EXAMPLES = ['Rename the Verify button to Validate', 'Add a new screen to freeze my card and change the PIN', 'Add Cards to the app menu and remove Settings', 'Delete the Promotions screen and move Profile after Dashboard'];
 let seq = 0;
 
 type Props = {
@@ -48,7 +48,7 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
         setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'info', costUsd: out.costUsd, text: out.reply || 'Nothing needed to change on "' + name + '". Try describing it differently.' }]);
       } else {
         onApply(out);
-        const lead = out.action === 'added' ? 'I added the screen "' + name + '".' : 'I updated "' + name + '".';
+        const lead = out.action === 'added' ? 'I added the screen "' + name + '".' : out.action === 'flow' ? 'I updated the app structure.' : 'I updated "' + name + '".';
         setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'applied', screenId: out.screenId, costUsd: out.costUsd, changes: out.changes, text: out.reply ? out.reply : lead }]);
       }
       setFrom(''); setTo(''); setMenu(false);
@@ -62,11 +62,11 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
     <div className="chat-list" ref={list} aria-live="polite">
       {!messages.length ? <div className="chat-welcome">
         <Sparkles size={18} />
-        <p><strong>Tell me what to change or add.</strong> I can change the screen you're on, change another screen, or create a new screen and link it into the journey.</p>
+        <p><strong>Tell me what to change or add.</strong> I can change the screen you're on or another screen, create a new linked screen, and manage the app menu and the list of screens (add, rename, reorder, delete).</p>
         <div className="chat-examples">{EXAMPLES.map(x => <button key={x} type="button" onClick={() => setText(x)}>{x}</button>)}</div>
       </div> : null}
       {messages.map(m => m.role === 'user'
-        ? <div key={m.id} className="msg msg-user"><p>{m.text}</p><small>{m.mode === 'add' ? 'New screen' : m.mode === 'modify' ? 'On "' + m.screenTitle + '"' : 'Viewing "' + m.screenTitle + '"'}</small></div>
+        ? <div key={m.id} className="msg msg-user"><p>{m.text}</p><small>{m.mode === 'add' ? 'New screen' : m.mode === 'flow' ? 'Menu & screens' : m.mode === 'modify' ? 'On "' + m.screenTitle + '"' : 'Viewing "' + m.screenTitle + '"'}</small></div>
         : <div key={m.id} className={'msg msg-ai msg-' + m.state}>
             <p>{m.text}</p>
             {m.changes?.length && m.changes[0] !== 'No visible change' ? <ul>{m.changes.map((c, i) => <li key={i}>{c}</li>)}</ul> : null}
@@ -82,11 +82,11 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
 
     <div className="chat-compose">
       <div className="chat-modes" role="radiogroup" aria-label="What should the AI do">
-        {([['auto', 'Auto'], ['modify', 'This screen'], ['add', 'New screen']] as [ChatMode, string][]).map(([k, l]) =>
+        {([['auto', 'Auto'], ['modify', 'This screen'], ['add', 'New screen'], ['flow', 'Menu & screens']] as [ChatMode, string][]).map(([k, l]) =>
           <button key={k} type="button" role="radio" aria-checked={mode === k} onClick={() => setMode(k)}>{l}</button>)}
-        {mode !== 'modify' ? <button type="button" className="chat-opt-toggle" aria-expanded={opts} title="New screen options" aria-label="New screen options" onClick={() => setOpts(o => !o)}><Settings2 size={14} /></button> : null}
+        {mode === 'add' || mode === 'auto' ? <button type="button" className="chat-opt-toggle" aria-expanded={opts} title="New screen options" aria-label="New screen options" onClick={() => setOpts(o => !o)}><Settings2 size={14} /></button> : null}
       </div>
-      {opts && mode !== 'modify' ? <div className="chat-options">
+      {opts && (mode === 'add' || mode === 'auto') ? <div className="chat-options">
         <label>Opens from<select value={from} onChange={e => setFrom(e.target.value)}><option value="">AI chooses</option>{doc.screens.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
         <label>Leads to<select value={to} onChange={e => setTo(e.target.value)}><option value="">AI chooses</option>{doc.screens.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
         {doc.shell.kind !== 'none' ? <label className="chat-check"><input type="checkbox" checked={menu} onChange={e => setMenu(e.target.checked)} />Add to app menu</label> : null}
@@ -94,7 +94,7 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
       {!token() ? <input className="chat-token" type="password" aria-label="Access token" placeholder="Demo Builder access token" value={access} onChange={e => setAccess(e.target.value)} autoComplete="off" /> : null}
       <div className="chat-input">
         <textarea ref={box} rows={2} value={text} onChange={e => setText(e.target.value)} aria-label="Message the AI assistant"
-          placeholder={mode === 'add' ? 'Describe the new screen…' : mode === 'modify' ? 'What should change on "' + (current?.title ?? 'this screen') + '"?' : 'Describe a change or a new screen…'}
+          placeholder={mode === 'flow' ? 'e.g. Add Cards to the menu, delete the Promotions screen…' : mode === 'add' ? 'Describe the new screen…' : mode === 'modify' ? 'What should change on "' + (current?.title ?? 'this screen') + '"?' : 'Describe a change or a new screen…'}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} />
         <button type="button" className="chat-send" data-testid="assist-go" aria-label="Send" disabled={busy || text.trim().length < 3 || !access.trim()} onClick={() => send()}><ArrowUp size={16} /></button>
       </div>

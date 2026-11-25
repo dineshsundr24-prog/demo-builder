@@ -219,7 +219,7 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .msg-actions button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--s-line); background: #fff; border-radius: 7px; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; color: #1e3a5f; }
 .msg-cost { margin-left: auto; font-size: 11px; color: #98a2b3; }
 .chat-compose { border-top: 1px solid var(--s-line); padding: 10px 12px 8px; display: grid; gap: 8px; background: var(--s-panel); }
-.chat-modes { display: flex; gap: 4px; align-items: center; }
+.chat-modes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .chat-modes button[role="radio"] { border: 1px solid var(--s-line); background: #fff; border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; color: #475467; }
 .chat-modes button[aria-checked="true"] { background: #e0eaff; border-color: #84adff; color: #1e3a5f; font-weight: 600; }
 .chat-opt-toggle { margin-left: auto; border: 1px solid var(--s-line); background: #fff; border-radius: 7px; width: 28px; height: 26px; display: grid; place-items: center; cursor: pointer; color: #475467; }

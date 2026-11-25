@@ -176,6 +176,23 @@ test.describe('AI assistant chat', () => {
     await expect(chat(page)).toBeVisible();
   });
 
+  test('app structure by chat: rename a tab, delete a screen, undo', async ({ page }) => {
+    await page.locator('.studio-screens button', { hasText: 'Dashboard' }).click();
+    await page.getByRole('button', { name: 'Preview' }).click();
+    await page.getByTestId('open-assist').click();
+    const tabs = device(page).locator('.db-tabs');
+    await expect(tabs).toContainText('Home');
+    await say(page, 'Rename the Home tab to Overview');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('renamed to "Overview"');
+    await expect(tabs).toContainText('Overview');
+    await chat(page).getByTestId('assist-undo').click();
+    await expect(tabs).toContainText('Home');
+    await say(page, 'Delete the Income Update screen');
+    await expect(chat(page).locator('.msg-ai').last()).toContainText('Deleted screen "Income Update"');
+    await expect(page.locator('.studio-screens .studio-title', { hasText: /^Income Update$/ })).toHaveCount(0);
+    await expect(page.getByTestId('validation')).toContainText('No errors');
+  });
+
   test('palette search understands everyday words', async ({ page }) => {
     await page.getByRole('tab', { name: 'Add' }).click();
     await page.getByLabel('Search components').fill('back button');

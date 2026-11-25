@@ -78,3 +78,15 @@ test('customising a template turns it into editable components with the same beh
   const renamed = updateNode(doc, screen.id, (function f(ns: NodeT[]): string { for (const n of ns) { if (n.type === 'Button' && n.label === 'Verify') return n.id; const r = n.children ? f(n.children as NodeT[]) : ''; if (r) return r; } return ''; })(s2.children as NodeT[]), { label: 'Validate' });
   assert.ok(JSON.stringify(renamed).includes('"label":"Validate"'));
 });
+
+test('deleting a screen removes buttons and shortcuts that only opened it', () => {
+  const doc = structuredClone(kapiko);
+  const home = doc.screens.find(s => s.id === 'dashboard')!;
+  (home.children as any[]).push({ type: 'QuickActions', id: 'qa', items: [{ label: 'Income', icon: 'banknote', actions: [{ type: 'navigate', screen: 'income-update' }] }, { label: 'Profile', icon: 'user', actions: [{ type: 'navigate', screen: 'customer-profile' }] }, { label: 'Help', icon: 'help', actions: [{ type: 'toast', message: 'Help' }] }] });
+  const out = removeScreen(doc, 'income-update');
+  const s = JSON.stringify(out.screens.find(x => x.id === 'dashboard'));
+  assert.ok(!s.includes('"label":"Income"'), 'the shortcut to the deleted screen is gone');
+  assert.ok(s.includes('"label":"Profile"') && s.includes('"label":"Help"'), 'other shortcuts stay');
+  assert.ok(!JSON.stringify(out).includes('"screen":"income-update"'));
+  assert.deepEqual(errorsOnly(validateDocument(out)), []);
+});

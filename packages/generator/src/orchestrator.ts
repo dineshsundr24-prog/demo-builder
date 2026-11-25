@@ -8,6 +8,7 @@ import { ProviderError, costUsd, type LlmProvider, type CompletionResult } from 
 import { createPlan, type GenerationRequest, type Plan } from './plan.ts';
 import { generateScreen, refineBindings } from './screen.ts';
 import { addScreenWithAI, modifyScreenWithAI, routeInstruction, type AddScreenRequest, type AssistRequest } from './assist.ts';
+import { changeFlowWithAI } from './flow.ts';
 import type { DemoDocument } from '@demo/schema';
 import { validateScreen, documentContext } from '@demo/schema';
 import { assemble } from './assemble.ts';
@@ -59,6 +60,11 @@ export class Generator {
     if (req.instruction.trim().length < 3) throw Object.assign(Error('Describe what you want to add or change'), { category: 'bad_request' });
     const route = await routeInstruction(this.provider, doc, req, track);
     const summary = (r: { document: DemoDocument; screenId: string; changes: string[]; reply?: string }, action: 'added' | 'modified') => ({ action: action === 'modified' && r.document === doc ? 'none' as const : action, document: r.document, screenId: r.screenId, changes: r.changes, reply: r.reply ?? '', costUsd: Number(cost.toFixed(5)), tokens });
+    if (route.intent === 'flow') {
+      const r = await changeFlowWithAI(this.assistProvider ?? this.provider, doc, req.instruction, req.currentScreen ?? null, track, (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300)));
+      const stay = req.currentScreen && r.document.screens.some(s => s.id === req.currentScreen) ? req.currentScreen : r.document.screens[0].id;
+      return { action: r.document === doc ? 'none' as const : 'flow' as const, document: r.document, screenId: stay, changes: r.changes, reply: r.reply, costUsd: Number(cost.toFixed(5)), tokens };
+    }
     // Editing an existing screen needs reasoning over its structure: use the (optionally stronger) assist model.
     if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.assistProvider ?? this.provider, doc, route.screen, req.instruction, (_k, c) => track(c), (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300))), 'modified');
     return summary(await addScreenWithAI(this.provider, doc, { requirement: req.instruction, from: req.from, to: req.to, addToMenu: req.addToMenu }, (_k, c) => track(c)), 'added');

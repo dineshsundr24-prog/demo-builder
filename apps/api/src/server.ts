@@ -87,8 +87,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const parsed = DemoDocument.safeParse(body?.document);
     if (!parsed.success) return reply.code(400).send({ error: 'Send {document, instruction}: the document is not a valid v2 document (' + (parsed.error.issues[0]?.message ?? '') + ')', category: 'bad_request' });
     if (typeof body?.instruction !== 'string' || body.instruction.trim().length < 3) return reply.code(400).send({ error: 'Describe what you want to add or change', category: 'bad_request' });
-    const mode = body.mode === 'add' || body.mode === 'modify' ? body.mode : 'auto';
-    if (mode !== 'modify' && parsed.data.screens.length >= gen.config.maxScreensPerJob) return reply.code(400).send({ error: 'This demo already has ' + parsed.data.screens.length + ' screens (limit ' + gen.config.maxScreensPerJob + ')', category: 'budget' });
+    const mode = body.mode === 'add' || body.mode === 'modify' || body.mode === 'flow' ? body.mode : 'auto';
+    if (mode === 'add' && parsed.data.screens.length >= gen.config.maxScreensPerJob) return reply.code(400).send({ error: 'This demo already has ' + parsed.data.screens.length + ' screens (limit ' + gen.config.maxScreensPerJob + ')', category: 'budget' });
     const ref = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(v) ? v : null);
     try { return await gen.assist(parsed.data, { instruction: body.instruction, history: Array.isArray(body.history) ? body.history.filter((h): h is string => typeof h === 'string').slice(-6).map(h => h.slice(0, 300)) : [], currentScreen: ref(body.currentScreen), mode, from: ref(body.from), to: ref(body.to), addToMenu: body.addToMenu === true }); }
     catch (e) { const c = (e as any)?.category; if (c === 'parse' || c === 'bad_request') return reply.code(422).send({ error: (e as Error).message, category: c }); return sendError(reply, e); }

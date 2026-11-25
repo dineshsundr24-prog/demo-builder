@@ -10,6 +10,17 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
   const input = JSON.parse(req.input);
   await new Promise(r => setTimeout(r, 150)); // make progress visible
   // Studio assistant (deterministic): route, plan a new "info" screen, or apply "rename X to Y".
+  if (req.schemaName === 'route' && /\b(menu|tab|tabs|sidebar|delete .*screen|reorder)\b/i.test(input.request)) return { intent: 'change_flow', screen: null };
+  if (req.schemaName === 'flow_edit') {
+    // "rename the X tab to Y" / "remove X from the menu" / "delete the X screen"
+    const r = /rename the (.+?) (?:tab|menu item) to (.+)$/i.exec(input.request), rm = /remove (.+?) from the (?:menu|tabs|sidebar)/i.exec(input.request), del = /delete the (.+?) screen/i.exec(input.request);
+    const item = (l: string) => input.menu.find((m: any) => m.label.toLowerCase() === l.toLowerCase());
+    if (r && item(r[1])) return { reply: 'Renamed the ' + r[1] + ' tab to ' + r[2] + '.', operations: [{ op: 'menuUpdate', screen: item(r[1]).screen, label: r[2], icon: null, newScreen: null }] };
+    if (rm && item(rm[1])) return { reply: 'Removed ' + rm[1] + ' from the menu.', operations: [{ op: 'menuRemove', screen: item(rm[1]).screen }] };
+    const sc = del && input.screens.find((x: any) => x.title.toLowerCase() === del[1].toLowerCase());
+    if (sc) return { reply: 'Deleted the ' + sc.title + ' screen.', operations: [{ op: 'screenDelete', screen: sc.id }] };
+    return { reply: 'I am not sure which part of the app structure to change.', operations: [] };
+  }
   if (req.schemaName === 'route') return { intent: /\b(new|add|create)\b.*\b(screen|page)\b/i.test(input.request) ? 'add_screen' : 'modify_screen', screen: input.currentScreen };
   if (req.schemaName === 'new_screen') return { title: 'Card Management', archetype: 'info', purpose: 'Manage the debit card.', mustInclude: ['freeze card'], openFrom: input.openFromGiven ?? input.screens[0].id,
     entryLabel: 'Cards', entryIcon: 'credit-card', leadsTo: [], collection: null, newCollection: null, sampleFacts: [] };

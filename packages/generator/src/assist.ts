@@ -352,19 +352,20 @@ export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocumen
 }
 
 // ---------- One assistant entry point ----------
-export type AssistRequest = { instruction: string; history?: string[]; currentScreen?: string | null; mode?: 'auto' | 'add' | 'modify'; from?: string | null; to?: string | null; addToMenu?: boolean };
+export type AssistRequest = { instruction: string; history?: string[]; currentScreen?: string | null; mode?: 'auto' | 'add' | 'modify' | 'flow'; from?: string | null; to?: string | null; addToMenu?: boolean };
 export type AssistResult = { action: 'added' | 'modified'; document: DemoDocument; screenId: string; changes: string[] };
 
 /** Decide between adding a new screen and changing an existing one (tiny call; explicit modes skip it). */
-export async function routeInstruction(provider: LlmProvider, doc: DemoDocument, req: AssistRequest, onCall: (call: CompletionResult) => Promise<void>): Promise<{ intent: 'add' | 'modify'; screen: string | null }> {
+export async function routeInstruction(provider: LlmProvider, doc: DemoDocument, req: AssistRequest, onCall: (call: CompletionResult) => Promise<void>): Promise<{ intent: 'add' | 'modify' | 'flow'; screen: string | null }> {
+  if (req.mode === 'flow') return { intent: 'flow', screen: req.currentScreen ?? null };
   if (req.mode === 'add') return { intent: 'add', screen: null };
   if (req.mode === 'modify') return { intent: 'modify', screen: req.currentScreen ?? null };
-  const m = z.object({ intent: z.enum(['add_screen', 'modify_screen']), screen: ScreenRef.nullable() });
+  const m = z.object({ intent: z.enum(['add_screen', 'modify_screen', 'change_flow']), screen: ScreenRef.nullable() });
   const call = await provider.complete({ purpose: 'plan', schemaName: 'route', schema: toStrictSchema(m, { screen: doc.screens.map(s => s.id) }), maxOutputTokens: 200,
-    instructions: 'Classify a demo author\'s request about their clickable app. "add_screen" when they want a NEW screen/page/step; "modify_screen" when they want to change content, wording, fields, buttons or layout of an EXISTING screen (screen = which one; the current screen unless another is named).',
+    instructions: 'Classify a demo author\'s request about their clickable app. "add_screen" when they want a NEW screen/page/step; "change_flow" when they want to change the APP STRUCTURE: the app menu/tabs/sidebar (add, remove, rename, reorder menu items), delete, reorder or rename screens, or show/hide the menu on a screen; "modify_screen" when they want to change content, wording, fields, buttons, where a button leads, or layout of an EXISTING screen (screen = which one; the current screen unless another is named).',
     input: JSON.stringify({ request: req.instruction.slice(0, 1000), conversationSoFar: (req.history ?? []).slice(-6), currentScreen: req.currentScreen ?? null, screens: doc.screens.map(s => ({ id: s.id, title: s.title })) }) });
   await onCall(call);
   const r = m.safeParse(call.json);
   if (!r.success) return { intent: req.currentScreen ? 'modify' : 'add', screen: req.currentScreen ?? null };
-  return { intent: r.data.intent === 'add_screen' ? 'add' : 'modify', screen: r.data.screen ?? req.currentScreen ?? null };
+  return { intent: r.data.intent === 'add_screen' ? 'add' : r.data.intent === 'change_flow' ? 'flow' : 'modify', screen: r.data.screen ?? req.currentScreen ?? null };
 }
