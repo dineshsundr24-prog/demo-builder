@@ -42,7 +42,7 @@ function Form({ node }: { node: NodeT }) {
 function Heading({ node }: { node: NodeT }) { const t = useText(); return React.createElement('h' + node.level, attrs(node, 'heading'), t(node.text)); }
 function Text({ node }: { node: NodeT }) { const t = useText(); return <p {...attrs(node, 'text')} data-tone={String(node.tone ?? 'default')}>{t(node.text)}</p>; }
 function Notice({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'notice')} data-tone={String(node.tone)} role="note"><strong>{t(node.title)}</strong>{node.body ? <span>{t(node.body)}</span> : null}</div>; }
-function Stat({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'stat')}><span className="db-stat-label">{t(node.label)}</span><span className="db-stat-value">{t(node.value)}</span>{node.delta ? <span className="db-stat-delta">{String(node.delta)}</span> : null}</div>; }
+function Stat({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'stat')}><span className="db-stat-label">{t(node.label)}</span><span className="db-stat-value" data-long={t(node.value).length > 12 ? '' : undefined}>{prettyDates(t(node.value))}</span>{node.delta ? <span className="db-stat-delta">{String(node.delta)}</span> : null}</div>; }
 function Image({ node }: { node: NodeT }) {
   const rt = useRuntime();
   if (node.kind === 'logo') return <div {...attrs(node, 'image')} data-kind="logo"><BrandMark size={72} /></div>;
@@ -57,7 +57,13 @@ function Steps({ node }: { node: NodeT }) {
 function Badge({ node }: { node: NodeT }) { const t = useText(); return <span {...attrs(node, 'badge')} data-tone={String(node.tone)}>{t(node.text)}</span>; }
 function Divider({ node }: { node: NodeT }) { return <hr {...attrs(node, 'divider')} />; }
 // Long unbroken numbers (account numbers, IBANs) are grouped in fours so they wrap cleanly.
-const readable = (v: string) => (/^[A-Z]{0,2}\d[\dA-Z]{11,}$/.test(v.replace(/\s/g, '')) && !/\s/.test(v) ? v.replace(/(.{4})(?=.)/g, '$1 ') : v);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2024-06-09" (alone or inside text, optionally with a time) reads as "9 Jun 2024". */
+export const prettyDates = (v: string) => v.replace(/\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2})?Z?)?\b/g, (m, y, mo, d, time) => {
+  const month = MONTHS[Number(mo) - 1]; if (!month || Number(d) < 1 || Number(d) > 31) return m;
+  return Number(d) + ' ' + month + ' ' + y + (time ? ', ' + time : '');
+});
+const readable = (v: string) => prettyDates(/^[A-Z]{0,2}\d[\dA-Z]{11,}$/.test(v.replace(/\s/g, '')) && !/\s/.test(v) ? v.replace(/(.{4})(?=.)/g, '$1 ') : v);
 function RecordFields({ node }: { node: NodeT }) { const t = useText(); return <dl {...attrs(node, 'fields')}>{(node.items as any[]).map((it, i) => <div key={i}><dt>{it.label}</dt><dd>{readable(t(it.value))}</dd></div>)}</dl>; }
 
 function useField(node: NodeT) {
@@ -149,7 +155,7 @@ function List({ node }: { node: NodeT }) {
   const action = node.itemAction as { screen: string } | undefined;
   return <ul {...attrs(node, 'list')}>{rows.map((r, i) => <li key={i}>
     <button type="button" disabled={!action} onClick={() => action && rt.interactive && rt.openRecord(String(node.collection), r, action.screen)}>
-      <span className="db-list-main"><strong>{r[String(node.titleField)]}</strong>{node.subtitleField ? <small>{r[String(node.subtitleField)]}</small> : null}</span>
+      <span className="db-list-main"><strong>{r[String(node.titleField)]}</strong>{node.subtitleField ? <small>{prettyDates(String(r[String(node.subtitleField)] ?? ''))}</small> : null}</span>
       {node.badgeField ? <span className="db-badge" data-tone={statusTone(r[String(node.badgeField)] ?? '')}>{r[String(node.badgeField)]}</span> : null}
     </button></li>)}</ul>;
 }

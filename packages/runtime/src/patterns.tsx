@@ -2,7 +2,7 @@
 import React, { useContext, useState } from 'react';
 import { ChevronRight, Eye, EyeOff, ShieldCheck, Sparkles, CheckCircle2, TrendingUp, FileCheck2 } from 'lucide-react';
 import type { Action, NodeT } from '@demo/schema';
-import { useRuntime, useText, FormContext } from './nodes.tsx';
+import { useRuntime, useText, FormContext, prettyDates } from './nodes.tsx';
 import { Icon } from './icons.tsx';
 
 const attrs = (n: NodeT, cls: string) => ({ className: 'db-' + cls, 'data-node-id': n.id, 'data-node-type': n.type });
@@ -64,7 +64,7 @@ function TransactionList({ node }: { node: NodeT }) {
     {node.title || viewAll ? <div className="db-pattern-head">{node.title ? <h3 className="db-pattern-title">{t(node.title)}</h3> : <span />}
       {viewAll ? <button type="button" className="db-link" onClick={() => run(viewAll.actions)}>{t(viewAll.label)}</button> : null}</div> : null}
     <ul>{items.map((it, i) => <li key={i}><span className="db-txn-icon" data-direction={it.direction}><Icon name={it.icon} size={18} /></span>
-      <span className="db-txn-main"><strong>{t(it.title)}</strong>{it.subtitle ? <small>{t(it.subtitle)}</small> : null}</span>
+      <span className="db-txn-main"><strong>{t(it.title)}</strong>{it.subtitle ? <small>{prettyDates(t(it.subtitle))}</small> : null}</span>
       <span className="db-txn-amount" data-direction={it.direction}>{t(it.amount)}</span></li>)}</ul>
   </section>;
 }

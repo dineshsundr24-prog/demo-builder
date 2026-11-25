@@ -249,3 +249,8 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 .db-chart-bar { fill: var(--db-primary); } .db-chart-bar:nth-child(even) { fill: color-mix(in srgb, var(--db-primary) 75%, var(--db-secondary)); }
 .db-chart-line { fill: none; stroke: var(--db-primary); stroke-width: 2.5; } .db-chart-dot { fill: var(--db-surface); stroke: var(--db-primary); stroke-width: 2; }
 .db-chart-axis { stroke: var(--db-line); } .db-chart-label { font-size: 10px; fill: var(--db-muted); }
+/* Long text in a KPI tile (e.g. "Blood sugar, cholesterol") reads as a value, not a headline. */
+.db-stat-value[data-long] { font-size: 16px; line-height: 1.3; letter-spacing: 0; }
+/* Quick action labels wrap to two lines instead of being cut off. */
+.db-quick-item { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+.db-quick-item > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

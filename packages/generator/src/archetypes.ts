@@ -182,7 +182,7 @@ def({ id: 'review', label: 'Review & confirm', channels: ['mobile', 'portal'], s
 
 def({ id: 'success', label: 'Success / confirmation', channels: ['mobile', 'portal'], shell: mobileHidden,
   description: 'Outcome after a submission: success message, reference details, next actions.',
-  content: z.object({ headline: S(60), message: S(200), details: z.array(Pair).max(6), primary: Act, secondary: Act.optional() }),
+  content: z.object({ headline: S(60), message: S(200), details: z.array(Pair).max(6).describe('Outcome details, starting with the reference number when the brief mentions one'), primary: Act, secondary: Act.optional() }),
   build: (c, ctx) => { const id = ids(); return [
     { type: 'Hero', id: id('hero'), title: c.headline, subtitle: c.message, showLogo: false, illustration: 'success' },
     ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details } as NodeT] : []),
@@ -191,14 +191,16 @@ def({ id: 'success', label: 'Success / confirmation', channels: ['mobile', 'port
 
 def({ id: 'list', label: 'List / records / history', channels: ['mobile', 'portal'], shell: () => 'default',
   description: 'Browse records from the screen\'s data collection (requests, transactions, applications, appointments); open a details screen; optional create action.',
-  content: z.object({ intro: S(160).optional(), titleField: Field, subtitleField: Field.optional(), statusField: Field.optional(), columns: z.array(Field).min(1).max(7), searchable: z.boolean(), filterField: Field.optional(), detailTarget: Target, create: Act.optional() }),
+  content: z.object({ intro: S(160).optional(), newRequest: z.object({ title: S(40), fields: z.array(FieldSpec).min(1).max(6), submitLabel: S(28) }).optional().describe('Only when the requirement asks for a form to create a new item on this screen (e.g. "New Request form").'), titleField: Field, subtitleField: Field.optional(), statusField: Field.optional(), columns: z.array(Field).min(1).max(7), searchable: z.boolean(), filterField: Field.optional(), detailTarget: Target, create: Act.optional() }),
   build: (c, ctx) => {
     const id = ids(), col = ctx.collection; if (!col) return [{ type: 'Notice', id: id('empty'), tone: 'info', title: 'No records yet' }];
     const out: NodeT[] = [...titleBlock(ctx, id, ctx.screen.title, c.intro)];
     if (ctx.channel === 'mobile') out.push({ type: 'List', id: id('list'), collection: col.id, titleField: c.titleField, ...(c.subtitleField ? { subtitleField: c.subtitleField } : {}), ...(c.statusField ? { badgeField: c.statusField } : {}), ...(c.detailTarget ? { itemAction: { screen: c.detailTarget } } : {}) });
     else out.push({ type: 'Table', id: id('table'), collection: col.id, searchable: c.searchable, ...(c.filterField ? { filterField: c.filterField } : {}), exportCsv: true,
       columns: c.columns.map((f: string) => ({ field: f, label: col.fields.find(x => x.id === f)?.label ?? f, ...formatFor(f, c.statusField) })), ...(c.detailTarget ? { rowAction: { label: 'View', screen: c.detailTarget } } : {}) });
-    if (c.create) out.push(actionBar(id, { label: c.create.label, actions: nav(c.create.target) }));
+    if (c.newRequest) out.push({ type: 'Form', id: id('new'), title: c.newRequest.title, children: [...c.newRequest.fields.map((f: any) => fieldNode(f, ctx.screen.id, id)),
+      actionBar(id, { label: c.newRequest.submitLabel, actions: [{ type: 'submit', validate: true }, { type: 'simulate', label: 'Submitting', durationMs: 800, outcome: 'success' }, { type: 'toast', message: 'Request submitted' }] })] });
+    else if (c.create) out.push(actionBar(id, { label: c.create.label, actions: nav(c.create.target) }));
     return out;
   },
   defaults: ctx => { const f = ctx.collection?.fields.map(x => x.id) ?? ['name']; return { titleField: f[0], subtitleField: f[1], columns: f.slice(0, 5), searchable: true, detailTarget: firstLink(ctx) }; } });
@@ -218,10 +220,13 @@ def({ id: 'detail', label: 'Record details', channels: ['mobile', 'portal'], she
 
 def({ id: 'profile', label: 'Profile / settings', channels: ['mobile', 'portal'], shell: () => 'default',
   description: 'Profile header and grouped settings rows (personal details, security, notifications, help), sign out.',
-  content: z.object({ name: S(60).describe("The customer's full name from sampleFacts"), subtitle: S(80).optional(), badge: z.string().max(24).optional(), sections: z.array(z.object({ title: S(40), items: z.array(z.object({ label: S(40), value: z.string().max(40).optional(), icon: Icon, target: Target })).min(1).max(6) })).min(1).max(3), signOutTarget: Target }),
+  content: z.object({ name: S(60).describe("The customer's full name from sampleFacts"), subtitle: S(80).optional(), badge: z.string().max(24).optional(), sections: z.array(z.object({ title: S(40), items: z.array(z.object({ label: S(40), value: z.string().max(40).optional(), icon: Icon, target: Target })).min(1).max(6) })).min(1).max(3).describe('Every detail the requirement lists (e.g. income, linked accounts) as label + value rows, then settings rows'),
+    edit: z.object({ title: S(40), fields: z.array(FieldSpec).min(1).max(6), saveLabel: S(28) }).optional().describe('Only when the requirement lets the customer change details here (e.g. edit email and mobile): those editable fields.'), signOutTarget: Target }),
   build: (c, ctx) => { const id = ids(); return [
     { type: 'ProfileHeader', id: id('header'), name: /^[a-z0-9-]+$/.test(c.name) || ctx.plan.screens.some(x => x.id === c.name) ? personName(ctx) : c.name, ...(c.subtitle ? { subtitle: c.subtitle } : {}), ...(c.badge ? { badge: c.badge } : {}) },
     ...c.sections.map((s: any) => ({ ...s, items: s.items.filter((it: any) => !NAV_LABEL.test(it.label.trim())) })).filter((s: any) => s.items.length).map((s: any) => ({ type: 'MenuList', id: id(s.title), title: s.title, items: s.items.map((it: any) => ({ label: it.label, icon: it.icon, ...(it.value ? { value: it.value } : {}), actions: it.target && it.target !== ctx.screen.id ? nav(it.target) : [{ type: 'toast', message: it.label + ' is simulated in this demo' }] })) }) as NodeT),
+    ...(c.edit ? [{ type: 'Form', id: id('edit'), title: c.edit.title, children: [...c.edit.fields.map((f: any) => fieldNode(f, ctx.screen.id, id)),
+      actionBar(id, { label: c.edit.saveLabel, actions: [{ type: 'submit', validate: true }, { type: 'toast', message: 'Changes saved' }] })] } as NodeT] : []),
     ...(c.signOutTarget ? [{ type: 'MenuList', id: id('signout'), items: [{ label: 'Sign out', icon: 'log-out', danger: true, actions: nav(c.signOutTarget) }] } as NodeT] : [])]; },
   defaults: ctx => ({ name: ctx.plan.sampleFacts?.[0]?.value ?? 'Customer', sections: [{ title: 'Account', items: [{ label: 'Personal details', icon: 'user' }, { label: 'Security', icon: 'lock' }, { label: 'Notifications', icon: 'bell' }] }] }) });
 

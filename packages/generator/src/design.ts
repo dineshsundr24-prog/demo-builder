@@ -68,24 +68,31 @@ export function normalizeDesign(input: Screen): { screen: Screen; changes: strin
   return { screen, changes };
 }
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'your', 'their', 'option', 'options', 'screen', 'page', 'customer', 'user', 'users', 'details', 'detail', 'information', 'info', 'show', 'shows', 'view', 'allow', 'allows']);
+const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'your', 'their', 'option', 'options', 'screen', 'page', 'customer', 'user', 'users', 'details', 'detail', 'information', 'info', 'show', 'shows', 'view', 'allow', 'allows', 'button', 'buttons', 'input', 'inputs', 'display', 'displayed', 'editable', 'field', 'fields', 'link', 'text', 'section']);
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w.length >= 3 && !STOP.has(w));
 // What each component means to a reader, so "quick actions" or "recent transactions" match
 // a QuickActions / TransactionList pattern even when it has no visible title.
 const MEANING: Record<string, string> = {
-  QuickActions: 'quick actions shortcuts', TransactionList: 'recent transactions activity history payments list', BalanceCard: 'balance account summary',
-  Upload: 'upload document attachment', ActionBar: 'submit save continue confirm action button', Button: 'button action', Table: 'table list records search filter',
+  QuickActions: 'quick actions shortcuts', TransactionList: 'recent transactions activity history payments list', BalanceCard: 'balance account summary masked account number',
+  Upload: 'upload document attachment', ActionBar: 'submit save continue confirm action button', Button: 'button action', Table: 'table tables list records search filter export csv download',
   List: 'list items', MenuList: 'settings menu options', ProfileHeader: 'profile avatar name', StatusTimeline: 'status timeline progress tracking',
-  Steps: 'steps progress', Checkbox: 'consent agree terms', Promo: 'offer promotion banner', Hero: 'welcome brand logo', Grid: 'kpi summary', Stat: 'kpi metric figure',
+  Steps: 'steps progress', Checkbox: 'consent agree terms', Promo: 'offer promotion banner', Hero: 'welcome brand logo value proposition tagline', FeatureList: 'highlights features benefits value proposition', Chart: 'chart charts graph trend analytics', Grid: 'kpi summary', Stat: 'kpi metric figure',
   Select: 'choose select dropdown', Radio: 'choose option', Form: 'form fields', Notice: 'notice alert message', Template: 'template',
 };
 /** All text a user would see on the screen, including expanded templates. */
 export function screenText(screen: Screen) {
   const parts: string[] = [screen.title, screen.subtitle ?? ''];
   const collect = (v: unknown) => { if (typeof v === 'string') parts.push(v); else if (Array.isArray(v)) v.forEach(collect); else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => { if (k !== 'children' && k !== 'id' && k !== 'type') collect(x); }); };
-  walk(screen.children as NodeT[], '', n => { collect(n); parts.push(MEANING[n.type] ?? ''); if (n.type === 'Input' && n.inputType === 'otp') parts.push('otp code'); });
+  if (screen.shell !== 'hidden') parts.push('navigation tabs bottom footer top menu bar'); // the app shell provides navigation
+  walk(screen.children as NodeT[], '', n => {
+    collect(n); parts.push(MEANING[n.type] ?? '');
+    if (n.type === 'Input' && n.inputType === 'otp') parts.push('otp code');
+    if (n.type === 'Input' && n.inputType === 'password') parts.push('show hide password');
+    if ((n.type === 'Heading' || n.type === 'ProfileHeader') && /\b(good (morning|afternoon|evening)|welcome|hello|hi)\b/i.test(String(n.text ?? n.name ?? ''))) parts.push('greeting');
+  });
   walk(screen.children as NodeT[], '', n => { if (n.type === 'Template') walk(expandTemplate(n), '', m => { collect(m); parts.push(MEANING[m.type] ?? ''); }); });
-  return parts.join(' ').toLowerCase();
+  const text = parts.join(' ').toLowerCase();
+  return text + (/expires in|resend/.test(text) ? ' countdown timer' : '') + (/[*•x]{3,}/.test(text) ? ' masked' : '');
 }
 /** Must-include items (from the plan) that do not appear on the screen. */
 export function coverageIssues(screen: Screen, mustInclude: string[] = []): Issue[] {

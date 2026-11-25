@@ -61,6 +61,7 @@ ARCHETYPE_LIST
 - mustInclude: 3-8 short content items (2-6 words each) for the screen: what its requirement asks for PLUS what a real, regulated product would need, e.g. an income update form: ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload"]. Content only: never navigation ("home", "menu", "back") or outcome messages.
 - purpose: describe the content concretely (sections, fields, actions) the way a product designer would brief a UI designer.
 - collections: sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows align with fields.
+- Dates in data are realistic relative to "today": history within the last 90 days, upcoming items within the next 30 days; format "YYYY-MM-DD".
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
 - theme: use brand colours from the brief when given; otherwise a professional banking palette.
 - Never claim real integrations; never use real personal data.`;
@@ -75,6 +76,7 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   const tmpl = templates.filter(t => allowed.includes(t.id));
   const schema = toStrictSchema(planModel(locked, req.channel), { screen: lockedIds, template: allowed });
   const input = JSON.stringify({
+    today: new Date().toISOString().slice(0, 10),
     project: { name: req.name, company: req.company ?? '', channel: req.channel, designGuidelines: (req.guidelines ?? '').slice(0, 1500) },
     templates: tmpl.map(t => ({ id: t.id, description: t.description })),
     ...(parsed ? { screenList: parsed.screens.map(s => ({ id: s.id, title: s.title, requirement: s.requirement })), globalRequirements: parsed.globalContext } : { brief: brief.slice(0, 12000) }),

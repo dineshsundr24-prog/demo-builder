@@ -21,12 +21,15 @@ Rules:
 - Field references (columns, titleField...) use only the given collection field ids.
 - Forms: include every field the requirement and mustInclude ask for, with the right kind (email, phone, currency, date, select with options, upload...). No navigation items or success messages inside forms.
 - Cover the requirement and mustInclude with content; navigation (tabs, back) is handled by the app, never add "Home"/"Menu"/"Back" actions.
+- Dates are realistic relative to "today" (recent activity in the last 90 days, upcoming items soon), written as YYYY-MM-DD in data or "9 Jun 2026" in text.
+- Quick action labels are 1-2 short words ("Transfer", "Pay bills").
 - Everything external (UAE PASS, eKYC, payments, SMS) is simulated.`;
 }
 
 function input(plan: Plan, s: PlanScreen, collection: BuildCtx['collection']) {
   const title = (id: string) => plan.screens.find(x => x.id === id)?.title ?? id;
   return JSON.stringify({
+    today: new Date().toISOString().slice(0, 10),
     app: { name: plan.brandName, channel: plan.channel, globalRequirements: plan.globalContext.slice(0, 2500) },
     archetype: { id: s.archetype, description: ARCHETYPES[s.archetype!].description },
     screen: { id: s.id, title: s.title, requirement: s.requirement, purpose: s.purpose, mustInclude: s.mustInclude ?? [], leadsTo: s.links.map(id => ({ id, title: title(id) })) },
