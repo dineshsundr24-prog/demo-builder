@@ -125,3 +125,12 @@ Estimate per 12-screen generation (to be verified against current provider prici
 - Undo history: 100 steps, and typing into one field merges into a single step. A local draft survives reloads. The presenter window (`?present=1`) follows edits live.
 - Portals render at 1280 px and are scaled to fit the stage, never reflowed into a narrow column.
 **Trade-off.** Drag and drop happens in Layers, not on the canvas itself. Canvas drag can be added later on `@dnd-kit` without changing the operations layer.
+
+## D9. AI edits are targeted operations, on a stronger model (26 Nov 2026)
+**Problem (UAT).** "Add a date filter" produced inputs that filtered nothing. Small edits also garbled unrelated text, because the model rewrote the whole screen.
+**Decision.**
+- **Operations.** The assistant returns a reply plus operations: replace, insert, remove, move, screen. They are applied with the editor's own command layer, so anything not named is byte-identical by construction.
+- **A reply.** The AI explains what it changed, or why it can't, offering what it can do instead. With no operations, nothing changes.
+- **Real capabilities instead of fakes.** Tables have search, up to 3 dropdown filters and a date-range filter. Lists have search and filter chips. An edit that adds inputs outside a form (which do nothing) is refused and repaired once.
+- **Model.** Edits to existing screens use `ASSIST_MODEL` (default `gpt-4.1`, about USD 0.004–0.02 per edit). Generation and new screens stay on `OPENAI_MODEL` (`gpt-4.1-mini`).
+**Evidence.** In the live evaluation (`packages/generator/scripts/edit-eval.ts`, 10 banking requests), 10 of 10 were correct: 8 precise edits with other screens untouched and 0 validation errors, and 2 honest "not possible" replies with an alternative. Total USD 0.09.

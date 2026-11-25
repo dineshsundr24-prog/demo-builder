@@ -195,8 +195,9 @@ def({ id: 'list', label: 'List / records / history', channels: ['mobile', 'porta
   build: (c, ctx) => {
     const id = ids(), col = ctx.collection; if (!col) return [{ type: 'Notice', id: id('empty'), tone: 'info', title: 'No records yet' }];
     const out: NodeT[] = [...titleBlock(ctx, id, ctx.screen.title, c.intro)];
-    if (ctx.channel === 'mobile') out.push({ type: 'List', id: id('list'), collection: col.id, titleField: c.titleField, ...(c.subtitleField ? { subtitleField: c.subtitleField } : {}), ...(c.statusField ? { badgeField: c.statusField } : {}), ...(c.detailTarget ? { itemAction: { screen: c.detailTarget } } : {}) });
-    else out.push({ type: 'Table', id: id('table'), collection: col.id, searchable: c.searchable, ...(c.filterField ? { filterField: c.filterField } : {}), exportCsv: true,
+    const dateField = col.fields.find(f => /date|submitted|created|requested/i.test(f.id + ' ' + f.label))?.id;
+    if (ctx.channel === 'mobile') out.push({ type: 'List', id: id('list'), collection: col.id, ...(c.searchable ? { searchable: true } : {}), ...(c.statusField ? { filterField: c.statusField } : {}), titleField: c.titleField, ...(c.subtitleField ? { subtitleField: c.subtitleField } : {}), ...(c.statusField ? { badgeField: c.statusField } : {}), ...(c.detailTarget ? { itemAction: { screen: c.detailTarget } } : {}) });
+    else out.push({ type: 'Table', id: id('table'), collection: col.id, searchable: c.searchable, ...(c.filterField ?? c.statusField ? { filterField: c.filterField ?? c.statusField } : {}), ...(dateField ? { dateFilterField: dateField } : {}), exportCsv: true,
       columns: c.columns.map((f: string) => ({ field: f, label: col.fields.find(x => x.id === f)?.label ?? f, ...formatFor(f, c.statusField) })), ...(c.detailTarget ? { rowAction: { label: 'View', screen: c.detailTarget } } : {}) });
     if (c.newRequest) out.push({ type: 'Form', id: id('new'), title: c.newRequest.title, children: [...c.newRequest.fields.map((f: any) => fieldNode(f, ctx.screen.id, id)),
       actionBar(id, { label: c.newRequest.submitLabel, actions: [{ type: 'submit', validate: true }, { type: 'simulate', label: 'Submitting', durationMs: 800, outcome: 'success' }, { type: 'toast', message: 'Request submitted' }] })] });

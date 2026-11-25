@@ -5,7 +5,7 @@ import { ArrowUp, Loader2, Settings2, Sparkles, Undo2 } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
 import { call, token } from '../GeneratePanel.tsx';
 
-export type AssistOutcome = { action: 'added' | 'modified'; document: DemoDocument; screenId: string; changes: string[]; costUsd: number };
+export type AssistOutcome = { action: 'added' | 'modified' | 'none'; document: DemoDocument; screenId: string; changes: string[]; reply?: string; costUsd: number };
 export type ChatMode = 'auto' | 'modify' | 'add';
 export type ChatMessage =
   | { id: number; role: 'user'; text: string; mode: ChatMode; screenTitle: string }
@@ -43,10 +43,14 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
     setText(''); setBusy(true);
     try {
       const out = await call<AssistOutcome>('/api/v2/assist', { method: 'POST', body: JSON.stringify({ document: doc, instruction, currentScreen, mode, history, from: from || null, to: to || null, addToMenu: menu }) });
-      onApply(out);
       const name = out.document.screens.find(s => s.id === out.screenId)?.title ?? out.screenId;
-      setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'applied', screenId: out.screenId, costUsd: out.costUsd, changes: out.changes,
-        text: out.action === 'added' ? 'I added the screen "' + name + '".' : out.changes[0] === 'No visible change' ? 'I looked at "' + name + '" but nothing needed to change. Try describing it differently.' : 'I updated "' + name + '".' }]);
+      if (out.action === 'none') {
+        setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'info', costUsd: out.costUsd, text: out.reply || 'Nothing needed to change on "' + name + '". Try describing it differently.' }]);
+      } else {
+        onApply(out);
+        const lead = out.action === 'added' ? 'I added the screen "' + name + '".' : 'I updated "' + name + '".';
+        setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'applied', screenId: out.screenId, costUsd: out.costUsd, changes: out.changes, text: out.reply ? out.reply : lead }]);
+      }
       setFrom(''); setTo(''); setMenu(false);
     } catch (e) {
       setMessages(m => [...m, { id: ++seq, role: 'assistant', state: 'error', text: e instanceof Error ? e.message : String(e) }]);

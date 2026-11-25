@@ -5,7 +5,9 @@ import React from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { propsJsonSchema, templateIds, componentLabel, type DemoDocument, type NodeT } from '@demo/schema';
 
-type Ctx = { doc: DemoDocument; defs: Record<string, any> };
+type Ctx = { doc: DemoDocument; defs: Record<string, any>; fields?: { id: string; label: string }[] };
+// Props that name a field of the component's data collection (shown as a picker of its fields).
+const FIELD_KEYS = new Set(['field', 'filterField', 'dateFilterField', 'titleField', 'subtitleField', 'badgeField']);
 type FieldProps = { schema: any; value: any; onChange: (v: any) => void; label: string; required: boolean; ctx: Ctx; path: string };
 
 const humanize = (k: string) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/^./, c => c.toUpperCase());
@@ -49,6 +51,11 @@ function Field({ schema, value, onChange, label, required, ctx, path }: FieldPro
       {clearable || value === undefined ? <option value="">—</option> : null}
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select></div>;
+  const key = path.split('.').pop() ?? '';
+  if (ctx.fields?.length && s.type === 'string' && FIELD_KEYS.has(key)) return pick(ctx.fields.map(f => ({ value: f.id, label: f.label })));
+  if (ctx.fields?.length && s.type === 'array' && key === 'moreFilters') return <fieldset className="insp-group"><legend>{label}{required ? '' : <span className="insp-opt"> optional</span>}</legend>
+    {ctx.fields.map(f => <label key={f.id} className="insp-check-row"><input type="checkbox" checked={(value ?? []).includes(f.id)} disabled={!(value ?? []).includes(f.id) && (value ?? []).length >= (s.maxItems ?? 2)}
+      onChange={e => { const next = e.target.checked ? [...(value ?? []), f.id] : (value ?? []).filter((x: string) => x !== f.id); onChange(next.length ? next : undefined); }} />{f.label}</label>)}</fieldset>;
   if (s.ref === 'screen') return pick(ctx.doc.screens.map(x => ({ value: x.id, label: x.title })));
   if (s.ref === 'collection') return pick(ctx.doc.collections.map(x => ({ value: x.id, label: x.label })));
   if (s.ref === 'template') return pick(templateIds.map(t => ({ value: t, label: t })));
@@ -120,7 +127,8 @@ function ListField({ schema, value, onChange, label, ctx, path }: FieldProps) {
 export function Inspector({ doc, node, onChange, onRename }: { doc: DemoDocument; node: NodeT; onChange: (patch: Record<string, unknown>) => void; onRename: (id: string) => void }) {
   const schema = propsJsonSchema(node.type);
   if (!schema) return <p className="insp-help">No editable properties for {node.type}.</p>;
-  const ctx: Ctx = { doc, defs: schema.$defs ?? {} };
+  const col = typeof node.collection === 'string' ? doc.collections.find(c => c.id === node.collection) : undefined;
+  const ctx: Ctx = { doc, defs: schema.$defs ?? {}, ...(col ? { fields: col.fields } : {}) };
   const { type: _t, id: _i, children: _c, ...props } = node; void _t; void _i; void _c;
   return <div className="insp" data-testid="inspector">
     <div className="insp-head"><strong>{componentLabel(node.type)}</strong>

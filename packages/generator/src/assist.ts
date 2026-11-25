@@ -5,9 +5,10 @@ import { toStrictSchema, clampToSchema, allowedTemplates, validateDocument, Scre
 import type { LlmProvider, CompletionResult } from './provider.ts';
 import type { Plan, PlanScreen } from './plan.ts';
 import { archetypesFor, ARCHETYPES } from './archetypes.ts';
-import { generateScreen, screenInstructions } from './screen.ts';
+import { generateScreen, screenInstructions, stripArtifacts } from './screen.ts';
+import { ProviderError } from './provider.ts';
 import { normalizeDesign } from './design.ts';
-import { aiScreenSchema, stripNulls, validateScreen, documentContext, detachTemplate, type Issue } from '@demo/schema';
+import { stripNulls, validateScreen, documentContext, detachTemplate, findNode, allIds, insertNode, removeNode, moveNode, updateNode, updateScreen, isContainer, componentGuide, templates, Node, type Issue } from '@demo/schema';
 
 export type AddScreenRequest = { requirement: string; from?: string | null; to?: string | null; addToMenu?: boolean };
 export type AddScreenResult = { document: DemoDocument; screenId: string; changes: string[]; status: 'valid' | 'repaired' | 'fallback'; calls: CompletionResult[] };
@@ -138,7 +139,7 @@ export async function addScreenWithAI(provider: LlmProvider, doc: DemoDocument, 
 
 // ---------- Change an existing screen ----------
 
-export type ModifyScreenResult = { document: DemoDocument; screenId: string; changes: string[]; calls: CompletionResult[] };
+export type ModifyScreenResult = { document: DemoDocument; screenId: string; changes: string[]; calls: CompletionResult[]; reply?: string };
 const MODIFY_RULES = `
 CHANGE MODE: you receive an existing screen and an instruction from the demo author.
 - Apply exactly what the instruction asks. Keep every other component, id, text, binding and action unchanged and in the same order.
@@ -175,36 +176,136 @@ export function describeChanges(before: Screen, after: Screen): string[] {
   return out.length ? out.slice(0, 12) : ['No visible change'];
 }
 
+const OPS_RULES = `You edit ONE screen of a clickable demo app for its author. You receive the screen (an outline and its components) and the author's request.
+Return a short "reply" to the author and the smallest list of "operations" that does what they asked:
+- replace: give the component's full new version (same id). Its children stay as they are; edit children with their own operations.
+- insert: a new component inside "parent" (null = screen top level) right after "after" (null = first position).
+- remove: delete a component. move: put an existing component inside "parent" after "after".
+- screen: change the screen title/subtitle (only when asked).
+Rules:
+- Touch nothing the author did not ask about. Never rename, reword or restyle other components.
+- Prefer built-in capabilities over new parts: tables have search, dropdown filters (filterField, moreFilters) and a date-range filter (dateFilterField); lists have search (searchable) and a filter chip row (filterField). Switch these on with a replace of the table/list. Never add loose inputs to filter or search data.
+- Inputs only work inside a Form with a submit button. Buttons need actions (navigate to a listed screen, toast, simulate...).
+- If the request is unclear or impossible with the available components, return no operations and say in "reply" what you can do instead.
+- reply: one or two plain sentences on what you changed (or why not). No ids.
+${''}`;
+
+const OpRef = z.string().min(1).meta({ ref: 'node' });
+function opsModel() {
+  return z.object({
+    reply: z.string().min(1).max(400),
+    operations: z.array(z.discriminatedUnion('op', [
+      z.object({ op: z.literal('replace'), target: OpRef, node: Node }),
+      z.object({ op: z.literal('insert'), parent: OpRef.nullable(), after: OpRef.nullable(), node: Node }),
+      z.object({ op: z.literal('remove'), target: OpRef }),
+      z.object({ op: z.literal('move'), target: OpRef, parent: OpRef.nullable(), after: OpRef.nullable() }),
+      z.object({ op: z.literal('screen'), title: z.string().max(85).nullable(), subtitle: z.string().max(140).nullable() }),
+    ])).max(15),
+  });
+}
+type Op = z.infer<ReturnType<typeof opsModel>>['operations'][number];
+
+/** Readable outline of a screen for the model (type, id and the visible text of every component). */
+export function outlineOf(screen: Screen): string {
+  const lines: string[] = [];
+  const text = (n: NodeT) => { const t = n.label ?? n.text ?? n.title ?? (n as any).primary?.label ?? n.name ?? n.headline; return t ? ' "' + String(t).slice(0, 60) + '"' : ''; };
+  const walk = (ns: NodeT[], d: number) => ns.forEach(n => { lines.push('  '.repeat(d) + '- ' + n.type + ' #' + n.id + text(n)); if (n.children) walk(n.children as NodeT[], d + 1); });
+  walk(screen.children as NodeT[], 0);
+  return 'Screen "' + screen.title + '"' + (screen.subtitle ? ' (subtitle "' + screen.subtitle + '")' : '') + '\n' + lines.join('\n');
+}
+
+/** Apply operations with the editor's own command layer (same rules as manual editing). */
+export function applyOps(doc: DemoDocument, screenId: string, ops: Op[]): { doc: DemoDocument; skipped: string[] } {
+  const skipped: string[] = [];
+  const nodesOf = (d: DemoDocument) => d.screens.find(s => s.id === screenId)!.children as NodeT[];
+  const indexAfter = (d: DemoDocument, parent: string | null, after: string | null) => {
+    if (!after) return 0;
+    const loc = findNode(nodesOf(d), after);
+    return loc && loc.parentId === parent ? loc.index + 1 : (parent ? ((findNode(nodesOf(d), parent)?.node.children as NodeT[] | undefined)?.length ?? 0) : nodesOf(d).length);
+  };
+  for (const op of ops) {
+    try {
+      if (op.op === 'screen') { const patch: any = {}; if (op.title) patch.title = op.title; if (op.subtitle !== null && op.subtitle !== undefined) patch.subtitle = op.subtitle; doc = updateScreen(doc, screenId, patch); }
+      else if (op.op === 'remove') { if (!findNode(nodesOf(doc), op.target)) throw Error('no ' + op.target); doc = removeNode(doc, screenId, op.target); }
+      else if (op.op === 'insert') doc = insertNode(doc, screenId, op.parent, indexAfter(doc, op.parent, op.after), stripNulls(op.node) as NodeT).doc;
+      else if (op.op === 'move') doc = moveNode(doc, screenId, op.target, op.parent, indexAfter(doc, op.parent, op.after));
+      else if (op.op === 'replace') {
+        const loc = findNode(nodesOf(doc), op.target); if (!loc) throw Error('no ' + op.target);
+        const next = stripNulls(op.node) as NodeT;
+        if (next.type === loc.node.type) {
+          const { type: _t, id: _i, children: _c, ...props } = next; void _t; void _i; void _c;
+          const patch: Record<string, unknown> = { ...props };
+          for (const k of Object.keys(loc.node)) if (!['type', 'id', 'children'].includes(k) && !(k in props)) patch[k] = undefined;
+          doc = updateNode(doc, screenId, op.target, patch);
+        } else {
+          const kept = Array.isArray(loc.node.children) && isContainer(next.type) ? { ...next, children: loc.node.children } : next;
+          doc = insertNode(removeNode(doc, screenId, op.target), screenId, loc.parentId, loc.index, { ...kept, id: op.target } as NodeT).doc;
+        }
+      }
+    } catch (e) { skipped.push(op.op + ': ' + (e instanceof Error ? e.message : String(e))); }
+  }
+  return { doc, skipped };
+}
+
+/** Inputs outside any form do nothing; report the ones an edit introduced. */
+function inertInputs(screen: Screen): Set<string> {
+  const out = new Set<string>();
+  const walk = (ns: NodeT[], inForm: boolean) => ns.forEach(n => { if (['Input', 'Select', 'Radio', 'Checkbox', 'Upload', 'Toggle'].includes(n.type) && !inForm) out.add(n.id); if (n.children) walk(n.children as NodeT[], inForm || n.type === 'Form'); });
+  walk(screen.children as NodeT[], false);
+  return out;
+}
+
 export async function modifyScreenWithAI(provider: LlmProvider, doc: DemoDocument, screenId: string, instruction: string, onCall: (kind: 'screen' | 'repair', call: CompletionResult) => Promise<void> = async () => {}, conversation: string[] = []): Promise<ModifyScreenResult> {
-  const original = doc.screens.find(s => s.id === screenId);
-  if (!original) throw Object.assign(Error('Unknown screen ' + screenId), { category: 'bad_request' });
+  if (!doc.screens.some(s => s.id === screenId)) throw Object.assign(Error('Unknown screen ' + screenId), { category: 'bad_request' });
   const working = detachAll(doc, screenId);
   const current = working.screens.find(s => s.id === screenId)!;
   const ctx = documentContext(working);
-  const schema = aiScreenSchema({ channel: doc.channel, screenIds: doc.screens.map(s => s.id), collectionIds: doc.collections.map(c => c.id) });
-  const instructions = screenInstructions(doc.channel) + MODIFY_RULES;
+  const ids = [...allIds(current.children as NodeT[])];
+  const m = opsModel();
+  const schema = toStrictSchema(m, { screen: doc.screens.map(s => s.id), collection: doc.collections.map(c => c.id), template: templates.filter(t => t.channels.includes(doc.channel)).map(t => t.id), node: ids });
+  const instructions = OPS_RULES + '\n' + componentGuide(doc.channel);
   const context = { conversationSoFar: conversation, app: { name: doc.name, channel: doc.channel, menu: doc.shell.items.map(i => i.label) }, allScreens: doc.screens.map(s => ({ id: s.id, title: s.title })),
-    collections: doc.collections.map(c => ({ id: c.id, label: c.label, fields: c.fields.map(f => f.id) })) };
+    collections: doc.collections.map(c => ({ id: c.id, label: c.label, fields: c.fields.map(f => ({ id: f.id, label: f.label })), sampleRow: c.rows[0] })) };
   const calls: CompletionResult[] = [];
-  const check = (json: unknown) => {
-    const raw = { ...(stripNulls(json) as Screen), id: screenId, shell: current.shell } as Screen;
-    const first = validateScreen(raw, ctx, 'screen');
-    if (first.some(i => i.severity === 'error' && i.code.startsWith('schema.'))) return { screen: raw, issues: first };
-    const { screen } = normalizeDesign(raw);
-    return { screen, issues: validateScreen(screen, ctx, 'screen') };
+  const before = inertInputs(current);
+  const attempt = (json: unknown) => {
+    // Strict outputs send null for every unused optional property: drop those inside components only
+    // (parent/after/title/subtitle use null on purpose).
+    const raw: any = structuredClone(json);
+    for (const op of raw?.operations ?? []) if (op?.node) op.node = stripNulls(op.node);
+    const parsed = m.safeParse(clampToSchema(m, raw));
+    if (!parsed.success) return { reply: '', doc: working, issues: [{ path: 'operations', code: 'schema.ops', severity: 'error', message: parsed.error.issues[0]?.message ?? 'invalid' } as Issue], ops: [] as Op[] };
+    let { doc: next, skipped } = applyOps(working, screenId, parsed.data.operations);
+    let screen = next.screens.find(s => s.id === screenId)!;
+    // Known model artifact (stray braces such as "Reference},{"): clean deterministically.
+    const cleaned = stripArtifacts(screen, validateScreen(screen, ctx, 'screen'));
+    if (cleaned) { screen = cleaned; next = { ...next, screens: next.screens.map(s => (s.id === screenId ? cleaned : s)) }; }
+    const issues: Issue[] = [...validateScreen(screen, ctx, 'screen'), ...skipped.map(x => ({ path: 'operations', code: 'ops.skipped', severity: 'error', message: 'Could not apply ' + x } as Issue))];
+    for (const id of inertInputs(screen)) if (!before.has(id)) issues.push({ path: 'screen', code: 'ux.inert-input', severity: 'error', message: 'Input #' + id + ' is outside a Form, so it does nothing. To filter or search a table/list use its built-in options; otherwise put inputs in a Form with a submit button.' } as Issue);
+    return { reply: parsed.data.reply, doc: next, issues, ops: parsed.data.operations };
   };
   const errs = (i: Issue[]) => i.filter(x => x.severity === 'error');
-  const call = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ instruction: instruction.slice(0, 2000), screen: current, context }), schemaName: 'screen', schema, maxOutputTokens: 8000 });
-  calls.push(call); await onCall('screen', call);
-  let out = check(call.json);
-  if (errs(out.issues).length) {
-    const fix = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ instruction: instruction.slice(0, 2000), task: 'Your changed screen has these problems; fix them and return the full screen.', problems: errs(out.issues).map(i => i.path + ': ' + i.message), previousScreen: out.screen, originalScreen: current, context }), schemaName: 'screen', schema, maxOutputTokens: 8000 });
-    calls.push(fix); await onCall('repair', fix);
-    out = check(fix.json);
-    if (errs(out.issues).length) throw Object.assign(Error('The AI could not make that change validly (' + errs(out.issues)[0].message + '). Try rephrasing it, or edit the screen directly.'), { category: 'parse' });
+  const input = { request: instruction.slice(0, 2000), outline: outlineOf(current), components: current.children, context };
+  const ask = (extra: object = {}) => provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, ...extra }), schemaName: 'screen_edit', schema, maxOutputTokens: 6000 });
+  let call: CompletionResult;
+  try { call = await ask(); }
+  catch (e) {
+    if (!(e instanceof ProviderError) || e.category !== 'truncated') throw e;
+    call = await ask({ note: 'Your previous answer ran too long. Use as few operations as possible and keep the reply to one sentence.' }); // one retry
   }
-  const next: DemoDocument = { ...doc, screens: doc.screens.map(s => (s.id === screenId ? out.screen : s)) };
-  return { document: next, screenId, changes: describeChanges(current, out.screen), calls };
+  calls.push(call); await onCall('screen', call);
+  let out = attempt(call.json);
+  if (errs(out.issues).length) {
+    const fix = await provider.complete({ purpose: 'repair', instructions, input: JSON.stringify({ ...input, task: 'Your operations had these problems. Return corrected operations for the ORIGINAL screen.', problems: errs(out.issues).map(i => i.message), previousOperations: out.ops }), schemaName: 'screen_edit', schema, maxOutputTokens: 6000 });
+    calls.push(fix); await onCall('repair', fix);
+    out = attempt(fix.json);
+    if (errs(out.issues).length) throw Object.assign(Error('I could not make that change validly (' + errs(out.issues)[0].message + '). Try rephrasing it, or edit the screen directly.'), { category: 'parse' });
+  }
+  const after = out.doc.screens.find(s => s.id === screenId)!;
+  const changed = JSON.stringify(after) !== JSON.stringify(current);
+  // Templates are only flattened when the edit actually changed the screen.
+  const document: DemoDocument = changed ? { ...doc, screens: doc.screens.map(s => (s.id === screenId ? after : s)) } : doc;
+  return { document, screenId, changes: changed ? describeChanges(current, after) : ['No visible change'], calls, reply: out.reply };
 }
 
 // ---------- One assistant entry point ----------

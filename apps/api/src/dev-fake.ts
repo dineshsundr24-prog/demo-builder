@@ -14,10 +14,14 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
   if (req.schemaName === 'new_screen') return { title: 'Card Management', archetype: 'info', purpose: 'Manage the debit card.', mustInclude: ['freeze card'], openFrom: input.openFromGiven ?? input.screens[0].id,
     entryLabel: 'Cards', entryIcon: 'credit-card', leadsTo: [], collection: null, newCollection: null, sampleFacts: [] };
   if (req.schemaName.startsWith('content_')) return { intro: 'Control your debit card.', items: [{ icon: 'lock', title: 'Freeze card', text: 'Temporarily block all card payments.', meta: null }, { icon: 'shield', title: 'Change PIN', text: 'Set a new 4-digit PIN.', meta: null }], primary: null };
-  if (req.schemaName === 'screen' && input.instruction) {
-    const m = /rename\s+(?:the\s+)?"?(.+?)"?\s+(?:button\s+)?to\s+"?(.+?)"?$/i.exec(input.instruction.trim());
-    const s = JSON.stringify(input.screen ?? input.previousScreen);
-    return JSON.parse(m ? s.replaceAll('"' + m[1].replace(/\s+button$/i, '') + '"', JSON.stringify(m[2])) : s);
+  if (req.schemaName === 'screen_edit') {
+    // "rename X to Y": replace the matching component's label; "table filter by date": switch on the date filter.
+    const m = /rename\s+(?:the\s+)?"?(.+?)"?\s+(?:button\s+)?to\s+"?(.+?)"?$/i.exec(input.request.trim());
+    const all: any[] = []; const w = (ns: any[]) => ns.forEach(n => { all.push(n); if (n.children) w(n.children); }); w(input.components);
+    if (m) { const from = m[1].replace(/\s+button$/i, ''); const n = all.find(x => x.label === from || x.text === from); if (n) { const { children, ...rest } = n; void children; return { reply: 'Renamed "' + from + '" to "' + m[2] + '".', operations: [{ op: 'replace', target: n.id, node: { ...rest, ...(n.label !== undefined ? { label: m[2] } : { text: m[2] }) } }] }; } }
+    const table = all.find(x => x.type === 'Table');
+    if (/date/i.test(input.request) && table) { const { children, ...rest } = table; void children; return { reply: 'Switched on the date-range filter.', operations: [{ op: 'replace', target: table.id, node: { ...rest, dateFilterField: 'date' } }] }; }
+    return { reply: 'I am not sure what to change. Could you say which part of the screen?', operations: [] };
   }
   if (req.purpose === 'plan') {
     const list = input.screenList ?? [{ id: 'home', title: 'Home' }, { id: 'details', title: 'Details' }];

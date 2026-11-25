@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { expandTemplate, resolveText, formatters, type NodeT, type DemoDocument, type Action } from '@demo/schema';
 import { patternRenderers, BrandMark } from './patterns.tsx';
-import { getPath, visibleRows, csvFor, type Session } from './engine.ts';
+import { getPath, filterRows, csvFor, type Session } from './engine.ts';
 
 export type RuntimeApi = {
   doc: DemoDocument;
@@ -129,35 +129,56 @@ function Table({ node }: { node: NodeT }) {
   const rt = useRuntime();
   const columns = node.columns as { field: string; label: string; format?: string }[];
   const rows = rt.session.collections[String(node.collection)] ?? [];
-  const [q, setQ] = useState(''), [filter, setFilter] = useState('');
-  const filterField = node.filterField ? String(node.filterField) : undefined;
-  const options = useMemo(() => (filterField ? [...new Set(rows.map(r => r[filterField]).filter(Boolean))] : []), [rows, filterField]);
-  const shown = visibleRows(rows, columns.map(c => c.field), q, filterField, filter);
+  const fieldsOf = useMemo(() => new Map((rt.doc.collections.find(c => c.id === node.collection)?.fields ?? []).map(f => [f.id, f.label])), [rt.doc.collections, node.collection]);
+  const [q, setQ] = useState(''), [equals, setEquals] = useState<Record<string, string>>({}), [from, setFrom] = useState(''), [to, setTo] = useState('');
+  const filterFields = [node.filterField, ...((node.moreFilters as string[] | undefined) ?? [])].filter((f): f is string => typeof f === 'string' && !!f);
+  const dateField = node.dateFilterField ? String(node.dateFilterField) : undefined;
+  const options = useMemo(() => Object.fromEntries(filterFields.map(f => [f, [...new Set(rows.map(r => r[f]).filter(Boolean))]])), [rows, filterFields.join()]);
+  const shown = filterRows(rows, { search: node.searchable ? q : '', fields: columns.map(c => c.field), equals, ...(dateField ? { date: { field: dateField, from, to } } : {}) });
   const action = node.rowAction as { label: string; screen: string } | undefined;
+  const labelOf = (f: string) => columns.find(c => c.field === f)?.label ?? fieldsOf.get(f) ?? f;
+  const filtered = !!(q || from || to || Object.values(equals).some(Boolean));
   const download = () => { const url = URL.createObjectURL(new Blob([csvFor(shown, columns)], { type: 'text/csv' })); const a = document.createElement('a'); a.href = url; a.download = String(node.collection) + '.csv'; a.click(); URL.revokeObjectURL(url); };
   return <div {...attrs(node, 'table')}>
-    {(node.title || node.searchable || filterField || node.exportCsv) ? <div className="db-table-bar">
+    {(node.title || node.searchable || filterFields.length || dateField || node.exportCsv) ? <div className="db-table-bar">
       {node.title ? <h3>{String(node.title)}</h3> : <span />}
       <div className="db-table-tools">
         {node.searchable ? <input type="search" aria-label="Search" placeholder="Search…" value={q} onChange={e => setQ(e.target.value)} /> : null}
-        {filterField ? <select aria-label="Filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="">All</option>{options.map(o => <option key={o}>{o}</option>)}</select> : null}
+        {filterFields.map(f => <select key={f} aria-label={'Filter by ' + labelOf(f)} value={equals[f] ?? ''} onChange={e => setEquals(x => ({ ...x, [f]: e.target.value }))}>
+          <option value="">{'All ' + labelOf(f).toLowerCase()}</option>{(options[f] ?? []).map(o => <option key={o}>{o}</option>)}</select>)}
+        {dateField ? <span className="db-date-range" role="group" aria-label={labelOf(dateField) + ' range'}>
+          <label>{labelOf(dateField)} from<input type="date" aria-label={labelOf(dateField) + ' from'} value={from} onChange={e => setFrom(e.target.value)} /></label>
+          <label>to<input type="date" aria-label={labelOf(dateField) + ' to'} value={to} onChange={e => setTo(e.target.value)} /></label></span> : null}
+        {filtered ? <button type="button" className="db-link" onClick={() => { setQ(''); setEquals({}); setFrom(''); setTo(''); }}>Clear</button> : null}
         {node.exportCsv ? <button type="button" className="db-link" onClick={download}>Export CSV</button> : null}
       </div></div> : null}
     <div className="db-table-scroll"><table><thead><tr>{columns.map(c => <th key={c.field}>{c.label}</th>)}{action ? <th /> : null}</tr></thead>
       <tbody>{shown.map((r, i) => <tr key={i}>{columns.map(c => <td key={c.field} data-format={c.format ?? 'text'}><Cell value={r[c.field]} format={c.format} /></td>)}
         {action ? <td><button type="button" className="db-row-action" onClick={() => rt.interactive && rt.openRecord(String(node.collection), r, action.screen)}>{action.label}</button></td> : null}</tr>)}
         {!shown.length ? <tr><td colSpan={columns.length + 1} className="db-empty">No matching records</td></tr> : null}</tbody></table></div>
+    {filtered ? <p className="db-table-count">{shown.length} of {rows.length} records</p> : null}
   </div>;
 }
 function List({ node }: { node: NodeT }) {
   const rt = useRuntime();
-  const rows = rt.session.collections[String(node.collection)] ?? [];
+  const all = rt.session.collections[String(node.collection)] ?? [];
   const action = node.itemAction as { screen: string } | undefined;
-  return <ul {...attrs(node, 'list')}>{rows.map((r, i) => <li key={i}>
+  const [q, setQ] = useState(''), [chip, setChip] = useState('');
+  const filterField = node.filterField ? String(node.filterField) : undefined;
+  const chips = useMemo(() => (filterField ? [...new Set(all.map(r => r[filterField]).filter(Boolean))] : []), [all, filterField]);
+  const rows = filterRows(all, { search: node.searchable ? q : '', equals: filterField && chip ? { [filterField]: chip } : {} });
+  const items = <ul className="db-list">{rows.map((r, i) => <li key={i}>
     <button type="button" disabled={!action} onClick={() => action && rt.interactive && rt.openRecord(String(node.collection), r, action.screen)}>
       <span className="db-list-main"><strong>{r[String(node.titleField)]}</strong>{node.subtitleField ? <small>{prettyDates(String(r[String(node.subtitleField)] ?? ''))}</small> : null}</span>
       {node.badgeField ? <span className="db-badge" data-tone={statusTone(r[String(node.badgeField)] ?? '')}>{r[String(node.badgeField)]}</span> : null}
-    </button></li>)}</ul>;
+    </button></li>)}
+    {!rows.length ? <li className="db-empty">No matching items</li> : null}</ul>;
+  if (!node.searchable && !filterField) return <div {...attrs(node, 'list-wrap')}>{items}</div>;
+  return <div {...attrs(node, 'list-wrap')}>
+    {node.searchable ? <input className="db-list-search" type="search" aria-label="Search" placeholder="Search…" value={q} onChange={e => setQ(e.target.value)} /> : null}
+    {chips.length ? <div className="db-chips" role="group" aria-label="Filter">{['', ...chips].map(c => <button key={c || 'all'} type="button" aria-pressed={chip === c} onClick={() => setChip(c)}>{c || 'All'}</button>)}</div> : null}
+    {items}
+  </div>;
 }
 function Template({ node }: { node: NodeT }) { return <div {...attrs(node, 'template')}><Nodes nodes={expandTemplate(node)} /></div>; }
 

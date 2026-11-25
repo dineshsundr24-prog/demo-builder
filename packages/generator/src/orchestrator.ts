@@ -20,7 +20,7 @@ export class JobError extends Error { category: string; status: number; construc
 export class Generator {
   readonly events = new EventEmitter();
   private running = new Set<string>();
-  readonly store: JobStore; readonly provider: LlmProvider; readonly config: GeneratorConfig;
+  readonly store: JobStore; readonly provider: LlmProvider; readonly config: GeneratorConfig; assistProvider?: LlmProvider;
   constructor(store: JobStore, provider: LlmProvider, config: GeneratorConfig = defaultConfig) { this.store = store; this.provider = provider; this.config = config; this.events.setMaxListeners(200); }
 
   private emit(jobId: string, type: string, data: unknown = {}) { this.events.emit(jobId, { type, data, at: new Date().toISOString() }); }
@@ -58,8 +58,9 @@ export class Generator {
     };
     if (req.instruction.trim().length < 3) throw Object.assign(Error('Describe what you want to add or change'), { category: 'bad_request' });
     const route = await routeInstruction(this.provider, doc, req, track);
-    const summary = (r: { document: DemoDocument; screenId: string; changes: string[] }, action: 'added' | 'modified') => ({ action, document: r.document, screenId: r.screenId, changes: r.changes, costUsd: Number(cost.toFixed(5)), tokens });
-    if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.provider, doc, route.screen, req.instruction, (_k, c) => track(c), (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300))), 'modified');
+    const summary = (r: { document: DemoDocument; screenId: string; changes: string[]; reply?: string }, action: 'added' | 'modified') => ({ action: action === 'modified' && r.document === doc ? 'none' as const : action, document: r.document, screenId: r.screenId, changes: r.changes, reply: r.reply ?? '', costUsd: Number(cost.toFixed(5)), tokens });
+    // Editing an existing screen needs reasoning over its structure: use the (optionally stronger) assist model.
+    if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.assistProvider ?? this.provider, doc, route.screen, req.instruction, (_k, c) => track(c), (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300))), 'modified');
     return summary(await addScreenWithAI(this.provider, doc, { requirement: req.instruction, from: req.from, to: req.to, addToMenu: req.addToMenu }, (_k, c) => track(c)), 'added');
   }
   /** Back-compat helper used by tests: add a screen. */

@@ -66,7 +66,11 @@ test('an empty requirement is rejected before any paid call', async () => {
 const rename = (req: CompletionRequest) => {
   const input = JSON.parse(req.input);
   if (req.schemaName === 'route') return { intent: /new|add a screen|create/i.test(input.request) ? 'add_screen' : 'modify_screen', screen: input.currentScreen };
-  if (req.schemaName === 'screen') return JSON.parse(JSON.stringify(input.screen ?? input.previousScreen).replaceAll('"Verify"', '"Validate"'));
+  if (req.schemaName === 'screen_edit') {
+    const all: any[] = []; const w = (ns: any[]) => ns.forEach(n => { all.push(n); if (n.children) w(n.children); }); w(input.components);
+    const b = all.find(n => n.label === 'Verify'); const { children: _c, ...rest } = b; void _c;
+    return { reply: 'Renamed the button.', operations: [{ op: 'replace', target: b.id, node: { ...rest, label: 'Validate' } }] };
+  }
   return req.purpose === 'plan' ? planJson() : formContent;
 };
 
@@ -91,10 +95,42 @@ test('auto mode routes "add a new screen" requests to the add path', async () =>
 });
 
 test('an invalid change is refused after one repair and nothing is altered', async () => {
-  const bad = new FakeProvider(req => req.schemaName === 'screen' ? { id: 'x', title: 'X', shell: 'default', children: [{ type: 'Button', id: 'b', label: 'Go', variant: 'primary', actions: [{ type: 'navigate', screen: 'nowhere' }] }] } : { intent: 'modify_screen', screen: 'dashboard' });
+  const bad = new FakeProvider(req => req.schemaName === 'screen_edit' ? { reply: 'Added', operations: [{ op: 'insert', parent: null, after: null, node: { type: 'Button', id: 'b', label: 'Go', variant: 'primary', actions: [{ type: 'navigate', screen: 'nowhere' }] } }] } : { intent: 'modify_screen', screen: 'dashboard' });
   const gen = new Generator(new MemoryStore(), bad, defaultConfig);
   await assert.rejects(gen.assist(kapiko, { instruction: 'Break it', currentScreen: 'dashboard' }), /could not make that change/);
-  assert.equal(bad.calls.filter(c => c.schemaName === 'screen').length, 2, 'exactly one repair');
+  assert.equal(bad.calls.filter(c => c.schemaName === 'screen_edit').length, 2, 'exactly one repair');
+});
+
+test('edits only touch what the operations name; everything else is byte-identical', async () => {
+  const otp = kapiko.screens.find(s => JSON.stringify(s).includes('"template":"otp-entry"'))!;
+  const gen = new Generator(new MemoryStore(), new FakeProvider(rename), defaultConfig);
+  const out = await gen.assist(kapiko, { instruction: 'Rename Verify to Validate', currentScreen: otp.id });
+  for (const s of out.document.screens) if (s.id !== otp.id) assert.equal(JSON.stringify(s), JSON.stringify(kapiko.screens.find(x => x.id === s.id)));
+  assert.equal(out.reply, 'Renamed the button.');
+});
+
+test('no operations: the AI explains, nothing changes', async () => {
+  const p = new FakeProvider(req => req.schemaName === 'screen_edit' ? { reply: 'Tables cannot show maps; I can add a branch list instead.', operations: [] } : { intent: 'modify_screen', screen: 'dashboard' });
+  const out = await new Generator(new MemoryStore(), p, defaultConfig).assist(kapiko, { instruction: 'Show a map in the table', currentScreen: 'dashboard' });
+  assert.equal(out.action, 'none');
+  assert.equal(out.document, kapiko);
+  assert.match(out.reply, /cannot show maps/);
+});
+
+test('inputs that would do nothing are refused and repaired', async () => {
+  let n = 0;
+  const p = new FakeProvider(req => {
+    if (req.schemaName !== 'screen_edit') return { intent: 'modify_screen', screen: 'my-service-requests' };
+    n++;
+    if (n === 1) return { reply: 'Added date inputs', operations: [{ op: 'insert', parent: null, after: null, node: { type: 'Input', id: 'from', field: 'filter.from', label: 'From', inputType: 'date', required: false } }] };
+    const all: any[] = []; const w = (ns: any[]) => ns.forEach(x => { all.push(x); if (x.children) w(x.children); }); w(JSON.parse(req.input).components);
+    const t = all.find(x => x.type === 'List'); const { children: _c, ...rest } = t; void _c;
+    return { reply: 'Switched on search and status filters', operations: [{ op: 'replace', target: t.id, node: { ...rest, searchable: true, filterField: 'status' } }] };
+  });
+  const out = await new Generator(new MemoryStore(), p, defaultConfig).assist(kapiko, { instruction: 'Let me search and filter requests', currentScreen: 'my-service-requests' });
+  assert.equal(n, 2, 'the inert input triggered one repair');
+  assert.ok(JSON.stringify(out.document.screens.find(s => s.id === 'my-service-requests')).includes('"filterField":"status"'));
+  assert.deepEqual(errorsOnly(validateDocument(out.document)), []);
 });
 
 test('change summaries ignore property order and equivalent form references', () => {

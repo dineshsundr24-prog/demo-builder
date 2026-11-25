@@ -124,9 +124,30 @@ export async function runActions(doc: DemoDocument, start: Session, actions: Act
 }
 export function dismissToast(s: Session, id: number): Session { return { ...s, toasts: s.toasts.filter(t => t.id !== id) }; }
 /** Rows for a table/list after search and filter (pure, testable). */
+const MONTHS: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+/** Day number (UTC) of a demo date: "2026-11-24", "24 Nov 2026", "24/11/2026" or "Nov 24, 2026"; null when not a date. */
+export function dayOf(v: unknown): number | null {
+  const s = String(v ?? '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5;
+  m = /^(\d{1,2})[ -]([A-Za-z]{3})[A-Za-z]*[ -,]*(\d{4})/.exec(s); if (m && MONTHS[m[2].toLowerCase()] !== undefined) return Date.UTC(+m[3], MONTHS[m[2].toLowerCase()], +m[1]) / 864e5;
+  m = /^([A-Za-z]{3})[A-Za-z]* (\d{1,2}),? (\d{4})/.exec(s); if (m && MONTHS[m[1].toLowerCase()] !== undefined) return Date.UTC(+m[3], MONTHS[m[1].toLowerCase()], +m[2]) / 864e5;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s); if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]) / 864e5;
+  return null;
+}
+export type RowFilters = { search?: string; fields?: string[]; equals?: Record<string, string>; date?: { field: string; from?: string; to?: string } };
+/** Rows matching a search over `fields`, exact-value filters and an inclusive date range. */
+export function filterRows(rows: Record<string, string>[], f: RowFilters) {
+  const q = (f.search ?? '').trim().toLowerCase();
+  const from = f.date?.from ? dayOf(f.date.from) : null, to = f.date?.to ? dayOf(f.date.to) : null;
+  return rows.filter(r => {
+    if (q && !(f.fields ?? Object.keys(r)).some(k => String(r[k] ?? '').toLowerCase().includes(q))) return false;
+    for (const [k, v] of Object.entries(f.equals ?? {})) if (v && r[k] !== v) return false;
+    if (f.date && (from !== null || to !== null)) { const d = dayOf(r[f.date.field]); if (d === null || (from !== null && d < from) || (to !== null && d > to)) return false; }
+    return true;
+  });
+}
 export function visibleRows(rows: Record<string, string>[], fields: string[], search: string, filterField?: string, filterValue?: string) {
-  const q = search.trim().toLowerCase();
-  return rows.filter(r => (!q || fields.some(f => String(r[f] ?? '').toLowerCase().includes(q))) && (!filterField || !filterValue || r[filterField] === filterValue));
+  return filterRows(rows, { search, fields, equals: filterField && filterValue ? { [filterField]: filterValue } : {} });
 }
 export function csvFor(rows: Record<string, string>[], columns: { field: string; label: string }[]) {
   const cell = (v: unknown) => { const raw = String(v ?? ''); const safe = /^[\s]*[=+@-]/.test(raw) ? "'" + raw : raw; return '"' + safe.replace(/"/g, '""') + '"'; };

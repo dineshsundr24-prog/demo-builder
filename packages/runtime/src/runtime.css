@@ -260,3 +260,14 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
   .db-fields > div { flex-direction: column; align-items: flex-start; gap: 2px; }
   .db-fields dd { text-align: left; }
 }
+/* Built-in list and table filters */
+.db-list-wrap { display: grid; gap: 10px; }
+.db-list-search, .db-date-range input { border: 1px solid var(--db-line); border-radius: 10px; padding: 9px 12px; font: inherit; background: var(--db-surface); }
+.db-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.db-chips button { flex: none; border: 1px solid var(--db-line); background: var(--db-surface); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; color: var(--db-text); cursor: pointer; }
+.db-chips button[aria-pressed="true"] { background: var(--db-primary); border-color: var(--db-primary); color: #fff; }
+.db-date-range { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.db-date-range label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--db-muted); }
+.db-date-range input { padding: 6px 8px; font-size: 13px; }
+.db-table-count { margin: 8px 2px 0; font-size: 12px; color: var(--db-muted); }
+.db-list li.db-empty { padding: 14px; color: var(--db-muted); text-align: center; }

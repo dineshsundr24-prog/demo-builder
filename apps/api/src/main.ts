@@ -27,6 +27,8 @@ const generator = new Generator(store, new OpenAIProvider(model, required('OPENA
   maxScreensPerJob: num('MAX_SCREENS_PER_JOB', defaultConfig.maxScreensPerJob),
   jobTokenBudget: num('JOB_TOKEN_BUDGET', defaultConfig.jobTokenBudget),
 });
+// Editing an existing screen benefits from a stronger model (about USD 0.01 per edit); generation stays on OPENAI_MODEL.
+generator.assistProvider = new OpenAIProvider(env.ASSIST_MODEL || 'gpt-4.1', required('OPENAI_API_KEY'));
 const app = await buildServer({
   generator, model, accessToken: required('DEMO_ACCESS_TOKEN'), logger: true,
   // FRONTEND_ORIGINS (comma list) and/or STUDIO_HOST (host name injected by the Render blueprint).

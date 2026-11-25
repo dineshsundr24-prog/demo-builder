@@ -84,12 +84,14 @@ define({ type: 'Button', label: 'Button', category: 'action', ai: 'Runs declarat
   create: () => ({ label: 'Continue', variant: 'primary', actions: [] }) });
 // ---------- Data ----------
 const Column = z.object({ field: z.string().min(1).max(40), label: z.string().min(1).max(40), format: z.enum(['text', 'aed', 'date', 'status']).optional() });
-define({ type: 'Table', label: 'Table', category: 'data', ai: 'Rows from a data collection with BUILT-IN search (searchable), status filter (filterField) and CSV export (exportCsv): never add separate search/filter inputs for it. Column format: aed for amounts, date for dates, status for statuses. rowAction opens a screen with the clicked record.',
+define({ type: 'Table', label: 'Table', category: 'data', ai: 'Rows from a data collection with BUILT-IN tools: search (searchable), dropdown filters on up to 3 fields (filterField + moreFilters, e.g. status, type, branch), a From/To date-range filter on a date field (dateFilterField) and CSV export (exportCsv). Never add separate search/filter inputs for a table: switch these on instead. Column format: aed for amounts, date for dates, status for statuses. rowAction opens a screen with the clicked record.',
   props: z.object({ collection: CollectionRef, title: z.string().max(80).optional(), columns: z.array(Column).min(1).max(8), searchable: z.boolean(),
-    filterField: z.string().max(40).optional(), rowAction: z.object({ label: z.string().min(1).max(20), screen: ScreenRef }).optional(), exportCsv: z.boolean().optional() }),
+    filterField: z.string().max(40).optional(), moreFilters: z.array(z.string().min(1).max(40)).max(2).optional(), dateFilterField: z.string().max(40).optional(),
+    rowAction: z.object({ label: z.string().min(1).max(20), screen: ScreenRef }).optional(), exportCsv: z.boolean().optional() }),
   create: () => ({ collection: '', columns: [], searchable: true }) });
-define({ type: 'List', label: 'List', category: 'data', ai: 'Mobile-friendly list of collection items; tapping opens a screen with the record.',
+define({ type: 'List', label: 'List', category: 'data', ai: 'Mobile-friendly list of collection items with optional BUILT-IN search (searchable) and a filter chip row on one field (filterField); tapping opens a screen with the record. Never add separate search inputs for it.',
   props: z.object({ collection: CollectionRef, titleField: z.string().min(1).max(40), subtitleField: z.string().max(40).optional(), badgeField: z.string().max(40).optional(),
+    searchable: z.boolean().optional(), filterField: z.string().max(40).optional(),
     itemAction: z.object({ screen: ScreenRef }).optional() }),
   create: () => ({ collection: '', titleField: '' }) });
 // ---------- Designed patterns (the renderer owns their look; prefer these over low-level layout) ----------

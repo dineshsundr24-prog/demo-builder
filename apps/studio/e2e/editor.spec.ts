@@ -183,3 +183,28 @@ test.describe('AI assistant chat', () => {
     await expect(page.getByTestId('palette').getByRole('button', { name: 'Button', exact: true })).toBeVisible();
   });
 });
+
+test('portal tables: switch on product and date-range filters in the editor, then filter in preview', async ({ page }) => {
+  await page.goto('/?doc=portal&mode=edit');
+  await page.locator('.studio-screens button', { hasText: 'Customer Applications' }).click();
+  await device(page).locator('[data-node-type="Table"] th').first().click();
+  await expect(inspector(page)).toContainText('Table');
+  await inspector(page).getByLabel('Date filter field').selectOption({ label: 'Submitted' });
+  await inspector(page).getByRole('checkbox', { name: 'Product' }).check();
+  await page.getByRole('button', { name: 'Preview' }).click();
+  const table = device(page).locator('[data-node-type="Table"]');
+  const rows = table.locator('tbody tr');
+  const total = await rows.count();
+  await table.getByLabel('Filter by Product').selectOption('Home Finance');
+  const homeOnly = await rows.count();
+  expect(homeOnly).toBeLessThan(total);
+  await table.getByLabel('Filter by Product').selectOption('');
+  await table.getByLabel('Submitted from').fill('2026-11-21');
+  await table.getByLabel('Submitted to').fill('2026-11-21');
+  await expect(rows).toHaveCount(2); // two applications were submitted on 21 Nov
+  await expect(table).toContainText('APP-20482');
+  await expect(table).not.toContainText('APP-20470');
+  await expect(table).toContainText('2 of ');
+  await table.getByRole('button', { name: 'Clear' }).click();
+  await expect(rows).toHaveCount(total);
+});

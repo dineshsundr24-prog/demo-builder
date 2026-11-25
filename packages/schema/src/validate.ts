@@ -115,8 +115,8 @@ export function validateScreen(screen: unknown, ctx: DocContext, prefix = 'scree
       if (!c) out.push(issue(path + '.collection', 'data.collection', 'Unknown collection "' + String(n.collection) + '"'));
       else {
         const fieldRefs: [string, unknown][] = n.type === 'Table'
-          ? [...(n.columns as any[]).map((col, i) => ['columns[' + i + '].field', col.field] as [string, unknown]), ['filterField', n.filterField]]
-          : [['titleField', n.titleField], ['subtitleField', n.subtitleField], ['badgeField', n.badgeField]];
+          ? [...(n.columns as any[]).map((col, i) => ['columns[' + i + '].field', col.field] as [string, unknown]), ['filterField', n.filterField], ['dateFilterField', n.dateFilterField], ...((n.moreFilters as string[] | undefined) ?? []).map((f, i) => ['moreFilters[' + i + ']', f] as [string, unknown])]
+          : [['titleField', n.titleField], ['subtitleField', n.subtitleField], ['badgeField', n.badgeField], ['filterField', n.filterField]];
         for (const [k, f] of fieldRefs) if (typeof f === 'string' && f && !c.fields.has(f)) out.push(issue(path + '.' + k, 'data.field', 'Collection "' + String(n.collection) + '" has no field "' + f + '"'));
       }
       const target = (n.rowAction as any)?.screen ?? (n.itemAction as any)?.screen;
