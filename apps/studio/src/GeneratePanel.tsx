@@ -3,13 +3,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, Plus, RefreshCw, Sparkles, Trash2, X, XCircle, AlertTriangle } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
 import { BrandFields, type BrandValue } from './BrandFields.tsx';
-import { authHeaders, signedInEmail } from './account.ts';
+import { authHeaders, hasIdentity } from './account.ts';
 
 const env = import.meta.env as Record<string, string | undefined>;
 export const API = env.VITE_API_URL || (env.VITE_API_HOST ? 'https://' + env.VITE_API_HOST : 'http://localhost:8787');
 type Status = { model: string; store: string; storage?: 'connected' | 'unavailable'; budget: { spentUsd: number; limitUsd: number } | null; maxScreensPerJob: number };
 type JobSummary = { id: string; status: string; request: { name?: string; channel?: string }; cost_usd: number; created_at: string };
-type PlanScreen = { id: string; title: string; purpose: string; requirement: string; template: string | null; links: string[]; shell: string; locked: boolean };
+type PlanScreen = { id: string; title: string; purpose: string; requirement: string; template: string | null; links: string[]; shell: string; locked: boolean; criteria?: string[] };
 type Job = { id: string; status: string; plan: { screens: PlanScreen[]; notes?: string[] } | null; warnings: string[]; error: { category: string; message: string; traceId: string } | null; cost_usd: number; input_tokens: number; output_tokens: number; trace_id: string };
 type ScreenRow = { screen_id: string; title: string; status: string; attempts: number; issues: { code?: string; message?: string }[] };
 const DONE = ['completed', 'completed_with_warnings', 'failed', 'cancelled'];
@@ -24,7 +24,7 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
 
 export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: { onLoad: (d: DemoDocument, notes: string[]) => void; onClose: () => void; defaultChannel: 'mobile' | 'portal'; resumeJobId?: string }) {
   const [access, setAccess] = useState(token());
-  const signed = !!signedInEmail(); // a signed-in user needs no shared access token
+  const signed = hasIdentity(); // a signed-in user or a MEYON session needs no shared access token
   const [form, setForm] = useState({ name: '', company: '', channel: defaultChannel as 'mobile' | 'portal', brief: '' });
   const [brand, setBrand] = useState<BrandValue>(() => { try { return JSON.parse(localStorage.getItem('db-brand') || '{}'); } catch { return {}; } });
   useEffect(() => { try { localStorage.setItem('db-brand', JSON.stringify(brand)); } catch { /* storage unavailable or logo too large */ } }, [brand]);
@@ -119,7 +119,8 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
           <span className="gen-num">{i + 1}</span>
           <div><input aria-label={'Title of screen ' + (i + 1)} value={s.title} onChange={e => editPlan(i, { title: e.target.value })} />
             <textarea aria-label={'Description of screen ' + (i + 1)} rows={2} value={s.purpose} onChange={e => editPlan(i, { purpose: e.target.value })} />
-            {s.template ? <small>Template: {s.template}</small> : null}</div>
+            {s.template ? <small>Template: {s.template}</small> : null}
+            {s.criteria?.length ? <small className="gen-criteria" title={s.criteria.join(', ')}>Demonstrates {s.criteria.length} approved acceptance criteri{s.criteria.length > 1 ? 'a' : 'on'}</small> : null}</div>
           <button type="button" className="gen-icon" aria-label={'Remove ' + s.title} disabled={plan.length < 2} onClick={() => setPlan(p => p.filter((_, k) => k !== i))}><Trash2 size={15} /></button>
         </li>)}</ol>
         <button type="button" className="gen-secondary" onClick={addScreen}><Plus size={15} /> Add screen</button>

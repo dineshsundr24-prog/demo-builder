@@ -20,7 +20,7 @@ export function VersionsPanel(p: Props) {
   const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); setError(''); try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); } };
   const live = (n: number) => publications.filter(x => x.version === n && !x.revoked);
   const status = { saved: 'All changes saved', saving: 'Saving…', unsaved: 'Unsaved changes', conflict: 'Changed elsewhere', error: 'Not saved' }[p.saveState];
-  return <section className="versions" data-testid="versions" aria-label="Saved demo">
+  return <section className="versions" data-testid="versions" data-demo-id={demo.id} aria-label="Saved demo">
     <div className="versions-head">
       <span className={'save-state ' + p.saveState} data-testid="save-state">{status}</span>
       {demo.isPrimary ? <span className="badge-primary" title="Primary baseline for this application type"><Star size={12} />Primary</span>

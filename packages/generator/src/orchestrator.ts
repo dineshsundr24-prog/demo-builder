@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { Screen } from '@demo/schema';
 import { ProviderError, costUsd, type LlmProvider, type CompletionResult } from './provider.ts';
-import { createPlan, type GenerationRequest, type Plan } from './plan.ts';
+import { createPlan, traceNotes, type GenerationRequest, type Plan } from './plan.ts';
 import { generateScreen, refineBindings } from './screen.ts';
 import { addScreenWithAI, modifyScreenWithAI, routeInstruction, type AddScreenRequest, type AssistRequest } from './assist.ts';
 import { changeFlowWithAI } from './flow.ts';
@@ -119,7 +119,12 @@ export class Generator {
       const ids = edited.screens?.map(s => s.id) ?? [];
       if (!ids.length || new Set(ids).size !== ids.length || ids.some(id => !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(id))) throw new JobError('bad_request', 'Edited plan must have unique, valid screen ids');
       if (ids.length > this.config.maxScreensPerJob) throw new JobError('budget', 'Plan has ' + ids.length + ' screens; the limit per job is ' + this.config.maxScreensPerJob);
-      plan = { ...job.plan, ...edited, screens: edited.screens.map(s => ({ ...s, links: (s.links ?? []).filter(l => ids.includes(l)) })) };
+      // Approved requirements always come from the stored plan, never from the edited copy.
+      const screens = edited.screens.map(s => ({ ...s, links: (s.links ?? []).filter(l => ids.includes(l)) }));
+      const notes = traceNotes(screens, job.plan.requirements);
+      plan = { ...job.plan, ...edited, requirements: job.plan.requirements, screens };
+      if (!plan.requirements?.length) delete plan.requirements;
+      if (notes.length) plan.notes = [...(plan.notes ?? []).filter(n => !n.startsWith('Acceptance criterion ')), ...notes];
       await this.store.upsertScreens(plan.screens.map((s, i) => ({ job_id: jobId, screen_id: s.id, title: s.title, position: i, status: 'pending', attempts: 0, screen: null, issues: [], input_tokens: 0, output_tokens: 0 })));
     }
     const updated = await this.store.updateJob(jobId, { status: 'generating', plan });

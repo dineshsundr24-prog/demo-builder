@@ -94,6 +94,12 @@ export function screenText(screen: Screen) {
   const text = parts.join(' ').toLowerCase();
   return text + (/expires in|resend/.test(text) ? ' countdown timer' : '') + (/[*•x]{3,}/.test(text) ? ' masked' : '');
 }
+/** Share (0..1) of a requirement's significant words that appear on the screen (prefix match, as the coverage check). */
+export function shownShare(screen: Screen, requirement: string, text = screenText(screen)): number {
+  const ws = [...new Set(words(requirement))];
+  if (!ws.length) return 1;
+  return ws.filter(w => text.includes(w.slice(0, Math.max(4, w.length - 2)))).length / ws.length;
+}
 /** Must-include items (from the plan) that do not appear on the screen. */
 export function coverageIssues(screen: Screen, mustInclude: string[] = []): Issue[] {
   const text = screenText(screen);

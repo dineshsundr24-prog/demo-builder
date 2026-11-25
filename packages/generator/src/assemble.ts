@@ -1,7 +1,8 @@
 // Assemble generated screens into one document and apply deterministic,
 // reported fixes for cross-screen issues (no extra AI calls).
-import { validateDocument, documentContext, flowLint, type DemoDocument, type Screen, type NodeT, type Issue } from '@demo/schema';
-import type { Plan } from './plan.ts';
+import { validateDocument, documentContext, flowLint, type DemoDocument, type Screen, type NodeT, type Issue, type TraceLink } from '@demo/schema';
+import { criteriaOf, type Plan } from './plan.ts';
+import { screenText, shownShare } from './design.ts';
 import { planDocument } from './screen.ts';
 
 const GENERIC = new Set(['name', 'value', 'type', 'date', 'status', 'id', 'amount', 'code', 'number', 'title', 'description', 'comment', 'comments', 'email', 'phone', 'mobile', 'notes']);
@@ -119,5 +120,32 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
     doc = { ...doc, screens: doc.screens.map(s => (s.id === screen.id ? { ...s, children: [...(s.children as NodeT[]), ...buttons] } : s)) };
     fixes.push('Added ' + buttons.length + ' planned link(s) to "' + screen.title + '", which had no way forward');
   }
+  doc = applyTrace(doc, plan);
   return { document: doc, issues: validateDocument(doc), fixes };
+}
+
+/**
+ * Requirement traceability from the approved plan: each screen records the story and acceptance criteria it
+ * demonstrates. Confidence per criterion: high when most of its key words are visible on the screen, medium when
+ * some are, low when none are (planned but not yet visible). Manual links made in the Studio are kept.
+ */
+export function applyTrace(doc: DemoDocument, plan: Plan): DemoDocument {
+  const all = criteriaOf(plan.requirements);
+  if (!all.length) return doc;
+  const byId = new Map(all.map(c => [c.id, c]));
+  return { ...doc, screens: doc.screens.map(s => {
+    const planned = (plan.screens.find(p => p.id === s.id)?.criteria ?? []).filter(id => byId.has(id));
+    const manual = (s.trace ?? []).filter(t => t.source === 'manual');
+    if (!planned.length) return manual.length ? { ...s, trace: manual } : (({ trace: _t, ...rest }) => (void _t, rest))(s);
+    const text = screenText(s);
+    const groups = new Map<string, TraceLink>();
+    for (const id of planned) {
+      const c = byId.get(id)!, share = shownShare(s, c.text, text);
+      const confidence = share >= 0.5 ? 'high' : share >= 0.25 ? 'medium' : 'low';
+      const key = c.story + '|' + confidence;
+      const g = groups.get(key) ?? { story: c.story, criteria: [], confidence, source: 'generated' as const };
+      g.criteria.push(id); groups.set(key, g);
+    }
+    return { ...s, trace: [...groups.values(), ...manual].slice(0, 10) };
+  }) };
 }

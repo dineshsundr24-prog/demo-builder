@@ -19,7 +19,7 @@ const ROLE_OPS: Record<Role, readonly Op[]> = {
   editor: ['read', 'edit', 'version', 'publish', 'fork', 'primary', 'create'],
   owner: OPS,
 };
-export type SessionScope = { workspaceId: string; projectRef: string; ops: Op[] };
+export type SessionScope = { workspaceId: string; projectRef: string; ops: Op[]; /** The MEYON launch this session came from. */ launchId?: string };
 export type Caller = { principal: Principal; via: 'supabase' | 'session' | 'uat'; scope?: SessionScope; defaultWorkspaceId: string };
 
 const safeEqual = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
@@ -27,12 +27,12 @@ export const sha256 = (v: string) => createHash('sha256').update(v).digest('hex'
 export const newToken = (bytes = 24) => randomBytes(bytes).toString('base64url');
 
 // ---------- Builder sessions ----------
-type SessionClaims = { sub: string; ws: string; prj: string; ops: Op[]; exp: number; iat: number };
+type SessionClaims = { sub: string; ws: string; prj: string; ops: Op[]; exp: number; iat: number; lid?: string };
 /** Issue a session for a MEYON principal (its stable subject from the launch grant). */
 export function issueSession(secret: string, c: { subject: string; scope: SessionScope; ttlSeconds?: number }): string {
   if (secret.length < 32) throw Error('BUILDER_SESSION_SECRET must be at least 32 characters');
   const iat = Math.floor(Date.now() / 1000);
-  const claims: SessionClaims = { sub: c.subject, ws: c.scope.workspaceId, prj: c.scope.projectRef, ops: c.scope.ops, iat, exp: iat + Math.min(c.ttlSeconds ?? 8 * 3600, 12 * 3600) };
+  const claims: SessionClaims = { sub: c.subject, ws: c.scope.workspaceId, prj: c.scope.projectRef, ops: c.scope.ops, iat, exp: iat + Math.min(c.ttlSeconds ?? 8 * 3600, 12 * 3600), ...(c.scope.launchId ? { lid: c.scope.launchId } : {}) };
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   return 'bds.' + payload + '.' + createHmac('sha256', secret).update(payload).digest('base64url');
 }
@@ -116,7 +116,7 @@ export async function resolveCaller(cfg: AuthConfig, headers: Record<string, str
     const c = cfg.sessionSecret ? verifySession(cfg.sessionSecret, bearer) : null;
     if (!c) throw new AuthError('Your Demo Builder session has expired. Open it again from MEYON.');
     const principal = await cfg.store.upsertPrincipal({ provider: 'meyon', subject: c.sub });
-    return { principal, via: 'session', scope: { workspaceId: c.ws, projectRef: c.prj, ops: c.ops }, defaultWorkspaceId: c.ws };
+    return { principal, via: 'session', scope: { workspaceId: c.ws, projectRef: c.prj, ops: c.ops, ...(c.lid ? { launchId: c.lid } : {}) }, defaultWorkspaceId: c.ws };
   }
   if (bearer) {
     if (!cfg.verifyUser) throw new AuthError('Sign-in is not configured on this server');

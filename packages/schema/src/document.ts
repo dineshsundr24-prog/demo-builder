@@ -2,11 +2,24 @@ import { z } from 'zod';
 import { ID, Color, ScreenRef } from './primitives.ts';
 import { Node } from './registry.ts';
 
+// Requirement traceability: which approved story and acceptance criteria a screen demonstrates.
+// Ids are MEYON's stable references (story "US-014", criterion "US-014:ac-3f9a2b"). Never shown on published links.
+export const TraceRef = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/, 'Use a story or criterion reference such as US-014');
+export const TraceLink = z.object({
+  story: TraceRef,
+  criteria: z.array(TraceRef).max(40),
+  // high: planned and visibly shown on the screen; medium: planned, only partly visible; low: planned, not visible yet.
+  confidence: z.enum(['high', 'medium', 'low']),
+  source: z.enum(['generated', 'manual']),
+});
+export type TraceLink = z.infer<typeof TraceLink>;
+
 export const Screen = z.object({
   id: ID, title: z.string().min(1).max(85), subtitle: z.string().max(160).optional(),
   // 'hidden' removes the app shell (tabs/sidebar) for focused flows such as sign-in.
   shell: z.enum(['default', 'hidden']),
   children: z.array(Node).max(40),
+  trace: z.array(TraceLink).max(10).optional(),
 });
 export type Screen = z.infer<typeof Screen>;
 

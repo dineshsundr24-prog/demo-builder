@@ -288,3 +288,62 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .pub-link p { grid-column: 1 / -1; margin: 0; }
 .pub-list { display: grid; gap: 2px; font-size: 11.5px; color: #475467; }
 .account-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- Launches from MEYON ---------- */
+.launch-page { min-height: 100vh; display: grid; place-items: start center; padding: 40px 16px; background: var(--s-bg); }
+.launch-loading { display: flex; align-items: center; gap: 10px; color: var(--s-muted); margin-top: 20vh; }
+.launch-card { width: min(760px, 100%); background: var(--s-panel); border: 1px solid var(--s-line); border-radius: 14px; padding: 24px 28px; display: grid; gap: 12px; box-shadow: 0 8px 24px rgb(16 24 40 / 6%); }
+.launch-card h1 { font-size: 21px; margin: 0; display: flex; align-items: center; gap: 8px; }
+.launch-card h2 { font-size: 13px; margin: 8px 0 0; display: flex; align-items: center; gap: 6px; color: #344054; }
+.launch-card h2 .muted { font-weight: 500; }
+.launch-eyebrow { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--s-accent); }
+.launch-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 4px 0; }
+.launch-facts dt { color: var(--s-muted); font-size: 13px; }
+.launch-facts dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.launch-warn { flex-basis: 100%; display: flex; align-items: center; gap: 5px; color: #9a6700; font-size: 12.5px; }
+.launch-criteria, .launch-list { margin: 0; padding-left: 22px; display: grid; gap: 5px; }
+.launch-criteria code, .launch-list code { font-size: 11px; color: var(--s-muted); margin-left: 4px; }
+.launch-meta { margin: 0; color: #344054; font-size: 13px; }
+.launch-card details { border: 1px solid var(--s-line); border-radius: 8px; padding: 8px 10px; }
+.launch-card summary { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #344054; }
+.launch-card pre { white-space: pre-wrap; font: 13px/1.5 system-ui, sans-serif; margin: 8px 0 0; color: #344054; }
+.launch-sources ul { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--s-muted); }
+.launch-next { margin: 4px 0 0; display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: #344054; background: #f2f5fa; border-radius: 8px; padding: 9px 11px; }
+.launch-next svg { flex: none; margin-top: 2px; color: var(--s-accent); }
+.launch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.launch-actions .gen-primary { width: auto; padding-inline: 18px; display: inline-flex; align-items: center; gap: 6px; }
+.launch-banner { margin: 0; padding: 8px 10px; border-radius: 8px; background: #eef4ff; color: #1d3b6e; font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.launch-banner span { flex-basis: 100%; color: var(--s-muted); }
+.studio-welcome .launch-banner { margin: 6px 0 12px; }
+.welcome-sim { font-size: 13px; color: var(--s-accent); align-self: center; }
+.sim-card fieldset { border: 1px solid var(--s-line); border-radius: 8px; padding: 8px 12px 10px; display: grid; gap: 6px; }
+.sim-card legend { font-size: 12px; color: var(--s-muted); padding: 0 4px; }
+.sim-card label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sim-card select { justify-self: start; font: inherit; padding: 4px 6px; }
+.sim-prompt { display: grid !important; gap: 4px; font-size: 13px; color: #344054; }
+.sim-prompt textarea { font: inherit; padding: 8px; border: 1px solid var(--s-line); border-radius: 8px; resize: vertical; }
+.gen-criteria { display: block; color: var(--s-accent); }
+
+/* Story coverage (sidebar) */
+.coverage { border: 1px solid var(--s-line); border-radius: 8px; padding: 6px 8px; }
+.coverage summary { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.coverage-count { margin-left: auto; font-size: 12px; font-weight: 600; color: #9a6700; } .coverage-count.ok { color: #067647; }
+.coverage-title { margin: 6px 0 0; font-size: 12px; color: var(--s-muted); }
+.coverage-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.coverage-list li { display: flex; gap: 6px; font-size: 12.5px; }
+.coverage-list p { margin: 0; }
+.coverage-icon { flex: none; padding-top: 2px; }
+.coverage .ok { color: #067647; } .coverage .warn { color: #b54708; } .coverage .bad { color: #b42318; }
+.coverage-screens { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+.coverage-chip { display: inline-flex; align-items: center; border: 1px solid var(--s-line); border-radius: 999px; background: #f8fafc; font-size: 11.5px; }
+.coverage-chip[data-confidence="low"] { border-style: dashed; }
+.coverage-chip button { border: 0; background: none; font: inherit; padding: 2px 4px 2px 8px; cursor: pointer; color: inherit; }
+.coverage-chip button + button { padding: 2px 6px 2px 2px; color: var(--s-muted); display: inline-flex; }
+.coverage-link { border: 1px dashed var(--s-line); background: none; border-radius: 999px; font: inherit; font-size: 11.5px; padding: 2px 7px; cursor: pointer; color: var(--s-accent); display: inline-flex; align-items: center; gap: 3px; }
+@media (max-width: 560px) { .launch-card { padding: 18px 16px; } .launch-facts { grid-template-columns: 1fr; } .launch-facts dt { margin-top: 4px; } }
+/* Sidebar boxes never grow wider than the sidebar (long notes, links and badges wrap instead). */
+.studio-side > * { min-width: 0; }
+.versions { grid-template-columns: minmax(0, 1fr); }
+.versions-head { flex-wrap: wrap; }
+.versions-save { flex-wrap: wrap; }
+.versions-save input { flex-basis: 120px; }

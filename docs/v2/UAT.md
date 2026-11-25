@@ -55,3 +55,11 @@ For each test: the brief you used, the job time and cost, which screens were wro
 - **Save version** keeps a fixed, numbered snapshot. From a version you can **Publish** (a read-only link that anyone with it can open; shown once, revocable), **Restore** (back into the draft; undo works) or **Fork** (a new independent demo).
 - **Primary.** One demo per application type is the primary baseline; use **Make primary** to change it.
 - **Start page.** Your saved demos are listed there.
+
+## Opening a story from MEYON (Phase A2, simulated MEYON)
+- On the start page, signed-in users see **Try opening a story from MEYON (simulator)**. It opens a page that stands in for MEYON's Demo tab: pick an approved sample story, review the prompt, choose **Create new demo** or **Extend existing demo**, and select **Open Demo Builder**.
+- A new tab opens with the **confirmation screen**: project, application type, story and version, who launched it, the approved acceptance criteria and business rules, optional AI suggestions, the reviewed prompt and its sources. **Confirm** continues; **Cancel** ends the launch.
+- **Create**: AI drafts a screen plan (each screen shows how many approved criteria it demonstrates); approve it to generate. The demo is saved automatically in the MEYON project.
+- **Story coverage** in the sidebar lists every approved criterion with the screens that demonstrate it: green when it is shown, amber when it is only partly shown or planned. Use **This screen** to confirm a criterion on the current screen, or the × on a screen to remove a link. Saved versions record this coverage.
+- Launch links work **once** and expire after **5 minutes**. Demos created through MEYON belong to the simulated MEYON tenant, not to your personal saved demos, and published links never show requirement references.
+- To leave the MEYON session in a tab, use **Leave** under the account.

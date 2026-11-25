@@ -54,6 +54,7 @@ test('save, autosave, version, publish a read-only link, revoke', async ({ page,
 test('reopen a saved demo, restore an old version, fork it', async ({ page }) => {
   const name = unique();
   await openSample(page, name);
+  const demoId = await page.getByTestId('versions').getAttribute('data-demo-id');
   await page.getByRole('button', { name: 'Save version' }).click();
   await expect(page.locator('[data-version="1"]')).toBeVisible();
   await device(page).getByRole('heading', { name }).click();
@@ -66,8 +67,8 @@ test('reopen a saved demo, restore an old version, fork it', async ({ page }) =>
   await page.getByTestId('saved-demos').locator('button').filter({ hasText: 'Kapiko' }).first().waitFor();
   const entry = page.getByTestId('saved-demos').locator('li').filter({ has: page.locator('text=v1') }).first();
   await expect(entry).toBeVisible();
-  // Find our demo by opening each until our heading appears is brittle; open the newest (list is newest first).
-  await page.getByTestId('saved-demos').locator('button').first().click();
+  // Open our own demo (parallel tests save demos with the same name).
+  await page.getByTestId('saved-demos').locator('button[data-demo-id="' + demoId + '"]').click();
   await expect(device(page).getByRole('heading', { name: name + ' v2' })).toBeVisible();
   await page.locator('[data-version="1"]').getByRole('button', { name: 'Restore' }).click();
   await expect(device(page).getByRole('heading', { name, exact: true })).toBeVisible();
@@ -80,13 +81,12 @@ test('reopen a saved demo, restore an old version, fork it', async ({ page }) =>
 test('two windows editing the same demo: the second save is refused, not lost silently', async ({ page, context }) => {
   const name = unique();
   await openSample(page, name);
-  const url = page.url();
-  void url;
+  const demoId = await page.getByTestId('versions').getAttribute('data-demo-id');
   const other = await context.newPage(); watch(other);
   await other.goto('/');
   await other.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token'));
   await other.reload();
-  await other.getByTestId('saved-demos').locator('button').first().click();
+  await other.getByTestId('saved-demos').locator('button[data-demo-id="' + demoId + '"]').click(); // parallel tests save demos too
   await other.getByTestId('mode-edit').click();
   await other.getByTestId('device').getByRole('heading', { name }).click();
   await other.getByTestId('inspector').getByLabel('Text').fill(name + ' from window 2');

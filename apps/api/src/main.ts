@@ -3,6 +3,8 @@ import { Generator, MemoryStore, OpenAIProvider, SupabaseStore, defaultConfig, t
 import { buildServer } from './server.ts';
 import { MemoryDemoStore, SupabaseDemoStore, type DemoStore } from './demos/store.ts';
 import { jwksVerifier, supabaseVerifier } from './demos/auth.ts';
+import { httpMeyonClient, type MeyonClient } from './launch/meyon.ts';
+import { randomBytes } from 'node:crypto';
 
 // Trim pasted values: a trailing space or line break in a secret is a common cause of "Invalid API key".
 const env: Record<string, string | undefined> = Object.fromEntries(Object.entries(process.env).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
@@ -40,11 +42,26 @@ if (env.BUILDER_SESSION_SECRET && env.BUILDER_SESSION_SECRET.length < 32) { cons
 // LEGACY_UAT_TOKEN=off: only signed-in users (and, later, MEYON sessions) can use the API.
 const allowUatToken = (env.LEGACY_UAT_TOKEN ?? 'on').toLowerCase() !== 'off';
 if (!allowUatToken) console.info('Legacy shared UAT token disabled: sign-in required');
+// Launches from MEYON: MEYON_BASE_URL + MEYON_INTEGRATION_KEY (real MEYON), or MEYON_SIMULATOR=on (testing/UAT only).
+const port = num('PORT', 8787);
+const simulator = (env.MEYON_SIMULATOR ?? '').toLowerCase() === 'on';
+if (simulator && env.MEYON_BASE_URL) { console.error('MEYON_SIMULATOR=on cannot be combined with MEYON_BASE_URL'); process.exit(1); }
+let meyon: MeyonClient | undefined, meyonSimulator: { integrationKey: string } | undefined;
+if (simulator) {
+  meyonSimulator = { integrationKey: env.MEYON_INTEGRATION_KEY || randomBytes(32).toString('base64url') };
+  meyon = httpMeyonClient('http://127.0.0.1:' + port + '/sim/meyon', meyonSimulator.integrationKey);
+  console.warn('MEYON simulator enabled: launches use simulated sample stories, not a real MEYON');
+} else if (env.MEYON_BASE_URL) {
+  if (!env.MEYON_INTEGRATION_KEY || env.MEYON_INTEGRATION_KEY.length < 32) { console.error('MEYON_INTEGRATION_KEY (32+ characters) is required with MEYON_BASE_URL'); process.exit(1); }
+  meyon = httpMeyonClient(env.MEYON_BASE_URL, env.MEYON_INTEGRATION_KEY);
+}
+if (meyon && !env.BUILDER_SESSION_SECRET) console.warn('BUILDER_SESSION_SECRET is not set: launches from MEYON are disabled');
 const app = await buildServer({
+  meyon, meyonSimulator,
   generator, model, accessToken: allowUatToken ? required('DEMO_ACCESS_TOKEN') : (env.DEMO_ACCESS_TOKEN ?? ''), allowUatToken, logger: true,
   demoStore, verifyUser, sessionSecret: env.BUILDER_SESSION_SECRET,
   publicBaseUrl: env.PUBLIC_DEMO_BASE_URL || (env.STUDIO_HOST ? 'https://' + env.STUDIO_HOST : undefined),
   // FRONTEND_ORIGINS (comma list) and/or STUDIO_HOST (host name injected by the Render blueprint).
   origins: [...(env.FRONTEND_ORIGINS || (env.STUDIO_HOST ? '' : 'http://localhost:5173')).split(','), ...(env.STUDIO_HOST ? ['https://' + env.STUDIO_HOST] : [])].map(s => s.trim()).filter(Boolean),
 });
-await app.listen({ port: num('PORT', 8787), host: '0.0.0.0' });
+await app.listen({ port, host: '0.0.0.0' });

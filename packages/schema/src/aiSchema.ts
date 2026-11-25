@@ -11,7 +11,8 @@ export type AiContext = { channel: 'mobile' | 'portal'; screenIds: string[]; col
 
 export function aiScreenSchema(ctx: AiContext) {
   const templateIds = ctx.templateIds ?? templates.filter(t => t.channels.includes(ctx.channel)).map(t => t.id);
-  return toStrictSchema(Screen, { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
+  // Traceability is assigned by the Builder from the approved plan, never by the AI.
+  return toStrictSchema(Screen.omit({ trace: true }), { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
 }
 /** Any Zod schema -> strict structured-output JSON Schema; `ref` markers become enums. */
 export function toStrictSchema(schema: z.ZodType, refs: Record<string, string[]> = {}) {

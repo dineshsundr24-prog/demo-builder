@@ -13,7 +13,7 @@ const json = (method: string, body?: unknown): RequestInit => ({ method, ...(bod
 export const demosApi = {
   me: () => call<Me>('/api/v2/me'),
   list: () => call<{ demos: DemoMeta[] }>('/api/v2/demos').then(r => r.demos),
-  create: (document: DemoDocument, name?: string) => call<{ demo: DemoMeta }>('/api/v2/demos', json('POST', { document, name })).then(r => r.demo),
+  create: (document: DemoDocument, name?: string, launchId?: string) => call<{ demo: DemoMeta }>('/api/v2/demos', json('POST', { document, name, ...(launchId ? { launchId } : {}) })).then(r => r.demo),
   get: (id: string) => call<DemoDetail>('/api/v2/demos/' + id),
   rename: (id: string, name: string) => call<{ demo: DemoMeta }>('/api/v2/demos/' + id, json('PATCH', { name })).then(r => r.demo),
   archive: (id: string) => call<{ demo: DemoMeta }>('/api/v2/demos/' + id, json('PATCH', { archived: true })).then(r => r.demo),
@@ -34,3 +34,35 @@ export const demosApi = {
 };
 /** Studio address of a published demo (the API also returns it; this covers older publications). */
 export const publicUrl = (token: string) => location.origin + location.pathname + '?p=' + token;
+
+// ---------- Launches from MEYON ----------
+export type Criterion = { id: string; text: string };
+export type BaseCheck = { ok: true; demoId: string; name: string; version: number; latestVersion: number; newerExists: boolean } | { ok: false; problem: string };
+export type LaunchView = {
+  id: string; status: 'pending' | 'confirming' | 'confirmed' | 'cancelled'; mode: 'create' | 'extend'; channel: 'mobile' | 'portal'; createdAt: string; demoId: string | null; jobId: string | null; packageHash: string;
+  tenant: { id: string; name: string }; actor: { ref: string; name: string; verified: boolean };
+  project: { id: string; name: string; goal: string; personas: string[] }; story: { id: string; title: string; artifactVersion: number; contentHash: string };
+  feature: { id: string; name: string } | null; prompt: { revision: number; text: string; reviewedAt: string };
+  approved: { acceptanceCriteria: Criterion[]; businessRules: Criterion[]; actors: string[]; integrations: string[] }; suggestions: string[];
+  branding: { company: string }; sources: { kind: string; ref: string; version: string; hash: string }[];
+  base: { demoId: string; version: number; url: string; check: BaseCheck | null } | null;
+};
+export type ConfirmResult = { mode: 'create' | 'extend'; jobId?: string | null; demoId?: string | null; version?: number; newerExists?: boolean; already?: boolean };
+export type SimScenario = { storyId: string; title: string; version: number; channel: 'mobile' | 'portal'; feature: string; criteria: number; prompt: string };
+export type SimBaseline = { demoId: string; name: string; channel: 'mobile' | 'portal'; isPrimary: boolean; latestVersion: number };
+export const launchApi = {
+  /** No credentials: the opaque code is the only proof, and it works once. */
+  exchange: async (code: string) => {
+    const r = await fetch(API + '/api/v2/launch/exchange', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(Error((body as any).error ?? 'This launch could not be opened (' + r.status + ')'), { status: r.status });
+    return body as { session: string; expiresAt: string; launchId: string };
+  },
+  get: (id: string) => call<{ launch: LaunchView }>('/api/v2/launches/' + id).then(r => r.launch),
+  confirm: (id: string) => call<ConfirmResult>('/api/v2/launches/' + id + '/confirm', json('POST', {})),
+  cancel: (id: string) => call<{ status: string }>('/api/v2/launches/' + id + '/cancel', json('POST', {})),
+  // Simulated MEYON (UAT/testing only)
+  scenarios: () => call<{ project: { id: string; name: string }; tenant: { id: string; name: string }; scenarios: SimScenario[] }>('/sim/meyon/scenarios'),
+  baselines: () => call<{ baselines: SimBaseline[] }>('/sim/meyon/baselines').then(r => r.baselines),
+  grant: (body: { storyId: string; mode: 'create' | 'extend'; baseDemoId?: string; baseVersion?: number; prompt?: string }) => call<{ code: string; expiresAt: string }>('/sim/meyon/grants', json('POST', body)),
+};
