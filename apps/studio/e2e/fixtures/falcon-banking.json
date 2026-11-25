@@ -1,0 +1,583 @@
+{
+ "schemaVersion": 2,
+ "id": "falcon-banking",
+ "name": "Falcon Bank",
+ "channel": "mobile",
+ "theme": {
+  "primary": "#0B3B6E",
+  "secondary": "#0E9389",
+  "accent": "#F58220",
+  "radius": "lg",
+  "font": "inter"
+ },
+ "shell": {
+  "kind": "tabs",
+  "brand": "Falcon",
+  "showBack": true,
+  "items": [
+   {
+    "id": "m1",
+    "label": "Home",
+    "icon": "home",
+    "screen": "home"
+   },
+   {
+    "id": "m2",
+    "label": "Cards",
+    "icon": "credit-card",
+    "screen": "cards"
+   },
+   {
+    "id": "m3",
+    "label": "Transfer",
+    "icon": "send",
+    "screen": "transfer"
+   }
+  ]
+ },
+ "collections": [],
+ "screens": [
+  {
+   "id": "home",
+   "title": "Home",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Heading",
+     "id": "greeting",
+     "text": "Welcome back",
+     "level": "2"
+    },
+    {
+     "type": "Button",
+     "id": "link-account",
+     "label": "Open Current Account",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "account"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "account",
+   "title": "Current Account",
+   "shell": "default",
+   "children": [
+    {
+     "type": "BalanceCard",
+     "id": "balance",
+     "label": "Current account",
+     "amount": "AED 48,750.50",
+     "accountNumber": "AE070331234567890123456",
+     "accountName": "Aisha Al Mansoori"
+    },
+    {
+     "type": "Card",
+     "id": "details",
+     "title": "Account details",
+     "children": [
+      {
+       "type": "RecordFields",
+       "id": "details-items",
+       "items": [
+        {
+         "label": "IBAN",
+         "value": "AE07 0331 2345 6789 0123 456"
+        },
+        {
+         "label": "Account type",
+         "value": "Current account"
+        },
+        {
+         "label": "Currency",
+         "value": "AED"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Statement",
+     "id": "statement",
+     "title": "Statement",
+     "items": [
+      {
+       "date": "2026-11-25",
+       "description": "Salary",
+       "amount": 16000,
+       "icon": "banknote"
+      },
+      {
+       "date": "2026-11-22",
+       "description": "DEWA",
+       "amount": -480,
+       "icon": "receipt"
+      },
+      {
+       "date": "2026-10-25",
+       "description": "Salary",
+       "amount": 16000,
+       "icon": "banknote"
+      },
+      {
+       "date": "2026-10-12",
+       "description": "Etisalat by e&",
+       "amount": -349,
+       "icon": "phone"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "transfer",
+   "title": "Transfer Money",
+   "shell": "default",
+   "children": [
+    {
+     "type": "BalanceCard",
+     "id": "from",
+     "label": "Available balance",
+     "amount": "AED 48,750.50",
+     "caption": "Current account •••• 0019"
+    },
+    {
+     "type": "Form",
+     "id": "form",
+     "children": [
+      {
+       "type": "Select",
+       "id": "from-account",
+       "field": "transfer.fromaccount",
+       "label": "From account",
+       "required": true,
+       "options": [
+        "Current account •••• 0019"
+       ]
+      },
+      {
+       "type": "BeneficiaryPicker",
+       "id": "beneficiary",
+       "field": "transfer.beneficiary",
+       "label": "Pay to",
+       "required": true,
+       "beneficiaries": [
+        {
+         "name": "Sara Al Mansoori",
+         "detail": "Emirates NBD · AE07 •••• 3456"
+        },
+        {
+         "name": "Omar Haddad",
+         "detail": "ADCB · AE45 •••• 9101"
+        }
+       ]
+      },
+      {
+       "type": "AmountInput",
+       "id": "amount",
+       "field": "transfer.amount",
+       "label": "Amount",
+       "required": true,
+       "available": 48750.5,
+       "max": 50000,
+       "maxLabel": "Daily limit AED 50,000",
+       "quickAmounts": [
+        500,
+        1000,
+        5000
+       ]
+      },
+      {
+       "type": "Select",
+       "id": "purpose",
+       "field": "transfer.purpose",
+       "label": "Purpose of payment",
+       "required": true,
+       "options": [
+        "Family support",
+        "Rent",
+        "Personal expenses",
+        "Education"
+       ]
+      },
+      {
+       "type": "Input",
+       "id": "reference",
+       "field": "transfer.reference",
+       "label": "Reference (optional)",
+       "inputType": "text",
+       "required": false
+      },
+      {
+       "type": "Notice",
+       "id": "limits",
+       "tone": "info",
+       "title": "Transfer limits",
+       "body": "Daily transfer limit AED 50,000. Transfers to new beneficiaries are available after a 12-hour cooling period (simulated)."
+      },
+      {
+       "type": "ActionBar",
+       "id": "actions",
+       "primary": {
+        "label": "Review transfer",
+        "actions": [
+         {
+          "type": "submit",
+          "validate": true
+         },
+         {
+          "type": "navigate",
+          "screen": "review-transfer"
+         }
+        ]
+       },
+       "secondary": {
+        "label": "Cancel",
+        "actions": [
+         {
+          "type": "back"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "review-transfer",
+   "title": "Review Transfer",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Text",
+     "id": "intro",
+     "text": "Check the transfer before you send it.",
+     "tone": "muted"
+    },
+    {
+     "type": "Card",
+     "id": "transfer",
+     "title": "Transfer",
+     "children": [
+      {
+       "type": "RecordFields",
+       "id": "transfer-items",
+       "items": [
+        {
+         "label": "Beneficiary",
+         "value": "{{state.transfer.beneficiary ?? Sara Al Mansoori}}"
+        },
+        {
+         "label": "Amount",
+         "value": "{{state.transfer.amount | aed ?? AED 1,000.00}}"
+        },
+        {
+         "label": "Purpose",
+         "value": "{{state.transfer.purpose ?? Family support}}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Form",
+     "id": "form",
+     "children": [
+      {
+       "type": "ActionBar",
+       "id": "actions",
+       "primary": {
+        "label": "Send money",
+        "actions": [
+         {
+          "type": "submit",
+          "validate": true
+         },
+         {
+          "type": "simulate",
+          "label": "Submitting",
+          "durationMs": 900,
+          "outcome": "success"
+         },
+         {
+          "type": "navigate",
+          "screen": "transfer-done"
+         }
+        ]
+       },
+       "secondary": {
+        "label": "Edit details",
+        "actions": [
+         {
+          "type": "back"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "transfer-done",
+   "title": "Transfer Sent",
+   "shell": "hidden",
+   "children": [
+    {
+     "type": "Hero",
+     "id": "hero",
+     "title": "All done",
+     "subtitle": "Transfer Sent",
+     "showLogo": false,
+     "illustration": "success"
+    },
+    {
+     "type": "ActionBar",
+     "id": "actions",
+     "primary": {
+      "label": "Done",
+      "actions": [
+       {
+        "type": "navigate",
+        "screen": "cards"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "cards",
+   "title": "My Cards",
+   "shell": "default",
+   "children": [
+    {
+     "type": "CardVisual",
+     "id": "card",
+     "product": "Platinum Debit",
+     "holder": "AISHA AL MANSOORI",
+     "last4": "4821",
+     "expiry": "08/29",
+     "network": "visa",
+     "kind": "debit",
+     "frozenField": "cards.freeze"
+    },
+    {
+     "type": "Form",
+     "id": "form",
+     "title": "Card controls",
+     "children": [
+      {
+       "type": "Toggle",
+       "id": "freeze",
+       "field": "cards.freeze",
+       "label": "Freeze card"
+      },
+      {
+       "type": "Toggle",
+       "id": "online-payments",
+       "field": "cards.onlinePayments",
+       "label": "Online payments"
+      },
+      {
+       "type": "Toggle",
+       "id": "international-use",
+       "field": "cards.internationalUse",
+       "label": "International use"
+      },
+      {
+       "type": "Input",
+       "id": "limit",
+       "field": "cards.limit",
+       "label": "Daily spending limit (AED)",
+       "inputType": "currency",
+       "required": false
+      },
+      {
+       "type": "ActionBar",
+       "id": "actions",
+       "primary": {
+        "label": "Save settings",
+        "actions": [
+         {
+          "type": "submit",
+          "validate": true
+         },
+         {
+          "type": "toast",
+          "message": "Card settings saved"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "type": "MenuList",
+     "id": "more",
+     "title": "More options",
+     "items": [
+      {
+       "label": "Change PIN",
+       "icon": "lock",
+       "actions": [
+        {
+         "type": "toast",
+         "message": "Change PIN is simulated in this demo"
+        }
+       ]
+      },
+      {
+       "label": "Replace card",
+       "icon": "credit-card",
+       "actions": [
+        {
+         "type": "toast",
+         "message": "Replace card is simulated in this demo"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "Button",
+     "id": "link-finance",
+     "label": "Open Personal Finance",
+     "variant": "secondary",
+     "actions": [
+      {
+       "type": "navigate",
+       "screen": "finance"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "finance",
+   "title": "Personal Finance",
+   "shell": "default",
+   "children": [
+    {
+     "type": "EmiCalculator",
+     "id": "calculator",
+     "title": "Calculate your instalment",
+     "minAmount": 10000,
+     "maxAmount": 500000,
+     "defaultAmount": 100000,
+     "tenures": [
+      12,
+      24,
+      36,
+      48
+     ],
+     "ratePercent": 6.49,
+     "stateKey": "finance.calc",
+     "note": "Indicative figures for this demo; the final rate depends on eligibility."
+    },
+    {
+     "type": "Text",
+     "id": "disclaimer",
+     "text": "Subject to bank approval. Terms and conditions apply.",
+     "tone": "small"
+    },
+    {
+     "type": "ActionBar",
+     "id": "actions",
+     "primary": {
+      "label": "Apply now",
+      "actions": [
+       {
+        "type": "navigate",
+        "screen": "bills"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bills",
+   "title": "Pay Bills",
+   "shell": "default",
+   "children": [
+    {
+     "type": "Form",
+     "id": "form",
+     "children": [
+      {
+       "type": "Select",
+       "id": "biller",
+       "field": "bills.biller",
+       "label": "Biller",
+       "required": true,
+       "options": [
+        "DEWA",
+        "Etisalat by e&",
+        "du",
+        "Salik"
+       ]
+      },
+      {
+       "type": "Input",
+       "id": "account",
+       "field": "bills.accountnumber",
+       "label": "Account / consumer number",
+       "inputType": "text",
+       "required": true
+      },
+      {
+       "type": "AmountInput",
+       "id": "amount",
+       "field": "bills.amount",
+       "label": "Amount",
+       "required": true
+      },
+      {
+       "type": "Toggle",
+       "id": "favourite",
+       "field": "bills.savefavourite",
+       "label": "Save as favourite biller"
+      },
+      {
+       "type": "ActionBar",
+       "id": "actions",
+       "primary": {
+        "label": "Pay now",
+        "actions": [
+         {
+          "type": "submit",
+          "validate": true
+         },
+         {
+          "type": "simulate",
+          "label": "Processing payment (simulated)",
+          "durationMs": 900,
+          "outcome": "success"
+         },
+         {
+          "type": "navigate",
+          "screen": "home"
+         }
+        ]
+       },
+       "secondary": {
+        "label": "Cancel",
+        "actions": [
+         {
+          "type": "back"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

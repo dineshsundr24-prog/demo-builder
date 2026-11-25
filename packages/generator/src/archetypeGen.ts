@@ -4,7 +4,7 @@ import type { LlmProvider, CompletionResult } from './provider.ts';
 import { ProviderError } from './provider.ts';
 import type { Plan, PlanScreen } from './plan.ts';
 import { ARCHETYPES, buildArchetypeScreen, type BuildCtx } from './archetypes.ts';
-import { planDocument } from './screen.ts';
+import { planDocument, shortenTooLong } from './screen.ts';
 import { uxIssues } from './uxLint.ts';
 
 const SCREEN_KEYS = new Set(['next', 'target', 'signUpTarget', 'signInTarget', 'editTarget', 'detailTarget', 'signOutTarget']);
@@ -81,8 +81,12 @@ export async function generateArchetypeScreen(provider: LlmProvider, plan: Plan,
   const build = (content: any) => {
     const parsed = a.content.safeParse(clampToSchema(a.content, sanitizeContent(stripNulls(content), ctx)));
     if (!parsed.success) return { screen: null as Screen | null, issues: [{ path: 'content.' + parsed.error.issues[0].path.join('.'), code: 'content.invalid', severity: 'error', message: parsed.error.issues[0].message } as Issue] };
-    const screen = buildArchetypeScreen(a.id, parsed.data, ctx);
-    return { screen, issues: [...validateScreen(screen, docCtx, 'screen'), ...uxIssues(screen, plan.channel)] };
+    let screen = buildArchetypeScreen(a.id, parsed.data, ctx);
+    // Text that is a little too long for its slot is shortened, never a reason to fall back.
+    const first = validateScreen(screen, docCtx, 'screen');
+    const shorter = shortenTooLong(screen, first);
+    if (shorter) screen = shorter;
+    return { screen, issues: [...(shorter ? validateScreen(screen, docCtx, 'screen') : first), ...uxIssues(screen, plan.channel)] };
   };
   const calls: CompletionResult[] = [];
   const schema = toStrictSchema(a.content, { screen: plan.screens.map(s => s.id).filter(id => id !== target.id), field: collection?.fields.map(f => f.id) ?? [] });

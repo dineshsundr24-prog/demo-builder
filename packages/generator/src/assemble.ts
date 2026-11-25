@@ -42,7 +42,13 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
   const inputs: { label: string; key: string; screen: number; currency: boolean }[] = [];
   const calcs: { key: string; screen: number }[] = [];
   doc.screens.forEach((s, si) => { const w = (ns: NodeT[]) => ns.forEach(n => {
-    if (['Input', 'Select', 'Radio'].includes(n.type) && typeof n.field === 'string' && typeof n.label === 'string') inputs.push({ label: norm(n.label), key: n.field, screen: si, currency: n.inputType === 'currency' });
+    if (['Input', 'Select', 'Radio', 'BeneficiaryPicker', 'AmountInput'].includes(n.type) && typeof n.field === 'string' && typeof n.label === 'string') {
+      const currency = n.inputType === 'currency' || n.type === 'AmountInput';
+      inputs.push({ label: norm(n.label), key: n.field, screen: si, currency });
+      // Common review wording for the same values.
+      if (n.type === 'BeneficiaryPicker') for (const alias of ['beneficiary', 'beneficiary name', 'pay to', 'to', 'recipient', 'supplier', 'payee']) inputs.push({ label: alias, key: n.field, screen: si, currency });
+      if (n.type === 'AmountInput') for (const alias of ['amount', 'transfer amount', 'payment amount', 'amount paid']) inputs.push({ label: alias, key: n.field, screen: si, currency });
+    }
     if (n.type === 'EmiCalculator' && typeof n.stateKey === 'string') calcs.push({ key: n.stateKey, screen: si });
     if (n.children) w(n.children as NodeT[]); }); w(s.children as NodeT[]); });
   let linkedRows = 0;

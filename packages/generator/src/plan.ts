@@ -51,7 +51,7 @@ Return the plan only. Rules:
 - archetype: the standard screen type this screen IS (each has a professionally designed layout):
 ARCHETYPE_LIST
   Use "custom" only when none fits. A dashboard/home is "dashboard"; a records/history/requests/inbox screen is "list"; its drill-down is "detail".
-  Banking (the default domain): money transfer -> "transfer"; bill/utility payment -> "bill-payment"; card management/freeze/limits -> "card-controls"; loan/finance offer or calculator -> "loan-offer"; one account's details/IBAN/statement -> "account-details"; confirm-before-submit -> "review"; receipt/confirmation -> "success"; beneficiaries/transactions/requests -> "list".
+  Banking (the default domain): money transfer, paying a supplier/vendor/person or sending money -> "transfer"; bill/utility payment -> "bill-payment"; card management/freeze/limits -> "card-controls"; loan/finance offer or calculator -> "loan-offer"; one account's details/IBAN/statement -> "account-details"; confirm-before-submit -> "review"; receipt/confirmation -> "success"; beneficiaries/transactions/requests -> "list".
   Staff portal: a staff view of one customer -> "customer-360"; maker review, checker approval, KYC/AML or any staff decision on a record -> "approval" (never a read-only summary); queues -> "list" with the records collection.
 - collection: the id of the collection a list/detail/dashboard/report/approval screen shows; otherwise null. Each list gets its own collection with fields matching that list (e.g. transactions: date, description, amount, status).
 - Screens: when a screen list is provided, return exactly those screens, same ids, titles and order; never add screens. Otherwise propose only the screens the brief needs (3-12; ids are lowercase-hyphen slugs).
@@ -116,6 +116,17 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
   for (const s of screens) if (s.template && !allowed.includes(s.template)) { notes.push('Ignored template "' + s.template + '" for "' + s.title + '" (not requested in the brief)'); s.template = null; }
   const ids = new Set(screens.map(s => s.id));
   const colIds = new Set(p.collections.map(c => c.id));
+  // Banking safety net: generic choices for clearly banking screens get the designed banking type.
+  for (const s of screens) {
+    if (!['form', 'custom', 'info', undefined].includes(s.archetype as any)) continue;
+    const text = (s.title + ' ' + s.requirement).toLowerCase();
+    const pick = /\b(review|confirm|receipt|success|history|list|statement)\b/.test(s.title.toLowerCase()) ? null
+      : /\b(transfer|send money|remittance|pay (a |the )?(supplier|vendor|beneficiary|someone|person|contact)|supplier payment)\b/.test(text) ? 'transfer'
+      : /\b(pay (bills?|utilities)|bill payment|utility|dewa|etisalat|salik|addc)\b/.test(text) ? 'bill-payment'
+      : /\b(my cards?|card (controls|management|settings)|freeze|unfreeze)\b/.test(text) ? 'card-controls'
+      : /\b(emi|instal?ment calculator|loan calculator|finance offer|loan offer)\b/.test(text) ? 'loan-offer' : null;
+    if (pick && ARCHETYPES[pick]?.channels.includes(req.channel)) { notes.push('"' + s.title + '" uses the ' + ARCHETYPES[pick].label.toLowerCase() + ' layout'); s.archetype = pick; }
+  }
   for (const s of screens) {
     const a = ARCHETYPES[s.archetype ?? 'custom'];
     if (!a || !a.channels.includes(req.channel)) s.archetype = 'custom';

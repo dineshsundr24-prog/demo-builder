@@ -125,6 +125,15 @@ define({ type: 'Promo', label: 'Promo banner', category: 'pattern', ai: 'Highlig
   props: z.object({ title: Bound(60), body: Bound(160).optional(), icon: Icon, cta: z.object({ label: z.string().min(1).max(24), actions: Act }).optional() }),
   create: () => ({ title: 'Offer', icon: 'gift' }) });
 
+define({ type: 'BeneficiaryPicker', label: 'Beneficiary picker', category: 'input', ai: 'Choose who to pay from saved beneficiaries (name, bank, masked IBAN) as selectable cards; optional link to add a new beneficiary. Use inside a transfer Form.',
+  props: z.object({ field: StateKey, label: Bound(60), required: z.boolean(), beneficiaries: z.array(z.object({ name: Bound(50), detail: Bound(60) })).min(1).max(10), addScreen: ScreenRef.optional() }),
+  create: () => ({ field: 'transfer.beneficiary', label: 'Pay to', required: true, beneficiaries: [{ name: 'Sara Al Mansoori', detail: 'Emirates NBD · AE07 •••• 3456' }] }) });
+define({ type: 'AmountInput', label: 'Amount (AED)', category: 'input', ai: 'Money amount in AED with available balance, quick-amount chips and a maximum (balance or limit) that is enforced on submit. Use for transfers, bill payments, top-ups.',
+  props: z.object({ field: StateKey, label: Bound(60), required: z.boolean(), available: z.number().min(0).max(1e10).optional(), availableLabel: Bound(40).optional(), max: z.number().min(0).max(1e10).optional(), maxLabel: Bound(60).optional(), quickAmounts: z.array(z.number().min(1).max(1e9)).max(5).optional() }),
+  create: () => ({ field: 'transfer.amount', label: 'Amount', required: true, available: 48750.5, quickAmounts: [500, 1000, 5000] }) });
+define({ type: 'Statement', label: 'Account statement', category: 'pattern', ai: 'Transactions grouped by month with month tabs, money in/out totals and a (simulated) PDF download. Dates YYYY-MM-DD, amounts as numbers (positive = in, negative = out).',
+  props: z.object({ title: Bound(60), items: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), description: Bound(60), category: Bound(30).optional(), amount: z.number().min(-1e9).max(1e9), icon: Icon })).min(1).max(40) }),
+  create: () => ({ title: 'Statement', items: [{ date: '2026-11-25', description: 'Salary', amount: 16000, icon: 'banknote' }, { date: '2026-11-22', description: 'DEWA', amount: -480, icon: 'receipt' }] }) });
 define({ type: 'CardVisual', label: 'Bank card', category: 'pattern', ai: 'Payment card visual (masked number, holder, expiry). frozenField: the state key of a Toggle that freezes the card (the card shows Frozen when it is on).',
   props: z.object({ product: Bound(40), holder: Bound(40), last4: z.string().regex(/^\d{4}$/), expiry: z.string().regex(/^\d{2}\/\d{2}$/), network: z.enum(['visa', 'mastercard']), kind: z.enum(['debit', 'credit', 'prepaid']), frozenField: StateKey.optional() }),
   create: () => ({ product: 'Platinum Debit', holder: 'CUSTOMER NAME', last4: '4821', expiry: '08/29', network: 'visa', kind: 'debit' }) });

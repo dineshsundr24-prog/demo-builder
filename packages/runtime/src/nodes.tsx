@@ -108,6 +108,32 @@ function Toggle({ node }: { node: NodeT }) {
   const f = useField(node);
   return <label {...attrs(node, 'toggle')}><span>{String(node.label)}</span><input type="checkbox" role="switch" checked={f.value === 'true'} onChange={e => f.set(e.target.checked ? 'true' : 'false')} /></label>;
 }
+const money = (n: number) => 'AED ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function BeneficiaryPicker({ node }: { node: NodeT }) {
+  const f = useField(node), rt = useRuntime();
+  const list = node.beneficiaries as { name: string; detail: string }[];
+  const initials = (n: string) => n.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  return <fieldset {...attrs(node, 'beneficiaries')} data-invalid={!!f.error}>
+    <legend>{String(node.label)}{node.required ? <span className="db-req" aria-hidden> *</span> : null}</legend>
+    <div role="radiogroup" aria-label={String(node.label)}>{list.map(b => <button key={b.name} type="button" role="radio" aria-checked={f.value === b.name} onClick={() => f.set(b.name)}>
+      <span className="db-ben-avatar" aria-hidden>{initials(b.name)}</span><span className="db-ben-main"><strong>{b.name}</strong><small>{b.detail}</small></span></button>)}</div>
+    {node.addScreen ? <button type="button" className="db-link db-ben-add" onClick={() => rt.interactive && rt.run([{ type: 'navigate', screen: String(node.addScreen) }])}>+ Add a new beneficiary</button> : null}
+    <Err e={f.error} />
+  </fieldset>;
+}
+function AmountInput({ node }: { node: NodeT }) {
+  const f = useField(node);
+  const quick = (node.quickAmounts as number[] | undefined) ?? [];
+  return <div {...attrs(node, 'amount')} data-invalid={!!f.error}>
+    <Label node={node} id={f.id} />
+    <div className="db-amount-box"><span>AED</span><input id={f.id} inputMode="decimal" placeholder="0.00" value={f.value} onChange={e => f.set(e.target.value.replace(/[^0-9.,]/g, ''))} aria-invalid={!!f.error} /></div>
+    {typeof node.available === 'number' || typeof node.max === 'number' ? <p className="db-amount-meta">
+      {typeof node.available === 'number' ? <span>{node.availableLabel ? String(node.availableLabel) : 'Available'}: <strong>{money(node.available)}</strong></span> : null}
+      {typeof node.max === 'number' ? <span>{node.maxLabel ? String(node.maxLabel) : 'Limit ' + money(node.max)}</span> : null}</p> : null}
+    {quick.length ? <div className="db-chips" role="group" aria-label="Quick amounts">{quick.map(q => <button key={q} type="button" aria-pressed={Number(f.value.replace(/,/g, '')) === q} onClick={() => f.set(String(q))}>{q.toLocaleString('en-US')}</button>)}</div> : null}
+    <Err e={f.error} />
+  </div>;
+}
 function Upload({ node }: { node: NodeT }) {
   const f = useField(node);
   return <div {...attrs(node, 'upload')} data-invalid={!!f.error}><Label node={node} id={f.id} />
@@ -186,5 +212,5 @@ function Template({ node }: { node: NodeT }) { return <div {...attrs(node, 'temp
 
 export const renderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = {
   Stack, Grid, Section, Card, Form, Heading, Text, Notice, Stat, Image, Progress, Steps, Badge, Divider, RecordFields,
-  Input, Select, Radio, Checkbox, Toggle, Upload, Button, Table, List, Template,
+  Input, Select, Radio, Checkbox, Toggle, Upload, Button, Table, List, Template, BeneficiaryPicker, AmountInput,
 };

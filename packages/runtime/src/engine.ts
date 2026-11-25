@@ -55,8 +55,14 @@ export function formInputs(doc: DemoDocument, screenId: string, formId: string):
 export function validateForm(doc: DemoDocument, s: Session, formId: string): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const input of formInputs(doc, s.screenId, formId)) {
-    if (!input.required) continue;
     const key = String(input.field), v = getPath(s.state, key);
+    if (input.type === 'AmountInput' && String(v ?? '').trim()) {
+      const n = Number(String(v).replace(/[^0-9.]/g, ''));
+      const cap = [input.available, input.max].filter((x): x is number => typeof x === 'number').reduce((a, b) => Math.min(a, b), Infinity);
+      if (!Number.isFinite(n) || n <= 0) { errors[key] = 'Enter an amount greater than zero'; continue; }
+      if (n > cap) { errors[key] = typeof input.max === 'number' && input.max === cap ? (input.maxLabel ? String(input.maxLabel) : 'The maximum is AED ' + cap.toLocaleString('en-US')) : 'The amount is more than your available balance'; continue; }
+    }
+    if (!input.required) continue;
     if (input.type === 'Checkbox' ? v !== 'true' : !String(v ?? '').trim()) errors[key] = input.type === 'Checkbox' ? 'Please confirm to continue' : String(input.label) + ' is required';
     else if (input.type === 'Input' && input.inputType === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v))) errors[key] = 'Enter a valid email address';
     else if (input.type === 'Input' && input.inputType === 'otp' && !/^\d{4,8}$/.test(String(v))) errors[key] = 'Enter the numeric code';

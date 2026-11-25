@@ -43,3 +43,16 @@ test('full card numbers are never shown', () => {
   const iban = build([{ id: 'acc', title: 'Account', children: [{ type: 'RecordFields', id: 'r', items: [{ label: 'IBAN', value: 'AE07 0331 2345 6789 0123 456' }] } as NodeT] }]);
   assert.equal((iban.document.screens[0].children[0] as any).items[0].value, 'AE07 0331 2345 6789 0123 456', 'IBANs stay visible');
 });
+
+test('transfer review rows link to the beneficiary picker and the amount', () => {
+  const { document } = build([
+    { id: 'transfer', title: 'Transfer', children: [{ type: 'Form', id: 'f', children: [
+      { type: 'BeneficiaryPicker', id: 'b', field: 'transfer.beneficiary', label: 'Pay to', required: true, beneficiaries: [{ name: 'Sara Al Mansoori', detail: 'ENBD · AE07 •••• 3456' }] },
+      { type: 'AmountInput', id: 'a', field: 'transfer.amount', label: 'Amount', required: true, available: 1000 },
+      { type: 'Button', id: 'go', label: 'Review', variant: 'primary', actions: [{ type: 'submit', validate: true }, { type: 'navigate', screen: 'review-transfer' }] }] } as NodeT] },
+    { id: 'review-transfer', title: 'Review transfer', children: [{ type: 'RecordFields', id: 'r', items: [{ label: 'Beneficiary', value: 'Sara Al Mansoori' }, { label: 'Transfer amount', value: 'AED 2,500.00' }] } as NodeT] },
+  ]);
+  const items = (document.screens[1].children[0] as any).items;
+  assert.equal(items[0].value, '{{state.transfer.beneficiary ?? Sara Al Mansoori}}');
+  assert.equal(items[1].value, '{{state.transfer.amount | aed ?? AED 2,500.00}}');
+});

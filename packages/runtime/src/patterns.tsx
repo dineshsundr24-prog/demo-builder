@@ -180,4 +180,24 @@ function EmiCalculator({ node }: { node: NodeT }) {
     {node.note ? <p className="db-emi-note">{t(node.note)}</p> : null}
   </section>;
 }
-export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { CardVisual, EmiCalculator, Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo, FeatureList, Chart };
+function Statement({ node }: { node: NodeT }) {
+  const rt = useRuntime(), t = useText();
+  const items = [...(node.items as { date: string; description: string; category?: string; amount: number; icon: string }[])].sort((a, b) => b.date.localeCompare(a.date));
+  const months = [...new Set(items.map(i => i.date.slice(0, 7)))];
+  const [month, setMonth] = useState(months[0] ?? '');
+  const shown = items.filter(i => i.date.startsWith(month));
+  const name = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const sum = (f: (n: number) => boolean) => shown.filter(i => f(i.amount)).reduce((a, i) => a + Math.abs(i.amount), 0);
+  const fmt = (n: number) => 'AED ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return <section {...attrs(node, 'statement')}>
+    <div className="db-statement-head"><h3 className="db-pattern-title">{t(node.title)}</h3>
+      <button type="button" className="db-link" onClick={() => rt.interactive && rt.run([{ type: 'toast', message: 'Statement for ' + name(month) + ' downloaded (simulated)' }])}>Download PDF</button></div>
+    <div className="db-chips" role="tablist" aria-label="Month">{months.map(m => <button key={m} type="button" role="tab" aria-selected={m === month} aria-pressed={m === month} onClick={() => setMonth(m)}>{name(m)}</button>)}</div>
+    <div className="db-statement-totals"><div><small>Money in</small><strong className="in">{fmt(sum(n => n > 0))}</strong></div><div><small>Money out</small><strong>{fmt(sum(n => n < 0))}</strong></div></div>
+    <div className="db-txns"><ul>{shown.map((i, k) => { const dir = i.amount >= 0 ? 'in' : 'out'; return <li key={k}>
+      <span className="db-txn-icon" data-direction={dir}><Icon name={i.icon} size={18} /></span>
+      <span className="db-txn-main"><strong>{t(i.description)}</strong><small>{prettyDates(i.date)}{i.category ? ' · ' + i.category : ''}</small></span>
+      <span className="db-txn-amount" data-direction={dir}>{(i.amount >= 0 ? '+ ' : '- ') + fmt(Math.abs(i.amount))}</span></li>; })}</ul></div>
+  </section>;
+}
+export const patternRenderers: Record<string, (p: { node: NodeT }) => React.ReactElement> = { CardVisual, EmiCalculator, Statement, Hero, BalanceCard, QuickActions, TransactionList, MenuList, ProfileHeader, ActionBar, StatusTimeline, Promo, FeatureList, Chart };
