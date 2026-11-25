@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, Plus, RefreshCw, Sparkles, Trash2, X, XCircle, AlertTriangle } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
 import { BrandFields, type BrandValue } from './BrandFields.tsx';
+import { authHeaders, signedInEmail } from './account.ts';
 
 const env = import.meta.env as Record<string, string | undefined>;
 export const API = env.VITE_API_URL || (env.VITE_API_HOST ? 'https://' + env.VITE_API_HOST : 'http://localhost:8787');
@@ -15,14 +16,15 @@ const DONE = ['completed', 'completed_with_warnings', 'failed', 'cancelled'];
 export const token = () => { try { return sessionStorage.getItem('db-access') ?? ''; } catch { return ''; } };
 
 export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(API + path, { ...init, headers: { 'content-type': 'application/json', 'x-builder-access': token(), ...(init.headers || {}) } });
+  const res = await fetch(API + path, { ...init, headers: { 'content-type': 'application/json', ...(await authHeaders()), ...(init.headers || {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Error((body as any).error ?? 'Request failed (' + res.status + ')');
+  if (!res.ok) throw Object.assign(Error((body as any).error ?? 'Request failed (' + res.status + ')'), { status: res.status });
   return body as T;
 }
 
 export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: { onLoad: (d: DemoDocument, notes: string[]) => void; onClose: () => void; defaultChannel: 'mobile' | 'portal'; resumeJobId?: string }) {
   const [access, setAccess] = useState(token());
+  const signed = !!signedInEmail(); // a signed-in user needs no shared access token
   const [form, setForm] = useState({ name: '', company: '', channel: defaultChannel as 'mobile' | 'portal', brief: '' });
   const [brand, setBrand] = useState<BrandValue>(() => { try { return JSON.parse(localStorage.getItem('db-brand') || '{}'); } catch { return {}; } });
   useEffect(() => { try { localStorage.setItem('db-brand', JSON.stringify(brand)); } catch { /* storage unavailable or logo too large */ } }, [brand]);
@@ -50,11 +52,11 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
     return () => { stop = true; };
   }, [job?.status]);
   useEffect(() => {
-    if (!access || job) return;
+    if ((!access && !signed) || job) return;
     let stop = false;
     call<{ jobs: JobSummary[] }>('/api/v2/jobs?limit=8').then(r => { if (!stop) setRecent(r.jobs); }).catch(() => { if (!stop) setRecent(null); });
     return () => { stop = true; };
-  }, [access, job]);
+  }, [access, job, signed]);
   // One polling loop per user action (start, approve, retry, regenerate); it ends when the job
   // waits for plan approval or reaches a final state.
   const [poll, setPoll] = useState(0);
@@ -98,14 +100,14 @@ export function GeneratePanel({ onLoad, onClose, defaultChannel, resumeJobId }: 
       <header><h2><Sparkles size={18} /> Generate with AI</h2><button type="button" className="gen-x" aria-label="Close" onClick={onClose}><X size={18} /></button></header>
       {!job || ['failed', 'cancelled'].includes(job.status) && !job.plan ? <div className="gen-body">
         <p className="gen-note gen-api" data-testid="api-status">{apiError ? <span className="bad">{apiError}</span> : status?.storage === 'unavailable' ? <span className="bad">The API is running but its storage is not connected, so generations cannot be saved. Ask the administrator to check SUPABASE_SECRET_KEY.</span> : status ? <>Connected · model {status.model} · storage {status.store}{typeof status.budget?.spentUsd === 'number' ? ' · AI spend this month USD ' + status.budget.spentUsd.toFixed(2) + ' of ' + status.budget.limitUsd : ''}</> : 'Connecting to the generation API…'}</p>
-        <label>Access token<input type="password" value={access} onChange={e => setAccess(e.target.value)} placeholder="Demo Builder access token" autoComplete="off" /></label>
+        {signed ? null : <label>Access token<input type="password" value={access} onChange={e => setAccess(e.target.value)} placeholder="Demo Builder access token" autoComplete="off" /></label>}
         <div className="gen-row"><label>Project name<input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
           <label>Company<input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} /></label>
           <label>Channel<select value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value as 'mobile' | 'portal' })}><option value="mobile">Mobile app</option><option value="portal">Staff portal</option></select></label></div>
         <label>Business requirements<textarea rows={12} value={form.brief} onChange={e => setForm({ ...form, brief: e.target.value })} placeholder={'Describe the app. Numbered screens are kept exactly, e.g.\n1. **Welcome:** brand, Sign In and Create Account\n2. **Sign In:** ...'} /></label>
         <details className="gen-brand"><summary>Brand (optional): logo, colours, font</summary><BrandFields value={brand} onChange={setBrand} /></details>
         <p className="gen-note">Step 1 drafts a plan you can edit (about a cent). Nothing is generated until you approve it.</p>
-        <button type="button" className="gen-primary" disabled={busy || !access || form.brief.trim().length < 15} onClick={start}>{busy ? 'Starting…' : 'Draft plan'}</button>
+        <button type="button" className="gen-primary" disabled={busy || (!access && !signed) || form.brief.trim().length < 15} onClick={start}>{busy ? 'Starting…' : 'Draft plan'}</button>
         {recent?.length ? <div className="gen-recent"><p className="studio-label">Recent generations</p><ul>{recent.map(j => <li key={j.id}>
           <span>{j.request?.name || 'Untitled'} <small>{j.request?.channel} · {j.status.replace(/_/g, ' ')} · USD {Number(j.cost_usd).toFixed(3)} · {new Date(j.created_at).toLocaleString()}</small></span>
           <button type="button" onClick={() => { setPlan([]); setScreens([]); setJob({ id: j.id, status: 'loading', plan: null, warnings: [], error: null, cost_usd: 0, input_tokens: 0, output_tokens: 0, trace_id: '' }); }}>Open</button></li>)}</ul></div> : null}

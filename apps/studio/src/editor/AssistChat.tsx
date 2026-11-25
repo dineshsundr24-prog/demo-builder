@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Settings2, Sparkles, Undo2 } from 'lucide-react';
 import type { DemoDocument } from '@demo/schema';
 import { call, token } from '../GeneratePanel.tsx';
+import { signedInEmail } from '../account.ts';
 
 export type AssistOutcome = { action: 'added' | 'modified' | 'flow' | 'none'; document: DemoDocument; screenId: string; changes: string[]; reply?: string; costUsd: number };
 export type ChatMode = 'auto' | 'modify' | 'add' | 'flow';
@@ -91,12 +92,12 @@ export function AssistChat({ doc, currentScreen, messages, setMessages, mode, se
         <label>Leads to<select value={to} onChange={e => setTo(e.target.value)}><option value="">AI chooses</option>{doc.screens.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
         {doc.shell.kind !== 'none' ? <label className="chat-check"><input type="checkbox" checked={menu} onChange={e => setMenu(e.target.checked)} />Add to app menu</label> : null}
       </div> : null}
-      {!token() ? <input className="chat-token" type="password" aria-label="Access token" placeholder="Demo Builder access token" value={access} onChange={e => setAccess(e.target.value)} autoComplete="off" /> : null}
+      {!token() && !signedInEmail() ? <input className="chat-token" type="password" aria-label="Access token" placeholder="Demo Builder access token" value={access} onChange={e => setAccess(e.target.value)} autoComplete="off" /> : null}
       <div className="chat-input">
         <textarea ref={box} rows={2} value={text} onChange={e => setText(e.target.value)} aria-label="Message the AI assistant"
           placeholder={mode === 'flow' ? 'e.g. Add Cards to the menu, delete the Promotions screen…' : mode === 'add' ? 'Describe the new screen…' : mode === 'modify' ? 'What should change on "' + (current?.title ?? 'this screen') + '"?' : 'Describe a change or a new screen…'}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} />
-        <button type="button" className="chat-send" data-testid="assist-go" aria-label="Send" disabled={busy || text.trim().length < 3 || !access.trim()} onClick={() => send()}><ArrowUp size={16} /></button>
+        <button type="button" className="chat-send" data-testid="assist-go" aria-label="Send" disabled={busy || text.trim().length < 3 || (!access.trim() && !signedInEmail())} onClick={() => send()}><ArrowUp size={16} /></button>
       </div>
       {mode === 'add' ? <button type="button" className="chat-blank" onClick={onBlank}>Create a blank screen instead</button> : null}
       <p className="chat-foot">Enter to send · Shift+Enter for a new line · about USD 0.002–0.004 per request</p>

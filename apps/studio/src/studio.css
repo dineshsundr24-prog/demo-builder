@@ -238,3 +238,52 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .chat-blank { justify-self: start; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: #1e3a5f; text-decoration: underline; cursor: pointer; }
 .msg-info { background: #f8fafc; }
 .insp-check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+/* ---------- Accounts, saved demos and versions ---------- */
+.welcome-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.account { display: grid; gap: 6px; }
+.account.compact { display: flex; align-items: center; gap: 8px; }
+.account-line { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #475467; margin: 0; min-width: 0; }
+.account-line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
+.account-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--s-line); background: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12.5px; color: #1e3a5f; cursor: pointer; }
+.account-btn.primary { background: #1e3a5f; color: #fff; border-color: transparent; }
+.account-btn:disabled { opacity: .5; cursor: default; }
+.signin-backdrop { position: fixed; inset: 0; background: rgb(16 24 40 / 35%); display: grid; place-items: center; z-index: 120; padding: 16px; }
+.signin { position: relative; width: min(400px, 100%); background: #fff; border-radius: 14px; padding: 22px; display: grid; gap: 10px; box-shadow: 0 24px 60px rgb(16 24 40 / 30%); }
+.signin h2 { margin: 0; font-size: 18px; color: #1e3a5f; }
+.signin label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; color: #344054; }
+.signin input { border: 1px solid var(--s-line); border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 14px; }
+.signin .muted { margin: 0; font-size: 13px; color: #667085; }
+.signin .small, .versions .small { font-size: 11.5px; }
+.signin-actions { display: flex; gap: 8px; }
+.signin-actions .account-btn { flex: 1; padding: 9px 10px; font-size: 13.5px; }
+.signin-link { border: 0; background: none; color: #1e3a5f; text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; justify-self: start; padding: 0; }
+.signin-info { margin: 0; font-size: 13px; color: #067647; background: #ecfdf3; border-radius: 8px; padding: 8px 10px; }
+.signin-close { position: absolute; top: 10px; right: 12px; border: 0; background: none; font-size: 22px; color: #667085; cursor: pointer; }
+.saved-demos { margin-top: 18px; text-align: left; }
+.saved-demos h2 { font-size: 14px; color: #344054; margin: 0 0 8px; }
+.saved-demos ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.saved-demos li button { width: 100%; display: flex; align-items: center; gap: 10px; border: 1px solid var(--s-line); background: #fff; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; color: inherit; cursor: pointer; text-align: left; }
+.saved-demos li button:hover { border-color: #84adff; }
+.saved-demos li .muted { margin-left: auto; font-size: 12.5px; color: #667085; }
+.badge-primary { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #b54708; background: #fffaeb; border: 1px solid #fedf89; border-radius: 999px; padding: 2px 8px; }
+.studio-save-cloud { border: 1px dashed #84adff; background: #f5f8ff; color: #1e3a5f; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.versions { border: 1px solid var(--s-line); border-radius: 10px; background: #fff; padding: 10px; display: grid; gap: 8px; }
+.versions-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.save-state { font-size: 12px; color: #667085; }
+.save-state.saved { color: #067647; } .save-state.conflict, .save-state.error { color: #b42318; font-weight: 600; }
+.link-btn { border: 0; background: none; color: #1e3a5f; text-decoration: underline; font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+.versions-conflict { background: #fef3f2; border: 1px solid #fda29b; border-radius: 8px; padding: 8px; display: grid; gap: 6px; font-size: 12.5px; }
+.versions-conflict p { margin: 0; }
+.versions-save { display: flex; gap: 6px; }
+.versions-save input { flex: 1; min-width: 0; border: 1px solid var(--s-line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; }
+.version-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.version-list li { border-top: 1px solid var(--s-line); padding-top: 6px; display: grid; gap: 3px; font-size: 12.5px; }
+.version-title { display: flex; gap: 6px; min-width: 0; } .version-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-meta { color: #667085; font-size: 11.5px; } .warn-text { color: #b54708; } .pub-badge { color: #067647; }
+.version-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.version-actions button, .pub-link button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--s-line); background: #fff; border-radius: 6px; padding: 3px 7px; font: inherit; font-size: 11.5px; color: #1e3a5f; cursor: pointer; }
+.pub-link { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; }
+.pub-link input { border: 1px solid var(--s-line); border-radius: 6px; padding: 4px 6px; font: 11.5px ui-monospace, monospace; min-width: 0; }
+.pub-link p { grid-column: 1 / -1; margin: 0; }
+.pub-list { display: grid; gap: 2px; font-size: 11.5px; color: #475467; }

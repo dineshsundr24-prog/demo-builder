@@ -140,3 +140,19 @@ Estimate per 12-screen generation (to be verified against current provider prici
 - **New `data` operation.** The AI creates fitting sample data during an edit, e.g. customers for a customer search, instead of reusing unrelated records.
 - **Broken parts are flagged.** The outline marks buttons without actions and inputs outside forms "[does nothing]", so "rework" or "clean up" removes them.
 Live: the UAT request handled correctly 3 of 3 times; the 10-case evaluation 10 of 10.
+
+## D10. Saved demos, immutable versions and a principal-based authorization model (Phase A1)
+**Decision.**
+- **Principals.** One per identity source and subject: Supabase Auth for standalone users, MEYON launch sessions (A2), the shared UAT token (interim) and SSO later. Every source maps into the same workspace and role model, so adding SSO is a new source value, not a new authorization model. MEYON's shared login is never treated as an individual identity.
+- **Workspaces and roles.** Workspaces are the tenant boundary, with owner, editor and viewer roles.
+- **Sessions.** A Builder session (A2) is additionally confined to one workspace, one project and a list of operations.
+- **Demos.** A demo is one application (mobile app or staff portal) with an autosaved working draft protected by a revision number (compare-and-swap). It has a primary flag (at most one per workspace, project and application type; the first demo becomes primary) and an optional fork origin.
+- **Versions.** Immutable snapshots numbered per demo, with a content hash, note and validation metadata. A database trigger rejects any update.
+- **Publications.** Read-only links to one exact version. Only the SHA-256 of the token is stored, links are revocable, and a version with validation errors cannot be published.
+- **Generation jobs.** Each job records the principal that started it. Jobs are listed and opened only by that principal; legacy unowned jobs stay visible to the UAT token only.
+- **Access path.** The Studio never touches these tables. RLS is enabled with no browser policies, and the API (service role) authorizes every request. Atomic steps (save version, set primary, fork) are database functions executable only by the service role.
+
+**Evidence.**
+- Migration tests on Supabase-like Postgres (`supabase/tests/demos_test.sql`) cover immutability, concurrency, the primary rule, cross-workspace references and browser privileges.
+- API tests (`apps/api/test/demos.test.ts`) cover isolation, conflicts, versions, publication, primary/fork, session scope and job ownership.
+- Browser tests (`apps/studio/e2e/persistence.spec.ts`) cover the user journeys.
