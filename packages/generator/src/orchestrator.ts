@@ -166,7 +166,9 @@ export class Generator {
     let { document, issues, fixes } = assemble(job.plan, rows.map(r => r.screen as Screen));
     // Cross-screen pass: one targeted call per screen whose bindings nothing satisfies (bounded).
     const bindingCodes = ['binding.state-unwritten', 'binding.no-record', 'binding.record-field'];
-    const affected = [...new Set(issues.filter(i => bindingCodes.includes(i.code) && i.screenId).map(i => i.screenId!))].slice(0, this.config.maxBindingRefinements);
+    // Designed (archetype) screens are fixed deterministically during assembly; only free-form screens get an AI rewrite.
+    const designed = new Set((job.plan as Plan).screens.filter(p => p.archetype && p.archetype !== 'custom').map(p => p.id));
+    const affected = [...new Set(issues.filter(i => bindingCodes.includes(i.code) && i.screenId && !designed.has(i.screenId)).map(i => i.screenId!))].slice(0, this.config.maxBindingRefinements);
     if (affected.length) {
       const ctx = documentContext(document);
       let improved = false;

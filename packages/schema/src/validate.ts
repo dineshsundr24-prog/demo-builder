@@ -61,6 +61,7 @@ export function documentContext(doc: DemoDocument): DocContext {
   });
   for (const s of doc.screens) walk(s.children as NodeT[], '', n => {
     if (inputTypes.has(n.type) && typeof n.field === 'string') stateKeys.add(n.field);
+    if (n.type === 'EmiCalculator' && typeof n.stateKey === 'string') for (const k of ['amount', 'tenure', 'emi', 'amountText', 'tenureText']) stateKeys.add(n.stateKey + '.' + k);
     for (const a of actionsOf(n)) {
       if (a.type === 'setState') stateKeys.add(a.key);
       if (a.type === 'navigate' && a.passRecord) recordScreens.add(a.screen);

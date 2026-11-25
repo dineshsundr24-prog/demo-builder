@@ -6,7 +6,7 @@ import { Generator, MemoryStore, OpenAIProvider, defaultConfig } from '../src/in
 
 const [outDir, model = process.env.OPENAI_MODEL || 'gpt-4.1-mini'] = process.argv.slice(2);
 const base = new URL('../fixtures/benchmark/', import.meta.url);
-const briefs: { file: string; channel: 'mobile' | 'portal'; name: string }[] = JSON.parse(readFileSync(new URL('briefs.json', base), 'utf8')).filter((b: any) => !process.env.BENCH_ONLY || process.env.BENCH_ONLY.split(',').some(k => b.file.startsWith(k)));
+const briefs: { file: string; channel: 'mobile' | 'portal'; name: string }[] = JSON.parse(readFileSync(new URL(process.env.BENCH_FILE || 'briefs.json', base), 'utf8')).filter((b: any) => !process.env.BENCH_ONLY || process.env.BENCH_ONLY.split(',').some(k => b.file.startsWith(k)));
 mkdirSync(outDir, { recursive: true });
 const store = new MemoryStore();
 const gen = new Generator(store, new OpenAIProvider(model, process.env.OPENAI_API_KEY!), { ...defaultConfig, monthlyBudgetUsd: 5 });

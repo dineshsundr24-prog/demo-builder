@@ -310,10 +310,10 @@ def({ id: 'card-controls', label: 'Card management', channels: ['mobile', 'porta
   build: (c, ctx) => { const id = ids(), k = (l: string) => fieldKey(ctx.screen.id, l); return [
     ...titleBlock(ctx, id, ctx.screen.title),
     { type: 'CardVisual', id: id('card'), product: c.product, holder: c.holder.toUpperCase(), last4: (String(c.last4).replace(/\D/g, '') + '4821').slice(0, 4), expiry: /^\d{2}\/\d{2}$/.test(c.expiry) ? c.expiry : '08/29', network: c.network, kind: c.kind, frozenField: k('freeze') },
-    ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details } as NodeT] : []),
+    ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details.filter((d: any) => !/card number|pan\b/i.test(d.label)) } as NodeT] : []),
     { type: 'Form', id: id('form'), title: 'Card controls', children: [
       { type: 'Toggle', id: id('freeze'), field: k('freeze'), label: 'Freeze card' },
-      ...c.controls.map((l: string) => ({ type: 'Toggle', id: id(l), field: k(l), label: l }) as NodeT),
+      ...c.controls.filter((l: string) => !/freeze|block|lock card/i.test(l)).map((l: string) => ({ type: 'Toggle', id: id(l), field: k(l), label: l }) as NodeT),
       ...(c.limitLabel ? [{ type: 'Input', id: id('limit'), field: k('limit'), label: c.limitLabel, inputType: 'currency', required: false } as NodeT] : []),
       actionBar(id, { label: 'Save settings', actions: [{ type: 'submit', validate: true }, { type: 'toast', message: 'Card settings saved' }] })] },
     ...(c.actions?.length ? [{ type: 'MenuList', id: id('more'), title: 'More options', items: c.actions.filter((a: any) => a.target !== ctx.screen.id).map((a: any) => ({ label: a.label, icon: a.icon, actions: a.target ? nav(a.target) : [{ type: 'toast', message: a.label + ' is simulated in this demo' }] })) } as NodeT] : [])]; },

@@ -1,0 +1,42 @@
+[
+ {
+  "file": "nexa-mobile.md",
+  "channel": "mobile",
+  "name": "Nexa Digital Banking"
+ },
+ {
+  "file": "ididi-mobile.md",
+  "channel": "mobile",
+  "name": "IDIDI BANK"
+ },
+ {
+  "file": "kapiko-mobile.md",
+  "channel": "mobile",
+  "name": "Kapiko Bank Mobile"
+ },
+ {
+  "file": "cards-loans-mobile.md",
+  "channel": "mobile",
+  "name": "Falcon Bank"
+ },
+ {
+  "file": "sme-mobile.md",
+  "channel": "mobile",
+  "name": "Oasis Bank Business"
+ },
+ {
+  "file": "onboarding-mobile.md",
+  "channel": "mobile",
+  "name": "Sahra Bank"
+ },
+ {
+  "file": "kapiko-portal.md",
+  "channel": "portal",
+  "name": "Kapiko Staff Portal"
+ },
+ {
+  "file": "retail-ops-portal.md",
+  "channel": "portal",
+  "name": "Gulf Crest Operations"
+ }
+]

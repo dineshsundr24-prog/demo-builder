@@ -1,6 +1,7 @@
-// Safe text bindings: {{scope.path}} with optional formatter, e.g. {{state.income.salary | aed}}.
+// Safe text bindings: {{scope.path}} with optional formatter and fallback text, e.g.
+// {{state.income.salary | aed}} or {{state.loan.employer ?? GulfTech Solutions}} (shown when nothing was entered).
 // Path lookups and a fixed formatter list only. No eval, no function calls.
-export const BINDING = /\{\{\s*(state|record|params)\.([A-Za-z0-9_.]+)\s*(?:\|\s*([a-z]+)\s*)?\}\}/g;
+export const BINDING = /\{\{\s*(state|record|params)\.([A-Za-z0-9_.]+)\s*(?:\|\s*([a-z]+)\s*)?(?:\?\?\s*([^}]*?)\s*)?\}\}/g;
 export const ANY_BINDING = /\{\{([^}]*)\}\}/g;
 export const formatters: Record<string, (v: string) => string> = {
   aed: v => { const n = Number(String(v).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) && String(v).trim() !== '' ? 'AED ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; },
@@ -15,9 +16,10 @@ function lookup(root: unknown, path: string): unknown {
   return path.split('.').reduce<any>((v, k) => (v && typeof v === 'object' ? v[k] : undefined), root);
 }
 export function resolveText(text: string, scope: Scope): string {
-  return text.replace(BINDING, (_m, s: string, path: string, fmt?: string) => {
+  return text.replace(BINDING, (_m, s: string, path: string, fmt?: string, fallback?: string) => {
     const root = s === 'state' ? scope.state : s === 'record' ? scope.record : scope.params;
     const value = lookup(root, path);
+    if ((value === undefined || value === null || value === '') && fallback) return fallback;
     const str = value === undefined || value === null || value === '' ? '—' : String(value);
     return fmt && formatters[fmt] && str !== '—' ? formatters[fmt](str) : str;
   });
