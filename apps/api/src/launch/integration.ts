@@ -5,6 +5,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { suggestionText, type Generator } from '@demo/generator';
 import type { DemoStore } from '../demos/store.ts';
+import { keyIdOf, publicKeyB64, remoteKeys, verifyRemote } from '../sync/keys.ts';
+import type { KeyObject } from 'node:crypto';
 
 const Ref = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/);
 const Item = z.object({ id: Ref, text: z.string().trim().min(1).max(600) });
@@ -16,14 +18,22 @@ const SuggestBody = z.object({
   baseDemoId: z.string().uuid().nullable().default(null),
 });
 
-export function registerIntegrationRoutes(app: FastifyInstance, opts: { store: DemoStore; generator: Generator; integrationKey?: string }) {
+export function registerIntegrationRoutes(app: FastifyInstance, opts: { store: DemoStore; generator: Generator; integrationKey?: string; signingKey?: KeyObject; meyonKeysUrl?: string; fetcher?: typeof fetch }) {
+  const meyonKeys = opts.meyonKeysUrl ? remoteKeys(opts.meyonKeysUrl, opts.fetcher) : null;
+  // Demo Builder's public key, for MEYON to verify launch-grant requests and sync events.
+  app.get('/api/v2/integration/public-key', async (_req, reply) => {
+    if (!opts.signingKey) return reply.code(404).send({ error: 'No signing key configured' });
+    const pub = publicKeyB64(opts.signingKey);
+    return { algorithm: 'Ed25519', keys: [{ kid: keyIdOf(pub), publicKey: pub }] };
+  });
   const keyOk = (h: unknown) => {
     if (!opts.integrationKey) return false;
     const given = Buffer.from(String(/^Bearer\s+(.+)$/i.exec(String(h ?? ''))?.[1] ?? '')), want = Buffer.from(opts.integrationKey);
     return given.length === want.length && timingSafeEqual(given, want);
   };
   app.post('/api/v2/integration/suggest-screens', async (req, reply) => {
-    if (!keyOk(req.headers.authorization)) return reply.code(401).send({ error: 'Invalid integration credential' });
+    const signed = meyonKeys && req.headers['x-meyon-signature'] ? await verifyRemote(meyonKeys, String(req.headers['x-meyon-signature']), JSON.stringify(req.body)) : false;
+    if (!signed && !keyOk(req.headers.authorization)) return reply.code(401).send({ error: 'Invalid integration credential' });
     const p = SuggestBody.safeParse(req.body);
     if (!p.success) return reply.code(422).send({ error: 'Invalid request: ' + p.error.issues[0]?.path.join('.') + ' ' + p.error.issues[0]?.message });
     const b = p.data;

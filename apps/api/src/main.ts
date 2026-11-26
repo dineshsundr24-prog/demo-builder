@@ -4,6 +4,7 @@ import { buildServer } from './server.ts';
 import { MemoryDemoStore, SupabaseDemoStore, type DemoStore } from './demos/store.ts';
 import { jwksVerifier, supabaseVerifier } from './demos/auth.ts';
 import { httpMeyonClient, type MeyonClient } from './launch/meyon.ts';
+import { loadPrivateKey } from './sync/keys.ts';
 import { randomBytes } from 'node:crypto';
 
 // Trim pasted values: a trailing space or line break in a secret is a common cause of "Invalid API key".
@@ -50,7 +51,8 @@ if (simulator && env.MEYON_BASE_URL) { console.error('MEYON_SIMULATOR=on cannot 
 // side during a rotation). The simulator generates its own when none are set.
 const eventSecrets = (env.MEYON_EVENT_SECRETS ?? '').split(',').map(s => s.trim()).filter(Boolean);
 if (eventSecrets.some(s => s.length < 32)) { console.error('Each MEYON_EVENT_SECRETS entry must be at least 32 characters'); process.exit(1); }
-let meyon: MeyonClient | undefined, meyonSimulator: { integrationKey: string; eventSecrets: string[] } | undefined, sync: { url: string; secrets: string[] } | undefined;
+let meyon: MeyonClient | undefined, meyonSimulator: { integrationKey: string; eventSecrets: string[] } | undefined, sync: import('./sync/events.ts').SyncOptions | undefined;
+let signingKey: import('node:crypto').KeyObject | undefined, meyonKeysUrl: string | undefined;
 if (simulator) {
   const secrets = eventSecrets.length ? eventSecrets : [randomBytes(32).toString('base64url')];
   meyonSimulator = { integrationKey: env.MEYON_INTEGRATION_KEY || randomBytes(32).toString('base64url'), eventSecrets: secrets };
@@ -58,14 +60,25 @@ if (simulator) {
   sync = { url: 'http://127.0.0.1:' + port + '/sim/meyon/demo-builder/v1/events', secrets };
   console.warn('MEYON simulator enabled: launches use simulated sample stories, not a real MEYON');
 } else if (env.MEYON_BASE_URL) {
-  if (!env.MEYON_INTEGRATION_KEY || env.MEYON_INTEGRATION_KEY.length < 32) { console.error('MEYON_INTEGRATION_KEY (32+ characters) is required with MEYON_BASE_URL'); process.exit(1); }
-  meyon = httpMeyonClient(env.MEYON_BASE_URL, env.MEYON_INTEGRATION_KEY);
-  if (eventSecrets.length) sync = { url: env.MEYON_BASE_URL.replace(/\/$/, '') + '/demo-builder/v1/events', secrets: eventSecrets };
-  else console.warn('MEYON_EVENT_SECRETS is not set: sync events are recorded but not delivered to MEYON');
+  // Preferred: BUILDER_SIGNING_KEY (base64 PKCS#8 Ed25519). Demo Builder signs launch-grant requests and events; MEYON
+  // verifies them with the public key Demo Builder publishes, and Demo Builder verifies MEYON with MEYON's published key.
+  // Fallback: a shared MEYON_INTEGRATION_KEY and MEYON_EVENT_SECRETS.
+  const base = env.MEYON_BASE_URL.replace(/\/$/, '');
+  if (env.BUILDER_SIGNING_KEY) {
+    try { signingKey = loadPrivateKey(env.BUILDER_SIGNING_KEY); } catch { console.error('BUILDER_SIGNING_KEY is not a base64 PKCS#8 Ed25519 private key'); process.exit(1); }
+    meyon = httpMeyonClient(base, signingKey);
+    sync = { url: base + '/demo-builder/v1/events', signingKey, ...(eventSecrets.length ? { secrets: eventSecrets } : {}) } as typeof sync;
+    meyonKeysUrl = base + '/demo-builder/v1/public-key';
+  } else {
+    if (!env.MEYON_INTEGRATION_KEY || env.MEYON_INTEGRATION_KEY.length < 32) { console.error('BUILDER_SIGNING_KEY or MEYON_INTEGRATION_KEY (32+ characters) is required with MEYON_BASE_URL'); process.exit(1); }
+    meyon = httpMeyonClient(base, env.MEYON_INTEGRATION_KEY);
+    if (eventSecrets.length) sync = { url: base + '/demo-builder/v1/events', secrets: eventSecrets };
+    else console.warn('MEYON_EVENT_SECRETS is not set: sync events are recorded but not delivered to MEYON');
+  }
 }
 if (meyon && !env.BUILDER_SESSION_SECRET) console.warn('BUILDER_SESSION_SECRET is not set: launches from MEYON are disabled');
 const app = await buildServer({
-  meyon, meyonSimulator, sync, integrationKey: env.MEYON_BASE_URL ? env.MEYON_INTEGRATION_KEY : undefined,
+  meyon, meyonSimulator, sync, integrationKey: env.MEYON_BASE_URL ? env.MEYON_INTEGRATION_KEY : undefined, signingKey, meyonKeysUrl,
   generator, model, accessToken: allowUatToken ? required('DEMO_ACCESS_TOKEN') : (env.DEMO_ACCESS_TOKEN ?? ''), allowUatToken, logger: true,
   demoStore, verifyUser, sessionSecret: env.BUILDER_SESSION_SECRET,
   publicBaseUrl: env.PUBLIC_DEMO_BASE_URL || (env.STUDIO_HOST ? 'https://' + env.STUDIO_HOST : undefined),

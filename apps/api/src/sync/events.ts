@@ -12,6 +12,8 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Caller } from '../demos/auth.ts';
 import type { DemoRow, DemoStore, EventRow, EventType, Workspace } from '../demos/store.ts';
+import { keyIdOf, publicKeyB64, signBody } from './keys.ts';
+import type { KeyObject } from 'node:crypto';
 
 declare module 'fastify' { interface FastifyInstance { sync: Sync } }
 
@@ -27,7 +29,8 @@ export function verifyEvent(secrets: string[], header: string | undefined, body:
   return secrets.some(s => { const want = createHmac('sha256', s).update(m[1] + '.' + body).digest(); return want.length === given.length && timingSafeEqual(want, given); });
 }
 
-export type SyncOptions = { url: string; secrets: string[]; intervalMs?: number; fetcher?: typeof fetch };
+/** Sign with `signingKey` (Ed25519, preferred: MEYON verifies with Demo Builder's published public key) or HMAC `secrets`. */
+export type SyncOptions = { url: string; secrets?: string[]; signingKey?: KeyObject; intervalMs?: number; fetcher?: typeof fetch };
 const backoffMs = (attempts: number) => Math.min(3600_000, 15_000 * 2 ** Math.max(0, attempts - 1));
 
 export class Sync {
@@ -37,7 +40,7 @@ export class Sync {
   private store: DemoStore; private opts: SyncOptions | undefined; private log?: FastifyBaseLogger;
   constructor(store: DemoStore, opts: SyncOptions | undefined, log?: FastifyBaseLogger) {
     this.store = store; this.opts = opts; this.log = log;
-    if (opts && (!opts.secrets.length || opts.secrets.some(s => s.length < 32))) throw Error('MEYON event secrets must be at least 32 characters');
+    if (opts && !opts.signingKey && (!opts.secrets?.length || opts.secrets.some(s => s.length < 32))) throw Error('Sync needs a signing key or event secrets of at least 32 characters');
   }
   get configured() { return !!this.opts; }
 
@@ -76,7 +79,9 @@ export class Sync {
         let error = '';
         try {
           const res = await (this.opts.fetcher ?? fetch)(this.opts.url, { method: 'POST', body, signal: AbortSignal.timeout(10_000),
-            headers: { 'content-type': 'application/json', 'x-demo-builder-event': e.id, ...signEvent(this.opts.secrets[0], body) } });
+            headers: { 'content-type': 'application/json', 'x-demo-builder-event': e.id, ...(this.opts.signingKey
+              ? { 'x-demo-builder-signature': signBody(this.opts.signingKey, body), 'x-demo-builder-key': keyIdOf(publicKeyB64(this.opts.signingKey)) }
+              : signEvent(this.opts.secrets![0], body)) } });
           if (res.ok || res.status === 409) { await this.store.markEventDelivered(e.id); delivered++; continue; }
           error = 'HTTP ' + res.status + ' ' + (await res.text().catch(() => '')).slice(0, 200);
         } catch (err) { error = err instanceof Error ? err.message : String(err); }

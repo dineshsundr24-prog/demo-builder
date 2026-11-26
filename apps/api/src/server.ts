@@ -23,6 +23,7 @@ export type ServerOptions = {
   /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
   /** MEYON server-to-server client (launch grants). Absent: launches from MEYON are not available. */ meyon?: MeyonClient;
   /** Shared key MEYON presents when calling the Builder (same integration key). */ integrationKey?: string;
+  /** Demo Builder's Ed25519 key (signs MEYON calls and events) and where MEYON publishes its public keys. */ signingKey?: import('node:crypto').KeyObject; meyonKeysUrl?: string;
   /** Where and how sync events are delivered to MEYON (absent: recorded, not delivered). */ sync?: SyncOptions;
   /** Requests per minute per client for paid actions and for launch exchanges (default 20). */ rateLimitPerMinute?: number;
   /** Simulated MEYON for testing/UAT (never with a real MEYON). */ meyonSimulator?: { integrationKey: string; /** secrets the simulated MEYON accepts event signatures with */ eventSecrets?: string[]; /** tests only: the shared UAT token may prepare launches */ allowSharedToken?: boolean };
@@ -112,7 +113,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl, sync });
   registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret, sync });
   registerExtendRoutes(app, { store: demoStore, generator: gen, sync });
-  registerIntegrationRoutes(app, { store: demoStore, generator: gen, integrationKey: opts.integrationKey ?? opts.meyonSimulator?.integrationKey });
+  registerIntegrationRoutes(app, { store: demoStore, generator: gen, integrationKey: opts.integrationKey ?? opts.meyonSimulator?.integrationKey, signingKey: opts.signingKey, meyonKeysUrl: opts.meyonKeysUrl });
   if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, eventSecrets: opts.meyonSimulator.eventSecrets ?? opts.sync?.secrets ?? [], allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
