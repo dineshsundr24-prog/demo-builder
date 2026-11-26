@@ -64,5 +64,6 @@ export const launchApi = {
   // Simulated MEYON (UAT/testing only)
   scenarios: () => call<{ project: { id: string; name: string }; tenant: { id: string; name: string }; scenarios: SimScenario[] }>('/sim/meyon/scenarios'),
   baselines: () => call<{ baselines: SimBaseline[] }>('/sim/meyon/baselines').then(r => r.baselines),
+  suggest: (body: { storyId: string; baseDemoId?: string }) => call<{ text: string; screens: number; gaps: string[]; costUsd: number }>('/sim/meyon/suggest-screens', json('POST', body)),
   grant: (body: { storyId: string; mode: 'create' | 'extend'; baseDemoId?: string; baseVersion?: number; prompt?: string }) => call<{ code: string; expiresAt: string }>('/sim/meyon/grants', json('POST', body)),
 };

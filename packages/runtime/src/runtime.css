@@ -328,3 +328,9 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 .db-statement-totals small { display: block; color: var(--db-muted); font-size: 12px; }
 .db-statement-totals strong.in { color: var(--db-success); }
 .db-statement .db-chips button[aria-selected="true"] { background: var(--db-primary); border-color: var(--db-primary); color: #fff; }
+
+/* Figures in KPI tiles stay on one line ("AED 300,000" never splits); long values use a smaller size. */
+.db-stat-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-stat-value[data-long] { font-size: 18px; line-height: 1.25; letter-spacing: -.2px; }
+.db-upload .db-hint { display: block; color: var(--db-muted); font-size: 12px; margin: -2px 0 6px; }
+.db-chart svg { max-height: 240px; } /* wide portal charts do not scale their labels up */

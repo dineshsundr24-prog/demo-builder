@@ -77,7 +77,7 @@ define({ type: 'Checkbox', label: 'Checkbox', category: 'input', ai: 'Consent or
 define({ type: 'Toggle', label: 'Toggle', category: 'input', ai: 'On/off setting.',
   props: z.object({ field: StateKey, label: z.string().min(1).max(80) }), create: () => ({ field: 'settings.enabled', label: 'Enabled' }) });
 define({ type: 'Upload', label: 'Document upload', category: 'input', ai: 'Simulated upload; the file never leaves the browser.',
-  props: z.object({ ...inputBase }), create: () => ({ field: 'form.document', label: 'Upload document', required: false }) });
+  props: z.object({ ...inputBase, hint: z.string().max(120).optional().describe('Accepted formats and size, e.g. "PDF, JPG or PNG, up to 5 MB"') }), create: () => ({ field: 'form.document', label: 'Upload document', required: false }) });
 // ---------- Actions ----------
 define({ type: 'Button', label: 'Button', category: 'action', ai: 'Runs declarative actions in order.',
   props: z.object({ label: Bound(40), variant: z.enum(['primary', 'secondary', 'link', 'danger']), actions: Actions }),
@@ -137,7 +137,7 @@ define({ type: 'Statement', label: 'Account statement', category: 'pattern', ai:
 define({ type: 'CardVisual', label: 'Bank card', category: 'pattern', ai: 'Payment card visual (masked number, holder, expiry). frozenField: the state key of a Toggle that freezes the card (the card shows Frozen when it is on).',
   props: z.object({ product: Bound(40), holder: Bound(40), last4: z.string().regex(/^\d{4}$/), expiry: z.string().regex(/^\d{2}\/\d{2}$/), network: z.enum(['visa', 'mastercard']), kind: z.enum(['debit', 'credit', 'prepaid']), frozenField: StateKey.optional() }),
   create: () => ({ product: 'Platinum Debit', holder: 'CUSTOMER NAME', last4: '4821', expiry: '08/29', network: 'visa', kind: 'debit' }) });
-define({ type: 'EmiCalculator', label: 'Loan calculator', category: 'pattern', ai: 'Interactive loan/finance calculator: amount slider, tenure choice and fixed rate; shows the monthly instalment and total cost and saves amount, tenure and instalment to state (stateKey.amount, .tenure, .emi) for a later review screen.',
+define({ type: 'EmiCalculator', label: 'Loan calculator', category: 'pattern', ai: 'Interactive loan/finance calculator: amount slider, tenure choice and fixed rate; shows the monthly instalment and total cost and saves amount, tenure, instalment and total repayable to state (stateKey.amount, .tenure, .emi, .totalText) for a later review screen.',
   props: z.object({ title: Bound(60), minAmount: z.number().min(1000).max(1e8), maxAmount: z.number().min(1000).max(1e8), defaultAmount: z.number().min(1000).max(1e8), tenures: z.array(z.number().int().min(3).max(360)).min(1).max(8), ratePercent: z.number().min(0).max(40), rateLabel: z.string().max(40).optional(), stateKey: StateKey, note: Bound(200).optional() }),
   create: () => ({ title: 'Personal finance calculator', minAmount: 10000, maxAmount: 500000, defaultAmount: 100000, tenures: [12, 24, 36, 48, 60], ratePercent: 6.49, stateKey: 'loan' }) });
 define({ type: 'FeatureList', label: 'Feature list', category: 'pattern', ai: 'Icon + title + short text rows: welcome highlights, help topics, notifications, messages.',

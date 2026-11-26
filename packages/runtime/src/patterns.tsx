@@ -165,7 +165,7 @@ function EmiCalculator({ node }: { node: NodeT }) {
   const amount = Number.isFinite(stored('amount')) ? stored('amount') : Math.min(max, Math.max(min, Number(node.defaultAmount)));
   const tenure = Number.isFinite(stored('tenure')) ? stored('tenure') : tenures[Math.min(2, tenures.length - 1)];
   const monthly = emi(amount, tenure, Number(node.ratePercent)), total = monthly * tenure;
-  const save = (a: number, m: number) => { const e = emi(a, m, Number(node.ratePercent)); rt.setField(key + '.amount', String(a)); rt.setField(key + '.tenure', String(m)); rt.setField(key + '.emi', aed(e)); rt.setField(key + '.amountText', aed(a)); rt.setField(key + '.tenureText', m + ' months'); };
+  const save = (a: number, m: number) => { const e = emi(a, m, Number(node.ratePercent)); rt.setField(key + '.amount', String(a)); rt.setField(key + '.tenure', String(m)); rt.setField(key + '.emi', aed(e)); rt.setField(key + '.amountText', aed(a)); rt.setField(key + '.tenureText', m + ' months'); rt.setField(key + '.totalText', aed(e * m)); };
   React.useEffect(() => { if (!Number.isFinite(stored('amount'))) save(amount, tenure); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const step = max - min > 200000 ? 5000 : 1000;
   return <section {...attrs(node, 'emi')}>

@@ -85,7 +85,7 @@ export function LaunchGate({ code, render }: { code: string | null; render: (ctx
         {l.approved.integrations.length ? <>Simulated integrations (never real): {l.approved.integrations.join(', ')}.</> : null}</p> : null}
       {l.suggestions.length ? <details className="launch-suggestions"><summary><Sparkles size={14} />{l.suggestions.length} optional AI suggestion{l.suggestions.length > 1 ? 's' : ''} (not approved requirements)</summary>
         <ul className="launch-list">{l.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul></details> : null}
-      <details className="launch-prompt"><summary><FileText size={14} />Prompt reviewed in MEYON (revision {l.prompt.revision})</summary><pre>{l.prompt.text}</pre></details>
+      <details className="launch-prompt" open><summary><FileText size={14} />Prompt reviewed in MEYON (revision {l.prompt.revision})</summary><pre>{l.prompt.text}</pre></details>
       <details className="launch-sources"><summary>Sources</summary><ul>{l.sources.map((s, i) => <li key={i}>{s.kind} {s.ref} · version {s.version} · <code>{s.hash.slice(0, 12)}</code></li>)}</ul></details>
 
       <p className="launch-next">{l.mode === 'create'

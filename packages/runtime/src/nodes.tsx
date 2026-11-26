@@ -42,7 +42,7 @@ function Form({ node }: { node: NodeT }) {
 function Heading({ node }: { node: NodeT }) { const t = useText(); return React.createElement('h' + node.level, attrs(node, 'heading'), t(node.text)); }
 function Text({ node }: { node: NodeT }) { const t = useText(); return <p {...attrs(node, 'text')} data-tone={String(node.tone ?? 'default')}>{t(node.text)}</p>; }
 function Notice({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'notice')} data-tone={String(node.tone)} role="note"><strong>{t(node.title)}</strong>{node.body ? <span>{t(node.body)}</span> : null}</div>; }
-function Stat({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'stat')}><span className="db-stat-label">{t(node.label)}</span><span className="db-stat-value" data-long={t(node.value).length > 12 ? '' : undefined}>{prettyDates(t(node.value))}</span>{node.delta ? <span className="db-stat-delta">{String(node.delta)}</span> : null}</div>; }
+function Stat({ node }: { node: NodeT }) { const t = useText(); return <div {...attrs(node, 'stat')}><span className="db-stat-label">{t(node.label)}</span><span className="db-stat-value" data-long={t(node.value).length > 9 ? '' : undefined}>{prettyDates(t(node.value))}</span>{node.delta ? <span className="db-stat-delta">{String(node.delta)}</span> : null}</div>; }
 function Image({ node }: { node: NodeT }) {
   const rt = useRuntime();
   if (node.kind === 'logo') return <div {...attrs(node, 'image')} data-kind="logo"><BrandMark size={72} /></div>;
@@ -137,6 +137,7 @@ function AmountInput({ node }: { node: NodeT }) {
 function Upload({ node }: { node: NodeT }) {
   const f = useField(node);
   return <div {...attrs(node, 'upload')} data-invalid={!!f.error}><Label node={node} id={f.id} />
+    {node.hint ? <small className="db-hint">{String(node.hint)}</small> : null}
     <label className="db-dropzone"><input id={f.id} type="file" onChange={e => f.set(e.target.files?.[0]?.name ?? '')} /><span>{f.value ? '📄 ' + f.value : 'Choose a file (stays in your browser)'}</span></label><Err e={f.error} /></div>;
 }
 function Button({ node }: { node: NodeT }) {

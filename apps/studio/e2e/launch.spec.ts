@@ -94,3 +94,28 @@ test('Extend opens the chosen base demo with the new story\'s coverage', async (
   await expect(coverage.locator('.coverage-count')).toHaveText('0/5'); // the new story is not demonstrated yet
   await expect(coverage).toContainText('Not demonstrated');
 });
+
+test('the MEYON prompt is composed from approved data, and AI adds a labelled screen suggestion that becomes the screen plan', async ({ page, context }) => {
+  await page.goto('/?sim=meyon');
+  await page.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token'));
+  await page.reload();
+  await page.getByTestId('sim').getByText('US-101', { exact: true }).click();
+  const prompt = page.getByTestId('sim-prompt');
+  await expect(prompt).toHaveValue(/Acceptance criteria \(approved; each must be demonstrated\)/);
+  await expect(prompt).toHaveValue(/Maximum debt burden ratio is 50% of monthly salary/);
+  await expect(prompt).toHaveValue(/Demo expectations/);
+  await page.getByTestId('sim-suggest').click();
+  await expect(page.getByTestId('sim-suggest-note')).toContainText('5 screens suggested');
+  await expect(prompt).toHaveValue(/Screens to build \(AI suggestion/);
+  await page.getByTestId('sim-suggest').click(); // suggesting again replaces the section, never duplicates it
+  await expect(page.getByTestId('sim-suggest-note')).toContainText('5 screens suggested');
+  expect(((await prompt.inputValue()).match(/Screens to build/g) ?? []).length).toBe(1);
+  const opened = context.waitForEvent('page');
+  await page.getByTestId('sim-open').click();
+  const tab = await opened; watch(tab);
+  await expect(tab.getByTestId('launch-confirm')).toContainText('Screens to build (AI suggestion');
+  await tab.getByTestId('launch-go').click();
+  // The suggested screens are kept exactly in the plan.
+  await expect(tab.locator('.gen-plan li')).toHaveCount(5, { timeout: 10000 });
+  await expect(tab.getByLabel('Title of screen 3')).toHaveValue('Upload Documents');
+});

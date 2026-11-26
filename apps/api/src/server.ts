@@ -101,7 +101,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
   registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl });
   registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret });
-  if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, publicBaseUrl: opts.publicBaseUrl });
+  if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/api/v2/status', async () => {

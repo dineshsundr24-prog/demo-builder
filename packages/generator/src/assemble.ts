@@ -1,6 +1,6 @@
 // Assemble generated screens into one document and apply deterministic,
 // reported fixes for cross-screen issues (no extra AI calls).
-import { validateDocument, documentContext, flowLint, type DemoDocument, type Screen, type NodeT, type Issue, type TraceLink } from '@demo/schema';
+import { formatters, validateDocument, documentContext, flowLint, type DemoDocument, type Screen, type NodeT, type Issue, type TraceLink } from '@demo/schema';
 import { criteriaOf, type Plan } from './plan.ts';
 import { screenText, shownShare } from './design.ts';
 import { planDocument } from './screen.ts';
@@ -58,6 +58,7 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
       if (typeof it?.value !== 'string' || it.value.includes('{{') || typeof it.label !== 'string') return it;
       const l = norm(it.label), fallback = it.value.replace(/[{}]/g, '').slice(0, 80);
       const calc = calcs.filter(c => c.screen < si).at(-1);
+      if (calc && /total (repayable|repayment|payable|amount payable|cost)|amount payable|total to repay/.test(l)) { linkedRows++; return { ...it, value: '{{state.' + calc.key + '.totalText ?? ' + fallback + '}}' }; }
       if (calc && /instal|emi|monthly (payment|repayment)/.test(l)) { linkedRows++; return { ...it, value: '{{state.' + calc.key + '.emi ?? ' + fallback + '}}' }; }
       if (calc && /^(finance |loan )?amount|requested amount|loan amount|finance amount/.test(l)) { linkedRows++; return { ...it, value: '{{state.' + calc.key + '.amountText ?? ' + fallback + '}}' }; }
       if (calc && /tenure|term|period/.test(l)) { linkedRows++; return { ...it, value: '{{state.' + calc.key + '.tenureText ?? ' + fallback + '}}' }; }
@@ -67,7 +68,8 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
       return { ...it, value: '{{state.' + match.key + (match.currency ? ' | aed' : '') + ' ?? ' + fallback + '}}' };
     });
     const visit = (ns: NodeT[]): NodeT[] => ns.map(n => n.type === 'RecordFields' && Array.isArray(n.items) ? { ...n, items: link(n.items as any[]) } : n.children ? { ...n, children: visit(n.children as NodeT[]) } : n);
-    const isReview = /review|confirm|summary|check/i.test(s.id + ' ' + s.title);
+    const planned = plan.screens.find(p => p.id === s.id)?.archetype;
+    const isReview = planned === 'review' || planned === 'success' || /review|confirm|summary|check|success|submitted|receipt|complete/i.test(s.id + ' ' + s.title);
     return isReview ? { ...s, children: visit(s.children as NodeT[]) } : s;
   }) };
   if (linkedRows) fixes.push('Linked ' + linkedRows + ' review value(s) to what the customer enters');
@@ -80,7 +82,7 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
       if (ctx.recordScreens.has(s.id) || !JSON.stringify(s.children).includes('{{record.')) return s;
       const planned = plan.screens.find(p => p.id === s.id)?.collection;
       const cols = [...(planned ? doc.collections.filter(c => c.id === planned) : []), ...doc.collections];
-      const fill = (text: string) => text.replace(/\{\{\s*record\.([A-Za-z0-9_]+)[^}]*\}\}/g, (m, f: string) => { const c = cols.find(x => x.fields.some(y => y.id === f) && x.rows.length); if (!c) return m; filled++; return String(c.rows[0][f] ?? ''); });
+      const fill = (text: string) => text.replace(/\{\{\s*record\.([A-Za-z0-9_]+)\s*(?:\|\s*([a-z]+)\s*)?[^}]*\}\}/g, (m, f: string, fmt?: string) => { const c = cols.find(x => x.fields.some(y => y.id === f) && x.rows.length); if (!c) return m; filled++; const v = String(c.rows[0][f] ?? '').trim() || '—'; return fmt && formatters[fmt] && v !== '—' ? formatters[fmt](v) : v; });
       return { ...s, children: (s.children as NodeT[]).map(n => deepMap(n, fill)) };
     }) };
     if (filled) fixes.push('Filled ' + filled + ' record value(s) on screens opened without a record (sample record shown)');

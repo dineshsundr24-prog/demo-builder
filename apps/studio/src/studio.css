@@ -347,3 +347,5 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .versions-head { flex-wrap: wrap; }
 .versions-save { flex-wrap: wrap; }
 .versions-save input { flex-basis: 120px; }
+.sim-card .gen-secondary { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; }
+.sim-prompt textarea { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
