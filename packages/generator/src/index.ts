@@ -10,3 +10,4 @@ export * from './archetypeGen.ts';
 export * from './uxLint.ts';
 export * from './assist.ts';
 export * from './flow.ts';
+export * from './suggest.ts';

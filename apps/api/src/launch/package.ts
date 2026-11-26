@@ -57,14 +57,17 @@ export function requirementsOf(p: LaunchPackage): Requirement[] {
  * Deterministic: the same package always gives the same brief.
  */
 export function briefOf(p: LaunchPackage): string {
-  const parts = [p.prompt.text.trim()];
-  const list = (title: string, items: string[]) => { if (items.length) parts.push(title + '\n' + items.map(i => '- ' + i).join('\n')); };
-  parts.push('Approved user story ' + p.story.id + ' (version ' + p.story.artifactVersion + '): ' + p.story.title);
-  list('Approved acceptance criteria (each must be demonstrated):', p.approved.acceptanceCriteria.map(c => '[' + c.id + '] ' + c.text));
-  list('Approved business rules:', p.approved.businessRules.map(r => '[' + r.id + '] ' + r.text));
+  const prompt = p.prompt.text.trim(), parts = [prompt];
+  const norm = (v: string) => v.toLowerCase().replace(/\s+/g, ' ');
+  const inPrompt = (v: string) => norm(prompt).includes(norm(v));
+  // Sections the reviewed prompt already states in full are not repeated (the planner also receives the criteria with ids).
+  const list = (title: string, items: string[], raw: string[] = items) => { if (items.length && !raw.every(inPrompt)) parts.push(title + '\n' + items.map(i => '- ' + i).join('\n')); };
+  if (!inPrompt(p.story.title)) parts.push('Approved user story ' + p.story.id + ' (version ' + p.story.artifactVersion + '): ' + p.story.title);
+  list('Approved acceptance criteria (each must be demonstrated):', p.approved.acceptanceCriteria.map(c => '[' + c.id + '] ' + c.text), p.approved.acceptanceCriteria.map(c => c.text));
+  list('Approved business rules:', p.approved.businessRules.map(r => '[' + r.id + '] ' + r.text), p.approved.businessRules.map(r => r.text));
   list('Actors:', p.approved.actors);
   list('Integrations to simulate (demo only, never real):', p.approved.integrations);
-  if (p.project.goal) parts.push('Project goal: ' + p.project.goal);
+  if (p.project.goal && !inPrompt(p.project.goal)) parts.push('Project goal: ' + p.project.goal);
   list('Optional AI suggestions (not approved requirements; use only where they help):', p.suggestions);
   return parts.join('\n\n').slice(0, 60000);
 }

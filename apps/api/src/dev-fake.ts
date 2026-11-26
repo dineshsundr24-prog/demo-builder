@@ -35,6 +35,12 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
     if (/date/i.test(input.request) && table) { const { children, ...rest } = table; void children; return { reply: 'Switched on the date-range filter.', operations: [{ op: 'replace', target: table.id, node: { ...rest, dateFilterField: 'date' } }] }; }
     return { reply: 'I am not sure what to change. Could you say which part of the screen?', operations: [] };
   }
+  if (req.schemaName === 'screen_suggestion') {
+    const ac = input.acceptanceCriteria.map((c: any) => c.id);
+    const titles = ['Loan Eligibility', 'Loan Calculator', 'Upload Documents', 'Review Application', 'Application Submitted'];
+    return { journey: 'Home -> eligibility -> calculator -> documents -> review -> submitted', gaps: ['Which interest rate should the demo show?'],
+      screens: titles.map((title, i) => ({ title, purpose: 'Fictional ' + title + ' step', details: ['Detail one', 'Detail two'], criteria: ac.filter((_: any, k: number) => k % titles.length === i) })) };
+  }
   if (req.purpose === 'plan') {
     const list = input.screenList ?? [{ id: 'home', title: 'Home' }, { id: 'details', title: 'Details' }];
     return { theme: { primary: '#17365D', secondary: '#0E9389', accent: '#F58220' }, sampleFacts: [{ label: 'Customer', value: 'Ahmed Al Hammadi' }], shellKind: 'tabs',

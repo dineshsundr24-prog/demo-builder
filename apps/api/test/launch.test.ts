@@ -65,7 +65,8 @@ test('Create: launch, confirm, generate with traceability, save, version, publis
   const planned = await waitJob(call, session, conf.body.jobId, ['awaiting_plan_approval', 'failed']);
   assert.equal(planned.status, 'awaiting_plan_approval', JSON.stringify(planned.error));
   const plan = provider.calls.filter(c => c.purpose === 'plan').at(-1)!;
-  assert.ok(plan.input.includes('Approved acceptance criteria') && plan.input.includes('Optional AI suggestions (not approved requirements'), 'approved items and suggestions are labelled apart');
+  assert.ok(plan.input.includes('Acceptance criteria (approved; each must be demonstrated)') && plan.input.includes('Optional AI suggestions (not approved requirements'), 'approved items and suggestions are labelled apart');
+  assert.equal(plan.input.split('The customer uploads a salary certificate before submitting').length - 1, 2, 'criteria stated in the prompt are not repeated in the brief (once in the brief, once in the criteria list)');
   assert.equal((await call('POST', '/api/v2/jobs/' + conf.body.jobId + '/approve', session)).status, 200);
   const job = await waitJob(call, session, conf.body.jobId, ['completed', 'completed_with_warnings', 'failed']);
   assert.notEqual(job.status, 'failed', JSON.stringify(job.error));

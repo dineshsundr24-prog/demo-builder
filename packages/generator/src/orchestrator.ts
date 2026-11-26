@@ -9,6 +9,7 @@ import { createPlan, traceNotes, type GenerationRequest, type Plan } from './pla
 import { generateScreen, refineBindings } from './screen.ts';
 import { addScreenWithAI, modifyScreenWithAI, routeInstruction, type AddScreenRequest, type AssistRequest } from './assist.ts';
 import { changeFlowWithAI } from './flow.ts';
+import { suggestScreens, type SuggestInput } from './suggest.ts';
 import type { DemoDocument } from '@demo/schema';
 import { validateScreen, documentContext } from '@demo/schema';
 import { assemble } from './assemble.ts';
@@ -68,6 +69,15 @@ export class Generator {
     // Editing an existing screen needs reasoning over its structure: use the (optionally stronger) assist model.
     if (route.intent === 'modify' && route.screen && doc.screens.some(s => s.id === route.screen)) return summary(await modifyScreenWithAI(this.assistProvider ?? this.provider, doc, route.screen, req.instruction, (_k, c) => track(c), (req.history ?? []).slice(-6).map(h => String(h).slice(0, 300))), 'modified');
     return summary(await addScreenWithAI(this.provider, doc, { requirement: req.instruction, from: req.from, to: req.to, addToMenu: req.addToMenu }, (_k, c) => track(c)), 'added');
+  }
+  /** Prompt preparation: AI-suggested screens for an approved story (usage kind "assist", no job). */
+  async suggest(input: SuggestInput) {
+    const b = await this.budgetStatus();
+    if (b.remainingUsd <= 0) throw new ProviderError('budget', 'Monthly AI budget of USD ' + b.limitUsd + ' is used up (USD ' + b.spentUsd.toFixed(2) + ' spent). Raise MONTHLY_AI_BUDGET_USD to continue.', false);
+    const { suggestion, call } = await suggestScreens(this.provider, input);
+    const cost = costUsd(call.model, call.usage);
+    await this.store.addUsage({ job_id: null, kind: 'assist', model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: cost });
+    return { ...suggestion, costUsd: Number(cost.toFixed(5)) };
   }
   /** Back-compat helper used by tests: add a screen. */
   async addScreen(doc: DemoDocument, req: AddScreenRequest) { return this.assist(doc, { instruction: req.requirement, mode: 'add', from: req.from, to: req.to, addToMenu: req.addToMenu }); }

@@ -6,6 +6,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DemoStore } from '../demos/store.ts';
+import type { Generator } from '@demo/generator';
+import { suggestionText } from '@demo/generator';
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 export const SIM_TENANT = { id: 'sim-tenant', name: 'Simulated MEYON tenant' };
@@ -30,15 +32,34 @@ export const SCENARIOS: Scenario[] = [
     rules: ['Only the last four digits of a card number are ever shown'], actors: ['Retail customer'], integrations: ['Card management system'], suggestions: [] },
 ];
 
-/** The deterministic prompt MEYON's Demo tab would compose for review. */
+/** Stable acceptance-criterion ids: story + hash of the criterion text (unchanged wording keeps its id). */
+export const criteriaOf = (s: Scenario) => s.criteria.map((text, i) => ({ id: s.story.id + ':ac-' + sha(text).slice(0, 6) + (i + 1), text }));
+export const rulesOf = (s: Scenario) => s.rules.map((text, i) => ({ id: 'BR-' + s.story.id.slice(3) + '-' + (i + 1), text }));
+
+/**
+ * The deterministic prompt MEYON's Demo tab composes from approved data (reference for the MEYON composer):
+ * every section comes from a governed source; nothing is generated. AI screen suggestions are added separately.
+ */
 export function composePrompt(s: Scenario): string {
-  return ['Build a ' + (s.channel === 'mobile' ? 'mobile banking app' : 'staff portal') + ' demo for ' + SIM_PROJECT.name + ' that demonstrates the approved user story below.',
-    s.story.id + ': ' + s.story.title, s.story.text, 'Personas: ' + SIM_PROJECT.personas.join(', ') + '.'].join('\n\n');
+  const app = s.channel === 'mobile' ? 'mobile banking app' : 'staff (back-office) web portal';
+  const audience = s.channel === 'mobile' ? s.actors.join(', ') : s.actors.join(', ') + ' (bank staff)';
+  return [
+    'Demo request: ' + SIM_PROJECT.name + ' ' + app + ' demonstrating approved user story ' + s.story.id + '.',
+    'Audience: ' + audience + '. Locale: United Arab Emirates, amounts in AED, English.\nProject goal: ' + SIM_PROJECT.goal,
+    'Approved user story ' + s.story.id + ' (version ' + s.story.version + '): ' + s.story.title + '\n' + s.story.text,
+    'Acceptance criteria (approved; each must be demonstrated):\n' + criteriaOf(s).map((c, i) => 'AC' + (i + 1) + '. [' + c.id + '] ' + c.text).join('\n'),
+    ...(s.rules.length ? ['Business rules (approved; use these exact limits and values in data, validation and messages):\n' + rulesOf(s).map(r => '- [' + r.id + '] ' + r.text).join('\n')] : []),
+    ...(s.integrations.length ? ['Integrations to simulate (demo only, never real connections): ' + s.integrations.join('; ') + '.'] : []),
+    'Demo expectations:\n- Show the complete journey from where the user starts (' + (s.channel === 'mobile' ? 'home screen' : 'work queue') + ') to the outcome, with a review step before any submission and a success screen with a reference number.\n'
+      + '- Use realistic, fictional UAE data consistently across screens: one ' + (s.channel === 'mobile' ? 'customer, one account' : 'officer, one set of applications') + ', the same reference numbers and amounts everywhere.\n'
+      + '- Show the business rules in action: limits, validation messages and statuses.\n'
+      + '- Feature: ' + s.feature.name + ' (' + s.feature.id + '). Brand: ' + SIM_PROJECT.name + ' colours and logo from the company profile.',
+  ].join('\n\n');
 }
 
 type Grant = { codeHash: string; expiresAt: number; pkg: Record<string, unknown> };
 
-export function registerMeyonSimulator(app: FastifyInstance, opts: { integrationKey: string; demoStore: DemoStore; publicBaseUrl?: string; allowSharedToken?: boolean }) {
+export function registerMeyonSimulator(app: FastifyInstance, opts: { integrationKey: string; demoStore: DemoStore; generator: Generator; publicBaseUrl?: string; allowSharedToken?: boolean }) {
   const grants = new Map<string, Grant>();
   const keyOk = (h: unknown) => { const given = Buffer.from(String(/^Bearer\s+(.+)$/i.exec(String(h ?? ''))?.[1] ?? '')), want = Buffer.from(opts.integrationKey); return given.length === want.length && timingSafeEqual(given, want); };
   /** The simulator's "Demo tab" is for signed-in Builder users only (never the shared UAT token or MEYON sessions). */
@@ -55,6 +76,28 @@ export function registerMeyonSimulator(app: FastifyInstance, opts: { integration
     const ws = await simWorkspace();
     const demos = await opts.demoStore.listDemos([ws.id], { projectRef: SIM_PROJECT.id });
     return { baselines: demos.filter(d => d.latest_version > 0).map(d => ({ demoId: d.id, name: d.name, channel: d.channel, isPrimary: d.is_primary, latestVersion: d.latest_version })) };
+  });
+  // AI assistance for the prompt (hybrid preparation): suggested screens and journey, appended as a labelled section.
+  // MEYON will call the Builder for this server-to-server; the simulator calls the same generator function.
+  app.post('/sim/meyon/suggest-screens', async (req, reply) => {
+    if (!user(req)) return reply.code(403).send({ error: 'Sign in to use the MEYON simulator', category: 'forbidden' });
+    const b = (req.body ?? {}) as { storyId?: string; baseDemoId?: string };
+    const s = SCENARIOS.find(x => x.story.id === b.storyId);
+    if (!s) return reply.code(400).send({ error: 'Choose a sample story', category: 'bad_request' });
+    let existingScreens: string[] = [];
+    if (typeof b.baseDemoId === 'string') {
+      const ws = await simWorkspace(), d = await opts.demoStore.getDemo(b.baseDemoId).catch(() => null);
+      if (d && d.workspace_id === ws.id) existingScreens = ((d.draft as { screens?: { title: string }[] }).screens ?? []).map(x => x.title);
+    }
+    const criteria = criteriaOf(s);
+    try {
+      const r = await opts.generator.suggest({ channel: s.channel, projectName: SIM_PROJECT.name, projectGoal: SIM_PROJECT.goal, personas: s.actors, story: { id: s.story.id, title: s.story.title, text: s.story.text },
+        criteria, rules: rulesOf(s), integrations: s.integrations, existingScreens });
+      return { text: suggestionText(r, criteria), screens: r.screens.length, gaps: r.gaps, costUsd: r.costUsd };
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      return reply.code((e as { category?: string }).category === 'budget' ? 402 : 502).send({ error: 'Screen suggestion failed: ' + m, category: 'ai' });
+    }
   });
   app.post('/sim/meyon/grants', async (req, reply) => {
     const u = user(req);
@@ -75,8 +118,7 @@ export function registerMeyonSimulator(app: FastifyInstance, opts: { integration
       mode, channel: s.channel,
       base: mode === 'extend' ? { demoId: b.baseDemoId, version: b.baseVersion, url: (opts.publicBaseUrl ?? 'https://demo-builder.invalid') + '/?demo=' + b.baseDemoId + '&v=' + b.baseVersion } : null,
       prompt: { revision: 1, text: prompt, reviewedAt: new Date(now).toISOString() },
-      approved: { acceptanceCriteria: s.criteria.map((text, i) => ({ id: s.story.id + ':ac-' + sha(text).slice(0, 6) + (i + 1), text })),
-        businessRules: s.rules.map((text, i) => ({ id: 'BR-' + s.story.id.slice(3) + '-' + (i + 1), text })), actors: s.actors, integrations: s.integrations },
+      approved: { acceptanceCriteria: criteriaOf(s), businessRules: rulesOf(s), actors: s.actors, integrations: s.integrations },
       suggestions: s.suggestions,
       branding: { company: SIM_PROJECT.name, primary: '#0B3D91', secondary: '#1E88E5', accent: '#F9A825', font: 'inter' },
       sources: [{ kind: 'FINAL_USER_STORY', ref: s.story.id, version: String(s.story.version), hash: storyHash }, { kind: 'FEATURE', ref: s.feature.id, version: '1', hash: sha(s.feature.name) }],

@@ -40,7 +40,8 @@ function planModel(locked: boolean, channel: 'mobile' | 'portal' = 'mobile', cri
     collections: z.array(z.object({
       id: Slug, label: z.string().min(1).max(60), key: z.string().min(1).max(40),
       fields: z.array(z.object({ id: z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/), label: z.string().min(1).max(40) })).min(2).max(10),
-      rows: z.array(z.array(z.string().max(120))).min(2).max(12),
+      // Each cell names its field: a merged or missing value cannot shift the other columns.
+      rows: z.array(z.array(z.object({ field: z.string().min(1).max(40), value: z.string().max(120) })).min(1).max(10)).min(2).max(12),
     })).max(6),
     screens: z.array(z.object({
       id: screenId, title: z.string().min(1).max(85), purpose: z.string().min(1).max(400),
@@ -69,7 +70,7 @@ ARCHETYPE_LIST
 - template: only from the provided templates list, and only when the screen IS that step: a standard sign-in screen -> "sign-in", registration -> "sign-up". Never replace a requested standard form with an identity-provider template. Otherwise null.
 - mustInclude: 3-8 short content items (2-6 words each) for the screen: what its requirement asks for PLUS what a real, regulated product would need, e.g. an income update form: ["new monthly salary", "allowances", "employment status", "effective date", "salary certificate upload"]. Content only: never navigation ("home", "menu", "back") or outcome messages.
 - purpose: describe the content concretely (sections, fields, actions) the way a product designer would brief a UI designer.
-- collections: sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows align with fields.
+- collections: every field the list, detail, review and approval screens of that collection show (e.g. a loan application: reference, customer, amount, tenure, monthly salary, documents, bureau score, status, submitted date), up to 10 fields; sample data tables needed by lists/tables (e.g. applications, transactions, requests), with realistic FICTIONAL data for the brief's locale (UAE/AED unless the brief says otherwise); key = the field that uniquely identifies a row; rows: 3-8 records; EVERY row has one {field, value} cell for EVERY field, in field order, with a realistic non-empty value (one value per cell, never two values in one cell).
 - Dates in data are realistic relative to "today": history within the last 90 days, upcoming items within the next 30 days; format "YYYY-MM-DD".
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
 - theme: use brand colours from the brief when given; otherwise a professional banking palette.
@@ -100,6 +101,8 @@ export async function createPlan(provider: LlmProvider, req: GenerationRequest, 
   const raw: any = structuredClone(call.json);
   if (raw && raw.brandName === null) delete raw.brandName;
   for (const s of raw?.screens ?? []) if (s && s.archetype === null) delete s.archetype;
+  // Older/fake planners return positional rows: name each cell by its field.
+  for (const c of raw?.collections ?? []) if (Array.isArray(c?.rows)) c.rows = c.rows.map((r: unknown) => Array.isArray(r) && r.every(v => typeof v !== 'object') ? r.map((v, i) => ({ field: c.fields?.[i]?.id ?? 'f' + i, value: String(v ?? '') })) : r);
   // Unknown criterion ids are dropped rather than failing the plan (the approved list is authoritative).
   for (const s of raw?.screens ?? []) if (s && Array.isArray(s.criteria)) s.criteria = s.criteria.filter((id: unknown) => criteriaIds.includes(String(id)));
   for (const s of raw?.screens ?? []) if (s && !criteriaIds.length) delete s.criteria;
@@ -138,7 +141,9 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
       : /\b(transfer|send money|remittance|pay (a |the )?(supplier|vendor|beneficiary|someone|person|contact)|supplier payment)\b/.test(text) ? 'transfer'
       : /\b(pay (bills?|utilities)|bill payment|utility|dewa|etisalat|salik|addc)\b/.test(text) ? 'bill-payment'
       : /\b(my cards?|card (controls|management|settings)|freeze|unfreeze)\b/.test(text) ? 'card-controls'
-      : /\b(emi|instal?ment calculator|loan calculator|finance offer|loan offer)\b/.test(text) ? 'loan-offer' : null;
+      : /\b(emi|instal?ment calculator|loan calculator|finance offer|loan offer)\b/.test(text) || (/\bamount\b/.test(text) && /\btenure\b/.test(text) && /\b(instal?ment|emi|repay)/.test(text)) ? 'loan-offer'
+      // Only a screen that IS the upload step (by its title); a form that also takes an upload stays a form.
+      : /^(upload|attach)\b|\b(upload|supporting) (documents?|certificates?)\b|^documents?\b/.test(s.title.toLowerCase()) ? 'document-upload' : null;
     if (pick && ARCHETYPES[pick]?.channels.includes(req.channel)) { notes.push('"' + s.title + '" uses the ' + ARCHETYPES[pick].label.toLowerCase() + ' layout'); s.archetype = pick; }
   }
   for (const s of screens) {
@@ -159,12 +164,15 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
   if (req.channel === 'mobile' && kind === 'sidebar') kind = 'tabs';
   if (req.channel === 'portal' && (kind === 'tabs' || kind === 'drawer')) kind = 'sidebar';
   const seenMenu = new Set<string>();
-  const items = p.menu.filter(m => ids.has(m.screen) && !seenMenu.has(m.screen) && seenMenu.add(m.screen)).map((m, i) => ({ id: 'menu-' + (i + 1), label: m.label, icon: m.icon, screen: m.screen }));
+  // The app menu lists destinations (home, lists, profile...), never steps of a journey (form, upload, review, success).
+  const STEP = new Set(['form', 'document-upload', 'review', 'success', 'otp', 'verification', 'sign-in', 'sign-up', 'welcome', 'transfer', 'bill-payment']);
+  const archetypeOf = new Map(screens.map(s => [s.id, s.archetype ?? 'custom']));
+  const items = p.menu.filter(m => ids.has(m.screen) && !STEP.has(archetypeOf.get(m.screen)!) && !seenMenu.has(m.screen) && seenMenu.add(m.screen)).map((m, i) => ({ id: 'menu-' + (i + 1), label: m.label, icon: m.icon, screen: m.screen }));
   const collections: Collection[] = p.collections.map(c => {
     const fields = c.fields.filter((f, i, all) => all.findIndex(x => x.id === f.id) === i);
     const key = fields.some(f => f.id === c.key) ? c.key : fields[0].id;
     const seenKeys = new Set<string>();
-    const rows = c.rows.map(r => Object.fromEntries(fields.map((f, i) => [f.id, String(r[i] ?? '')]))).filter(r => r[key] && !seenKeys.has(r[key]) && seenKeys.add(r[key]));
+    const rows = c.rows.map(r => { const byField = new Map(r.map(cell => [cell.field, cell.value])); return Object.fromEntries(fields.map(f => [f.id, String(byField.get(f.id) ?? '')])); }).filter(r => r[key] && !seenKeys.has(r[key]) && seenKeys.add(r[key]));
     return { id: c.id, label: c.label, key, fields, rows };
   });
   const brandName = (p.brandName || req.company || req.name).trim().slice(0, 30);

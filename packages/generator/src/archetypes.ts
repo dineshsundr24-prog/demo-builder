@@ -60,6 +60,15 @@ function actionBar(id: (b: string) => string, primary: { label: string; actions:
   if (secondary && NAV_LABEL.test(secondary.label.trim())) secondary = { ...secondary, label: 'Cancel' };
   return { type: 'ActionBar', id: id('actions'), primary, ...(secondary ? { secondary } : {}) };
 }
+/** "Reference number: PL2026..." on a review screen: an id that is only issued after submitting. */
+export const isPreSubmitReference = (it: { label?: unknown; value?: unknown }) =>
+  /\b(reference|ref\.?|application (no|number|id)|request (no|number|id)|tracking)\b/i.test(String(it.label ?? '')) && !/payment reference|purpose|remarks|your reference/i.test(String(it.label ?? '')) && /[0-9][0-9 -]{4,}/.test(String(it.value ?? ''));
+/** Fields the AI sometimes invents for instructions ("File type", "Max size") or checks ("Verify upload") are not inputs. */
+const INFO_FIELD = /^(file (type|types|format|formats|size)|accepted (formats?|files?)|max(imum)?( file)? size|size limit|format|instructions?|note|verify( upload)?|validation( message)?|validate|monthly instal?ment|emi|total (repayable|repayment|payable|amount payable|cost)|debt burden( ratio)?|dbr|result|(uae ?pass|credit bureau|aecb)( sign[ -]?in| check| score( check)?)?)$/i;
+export function realSections<S extends { title?: string; fields: { label: string }[] }>(sections: S[]): S[] {
+  const kept = sections.map(s => ({ ...s, fields: s.fields.filter(f => !INFO_FIELD.test(f.label.trim())) })).filter(s => s.fields.length);
+  return kept.length ? kept : sections; // never leave a form without fields
+}
 const backOr = (t?: string): Action[] => (t ? nav(t) : [{ type: 'back' }]);
 const firstLink = (ctx: BuildCtx) => ctx.screen.links[0];
 
@@ -131,10 +140,11 @@ def({ id: 'verification', label: 'Verification step', channels: ['mobile', 'port
   defaults: ctx => ({ headline: ctx.screen.title, subtitle: ctx.screen.purpose.slice(0, 160), method: 'generic', checklist: [], primaryLabel: 'Continue', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
 
 def({ id: 'dashboard', label: 'Home / dashboard', channels: ['mobile', 'portal'], shell: () => 'default',
-  description: 'Home: greeting, main balance or KPIs, quick actions to key screens, recent activity; portal adds a chart and a table.',
+  description: 'Home: greeting, main balance or KPIs, quick actions to key tasks that are NOT already in the main menu, recent activity; portal adds a chart and a table.',
   content: z.object({ greeting: S(60), subtitle: S(120).optional(),
     balance: z.object({ label: S(40), amount: S(30), caption: S(60).optional(), accountNumber: z.string().max(30).optional() }).optional(),
     kpis: z.array(z.object({ label: S(40), value: S(24), delta: z.string().max(24).optional() })).max(4),
+    promo: z.object({ title: S(60), text: S(160), cta: S(24), target: Target, icon: Icon }).optional().describe('The entry point to the main task of this demo (e.g. "Personal loan up to AED 500,000 · Apply now"), when that task is not the dashboard itself.'),
     quickActions: z.array(z.object({ label: S(20), icon: Icon, target: Target })).max(4),
     recent: z.object({ title: S(40), items: z.array(z.object({ title: S(50), subtitle: S(40), amount: z.string().max(24), direction: z.enum(['in', 'out', 'neutral']), icon: Icon })).min(1).max(6) }).optional(),
     chart: z.object({ title: S(60), kind: z.enum(['bar', 'line']), labels: z.array(S(12)).min(2).max(12), values: z.array(z.number().min(0)).min(2).max(12) }).optional(),
@@ -144,8 +154,18 @@ def({ id: 'dashboard', label: 'Home / dashboard', channels: ['mobile', 'portal']
     if (ctx.channel === 'mobile') out.push({ type: 'Heading', id: id('greeting'), text: c.greeting, level: '2' });
     else if (c.subtitle) out.push({ type: 'Text', id: id('intro'), text: c.subtitle, tone: 'muted' });
     if (c.balance) out.push({ type: 'BalanceCard', id: id('balance'), label: c.balance.label, amount: c.balance.amount, ...(c.balance.caption ? { caption: c.balance.caption } : {}), ...(c.balance.accountNumber ? { accountNumber: c.balance.accountNumber, accountName: ctx.plan.sampleFacts?.[0]?.value?.slice(0, 40) } : {}) });
+    if (c.promo && c.promo.target !== ctx.screen.id) out.push({ type: 'Promo', id: id('promo'), title: c.promo.title, body: c.promo.text, icon: c.promo.icon, cta: { label: c.promo.cta, actions: c.promo.target ? nav(c.promo.target) : [{ type: 'toast', message: c.promo.title + ' (simulated)' }] } });
+    // Counts by status come from the records themselves, so the tiles, the chart and the table agree.
+    const statusField = ctx.collection?.fields.find(f => /status|state/i.test(f.id + ' ' + f.label));
+    const counts = new Map<string, number>();
+    if (ctx.collection && statusField) for (const r of ctx.collection.rows) { const k = String(r[statusField.id] ?? '').trim().toLowerCase(); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); }
+    const countOf = (label: string) => { const k = label.trim().toLowerCase(); return counts.size && (counts.has(k) || /^(pending|submitted|approved|rejected|recommended|in review|under review|completed|open|closed|new)$/.test(k)) ? counts.get(k) ?? 0 : undefined; };
+    if (c.kpis?.length) c = { ...c, kpis: c.kpis.map((k: any) => { const n = countOf(k.label); return n === undefined ? k : { ...k, value: String(n) }; }) };
+    if (c.chart && c.chart.labels.every((l: string) => countOf(l) !== undefined)) c = { ...c, chart: { ...c.chart, values: c.chart.labels.map((l: string) => countOf(l)!) } };
     if (c.kpis?.length) out.push({ type: 'Grid', id: id('kpis'), columns: String(Math.min(4, Math.max(2, c.kpis.length))), gap: 'md', children: c.kpis.map((k: any) => ({ type: 'Stat', id: id(k.label), label: k.label, value: k.value, ...(k.delta ? { delta: k.delta } : {}) })) });
-    const qa = (c.quickActions ?? []).filter((q: any) => q.target !== ctx.screen.id);
+    // Quick actions add shortcuts; repeating the tab bar / sidebar destinations is noise.
+    const menu = new Set(ctx.plan.shell.items.flatMap(i => [i.screen, ...((i as { children?: { screen: string }[] }).children ?? []).map(c => c.screen)]));
+    const qa = (c.quickActions ?? []).filter((q: any) => q.target !== ctx.screen.id && !(q.target && menu.has(q.target)));
     if (qa.length >= 2) out.push({ type: 'QuickActions', id: id('quick'), title: 'Quick actions', items: qa.map((q: any) => ({ label: q.label, icon: q.icon, actions: q.target ? nav(q.target) : [{ type: 'toast', message: q.label + ' is simulated in this demo' }] })) });
     if (c.chart) out.push({ type: 'Chart', id: id('chart'), ...c.chart });
     if (c.table && ctx.collection) out.push({ type: 'Table', id: id('table'), collection: ctx.collection.id, title: c.table.title, searchable: false, columns: c.table.columns.map((f: string) => ({ field: f, label: ctx.collection!.fields.find(x => x.id === f)?.label ?? f, ...formatFor(f) })), ...(c.table.detailTarget ? { rowAction: { label: 'View', screen: c.table.detailTarget } } : {}) });
@@ -165,9 +185,21 @@ def({ id: 'form', label: 'Data entry form', channels: ['mobile', 'portal'], shel
     ...titleBlock(ctx, id, ctx.screen.title, c.intro),
     ...currentCard(c, id),
     { type: 'Form', id: id('form'), children: [
-      ...c.sections.flatMap((s: any) => s.title ? [{ type: 'Section', id: id(s.title), title: s.title, children: s.fields.map((f: any) => fieldNode(f, ctx.screen.id, id)) } as NodeT] : s.fields.map((f: any) => fieldNode(f, ctx.screen.id, id))),
+      ...realSections(c.sections).flatMap((s: any) => s.title ? [{ type: 'Section', id: id(s.title), title: s.title, children: s.fields.map((f: any) => fieldNode(f, ctx.screen.id, id)) } as NodeT] : s.fields.map((f: any) => fieldNode(f, ctx.screen.id, id))),
       actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, ...nav(c.next)] }, { label: c.cancel?.label ?? 'Cancel', actions: backOr(c.cancel?.target) })] }]; },
   defaults: ctx => ({ sections: [{ fields: [{ label: 'Details', kind: 'text', required: true }] }], primaryLabel: 'Continue', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
+
+def({ id: 'document-upload', label: 'Document upload', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'Upload supporting documents (salary certificate, Emirates ID, bank statements, trade licence): one upload per document with its accepted formats and size as a hint; continue + cancel. Never use form fields for instructions.',
+  content: z.object({ intro: S(200).optional(), documents: z.array(z.object({ label: S(60), hint: S(120).describe('Accepted formats and maximum size, e.g. "PDF, JPG or PNG, up to 5 MB"'), required: z.boolean() })).min(1).max(5),
+    note: S(200).optional().describe('One sentence of guidance, e.g. "Salary certificates must be issued within the last 30 days."'), primaryLabel: S(28), next: ScreenRef, cancel: Act.optional() }),
+  build: (c, ctx) => { const id = ids(); return [
+    ...titleBlock(ctx, id, ctx.screen.title, c.intro),
+    { type: 'Form', id: id('form'), children: [
+      ...c.documents.map((d: any) => ({ type: 'Upload', id: id(d.label), field: fieldKey(ctx.screen.id, d.label), label: d.label, required: d.required, hint: d.hint } as NodeT)),
+      ...(c.note ? [{ type: 'Text', id: id('note'), text: c.note, tone: 'muted' } as NodeT] : []),
+      actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, ...nav(c.next)] }, { label: c.cancel?.label ?? 'Cancel', actions: backOr(c.cancel?.target) })] }]; },
+  defaults: ctx => ({ documents: [{ label: 'Supporting document', hint: 'PDF, JPG or PNG, up to 5 MB', required: true }], primaryLabel: 'Continue', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
 
 def({ id: 'review', label: 'Review & confirm', channels: ['mobile', 'portal'], shell: () => 'default',
   description: 'Summary of what the user entered before submitting; consent; confirm + edit.',
@@ -175,7 +207,8 @@ def({ id: 'review', label: 'Review & confirm', channels: ['mobile', 'portal'], s
   build: (c, ctx) => { const id = ids(); return [
     ...titleBlock(ctx, id, ctx.screen.title, c.intro),
     // Summary rows only: consent statements and form-control names ("checkbox") are not data.
-    ...c.groups.map((g: any) => ({ ...g, items: g.items.filter((it: any) => !/^(i |by |please )/i.test(it.label) && !/^(checkbox|toggle|radio|true|false|yes\/no)$/i.test(String(it.value).trim()) && !/consent|agree|terms/i.test(it.label)) }))
+    // ...and a reference number does not exist before submission (it belongs on the success screen).
+    ...c.groups.map((g: any) => ({ ...g, items: g.items.filter((it: any) => !isPreSubmitReference(it) && !/^(i |by |please )/i.test(it.label) && !/^(checkbox|toggle|radio|true|false|yes\/no)$/i.test(String(it.value).trim()) && !/consent|agree|terms/i.test(it.label)) }))
       .filter((g: any) => g.items.length && !/consent|terms/i.test(g.title))
       .map((g: any) => ({ type: 'Card', id: id(g.title), title: g.title, children: [{ type: 'RecordFields', id: id(g.title + '-items'), items: g.items }] }) as NodeT),
     { type: 'Form', id: id('form'), children: [
@@ -214,7 +247,7 @@ def({ id: 'detail', label: 'Record details', channels: ['mobile', 'portal'], she
   content: z.object({ intro: S(160).optional(), groups: z.array(z.object({ title: S(40), fields: z.array(Field).min(1).max(8) })).min(1).max(3), timeline: z.array(z.object({ label: S(40), detail: S(60).optional(), state: z.enum(['done', 'current', 'upcoming']) })).max(6), primary: Act.optional(), secondary: Act.optional() }),
   build: (c, ctx) => {
     const id = ids(), col = ctx.collection, label = (f: string) => col?.fields.find(x => x.id === f)?.label ?? f;
-    const cards = c.groups.map((g: any) => ({ type: 'Card', id: id(g.title), title: g.title, children: [{ type: 'RecordFields', id: id(g.title + '-fields'), items: g.fields.map((f: string) => ({ label: label(f), value: '{{record.' + f + '}}' })) }] }) as NodeT);
+    const cards = c.groups.map((g: any) => ({ type: 'Card', id: id(g.title), title: g.title, children: [{ type: 'RecordFields', id: id(g.title + '-fields'), items: g.fields.map((f: string) => ({ label: label(f), value: recordValue(f, label(f)) })) }] }) as NodeT);
     return [...titleBlock(ctx, id, ctx.screen.title, c.intro),
       ...(ctx.channel === 'portal' && cards.length > 1 ? [{ type: 'Grid', id: id('cards'), columns: String(Math.min(3, cards.length)), gap: 'md', children: cards } as NodeT] : cards),
       ...(c.timeline?.length >= 2 ? [{ type: 'StatusTimeline', id: id('timeline'), title: 'Progress', steps: c.timeline } as NodeT] : []),
@@ -246,7 +279,7 @@ def({ id: 'approval', label: 'Review & decide (maker/checker)', channels: ['port
   content: z.object({ intro: S(160).optional(), summaryFields: z.array(Field).min(1).max(8), decisionLabel: S(40), options: z.array(S(30)).min(2).max(4), commentLabel: S(40), primaryLabel: S(28), resultStatus: S(30), next: ScreenRef }),
   build: (c, ctx) => { const id = ids(), label = (f: string) => ctx.collection?.fields.find(x => x.id === f)?.label ?? f; return [
     ...titleBlock(ctx, id, ctx.screen.title, c.intro),
-    { type: 'Card', id: id('summary'), title: 'Summary', children: [{ type: 'RecordFields', id: id('summary-fields'), items: c.summaryFields.map((f: string) => ({ label: label(f), value: '{{record.' + f + '}}' })) }] },
+    { type: 'Card', id: id('summary'), title: 'Summary', children: [{ type: 'RecordFields', id: id('summary-fields'), items: c.summaryFields.map((f: string) => ({ label: label(f), value: recordValue(f, label(f)) })) }] },
     { type: 'Form', id: id('form'), title: 'Decision', children: [
       { type: 'Radio', id: id('decision'), field: fieldKey(ctx.screen.id, 'decision'), label: c.decisionLabel, required: true, options: c.options },
       { type: 'Input', id: id('comment'), field: fieldKey(ctx.screen.id, 'comment'), label: c.commentLabel, inputType: 'text', required: true },
@@ -361,6 +394,8 @@ def({ id: 'customer-360', label: 'Customer 360 (staff)', channels: ['portal'], s
     ...(c.primary ? [actionBar(id, { label: c.primary.label, actions: c.primary.target ? nav(c.primary.target) : [{ type: 'toast', message: c.primary.label + ' (simulated)' }] }, c.secondary ? { label: c.secondary.label, actions: c.secondary.target ? nav(c.secondary.target) : [{ type: 'back' }] } : undefined)] : [])]; },
   defaults: ctx => ({ name: personName(ctx), subtitle: 'CIF 100245 · Retail customer', kpis: [{ label: 'Total relationship', value: 'AED 312,400' }, { label: 'Products', value: '4' }], groups: [{ title: 'Contact', items: [{ label: 'Mobile', value: '+971 50 123 4567' }] }], columns: [] }) });
 
+/** A record field as shown in a details card: amounts formatted as AED (the sample data stores plain numbers). */
+const recordValue = (f: string, label: string) => '{{record.' + f + (formatFor(f).format === 'aed' || /\b(aed|amount|salary|balance)\b/i.test(label) ? ' | aed' : '') + '}}';
 function formatFor(field: string, statusField?: string): { format?: 'aed' | 'date' | 'status' } {
   if (field === statusField || /status|state/i.test(field)) return { format: 'status' };
   if (/amount|balance|salary|price|fee|total|aed/i.test(field)) return { format: 'aed' };
