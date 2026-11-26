@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DemoStore } from '../demos/store.ts';
 import type { Generator } from '@demo/generator';
 import { suggestionText } from '@demo/generator';
+import { verifyEvent } from '../sync/events.ts';
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 export const SIM_TENANT = { id: 'sim-tenant', name: 'Simulated MEYON tenant' };
@@ -59,7 +60,7 @@ export function composePrompt(s: Scenario): string {
 
 type Grant = { codeHash: string; expiresAt: number; pkg: Record<string, unknown> };
 
-export function registerMeyonSimulator(app: FastifyInstance, opts: { integrationKey: string; demoStore: DemoStore; generator: Generator; publicBaseUrl?: string; allowSharedToken?: boolean }) {
+export function registerMeyonSimulator(app: FastifyInstance, opts: { integrationKey: string; eventSecrets: string[]; demoStore: DemoStore; generator: Generator; publicBaseUrl?: string; allowSharedToken?: boolean }) {
   const grants = new Map<string, Grant>();
   const keyOk = (h: unknown) => { const given = Buffer.from(String(/^Bearer\s+(.+)$/i.exec(String(h ?? ''))?.[1] ?? '')), want = Buffer.from(opts.integrationKey); return given.length === want.length && timingSafeEqual(given, want); };
   /** The simulator's "Demo tab" is for signed-in Builder users only (never the shared UAT token or MEYON sessions). */
@@ -126,6 +127,28 @@ export function registerMeyonSimulator(app: FastifyInstance, opts: { integration
     for (const [k, g] of grants) if (g.expiresAt < now) grants.delete(k);
     grants.set(sha(code), { codeHash: sha(code), expiresAt: now + ttl, pkg });
     return { code, expiresAt: pkg.expiresAt, grantId: pkg.grantId };
+  });
+  // MEYON's event endpoint: signature over the raw body with an active secret, 5-minute window, each event id once.
+  type Received = { id: string; type: string; receivedAt: string; verified: true; payload: Record<string, any> };
+  const received: Received[] = [], seen = new Set<string>();
+  app.post('/sim/meyon/demo-builder/v1/events', { config: { rawBody: true } } as any, async (req, reply) => {
+    const raw = typeof (req as any).rawBody === 'string' ? (req as any).rawBody : JSON.stringify(req.body);
+    if (!verifyEvent(opts.eventSecrets, String(req.headers['x-demo-builder-signature'] ?? ''), raw)) return reply.code(401).send({ error: 'Invalid or expired signature' });
+    const body = req.body as Record<string, any>, id = String(req.headers['x-demo-builder-event'] ?? body?.id ?? '');
+    if (!id || id !== body?.id) return reply.code(400).send({ error: 'Event id missing or inconsistent' });
+    if (seen.has(id)) return reply.code(409).send({ received: true, duplicate: true });
+    seen.add(id); received.unshift({ id, type: String(body.type), receivedAt: new Date().toISOString(), verified: true, payload: body });
+    received.splice(200);
+    return { received: true };
+  });
+  // What the simulated MEYON knows: linked demos, versions, publications and coverage (the Demo tab's data).
+  app.get('/sim/meyon/events', async (req, reply) => {
+    if (!user(req)) return reply.code(403).send({ error: 'Sign in to use the MEYON simulator', category: 'forbidden' });
+    return { events: received.slice(0, 50).map(e => ({ id: e.id, type: e.type, receivedAt: e.receivedAt, verified: e.verified, story: e.payload.launch?.story ?? null,
+      demo: e.payload.demo ? { id: e.payload.demo.id, name: e.payload.demo.name, channel: e.payload.demo.channel, isPrimary: e.payload.demo.isPrimary } : null,
+      version: e.payload.version?.number ?? e.payload.publication?.version ?? null,
+      coverage: e.payload.version?.coverage ? Object.fromEntries(Object.entries(e.payload.version.coverage as Record<string, Record<string, unknown>>).map(([k, v]) => [k, Object.keys(v).length])) : null,
+      journeyPassed: e.payload.version?.extend?.journey?.passed ?? null })) };
   });
   // MEYON's server-to-server endpoint: integration key required, single use, expiry enforced.
   app.post('/sim/meyon/demo-builder/v1/launch-grants/consume', async (req, reply) => {

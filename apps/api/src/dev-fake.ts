@@ -68,5 +68,5 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
 const port = Number(process.env.PORT || 8788), integrationKey = 'dev-fake-integration-key-0123456789abcdef';
 const app = await buildServer({ generator: new Generator(new MemoryStore(), provider, { ...defaultConfig, retryDelaysMs: [10] }), accessToken: 'e2e-token', model: 'fake', origins: ['http://localhost:5174', 'http://localhost:5173'],
   sessionSecret: 'dev-fake-session-secret-0123456789abcdef', meyon: httpMeyonClient('http://127.0.0.1:' + port + '/sim/meyon', integrationKey),
-  meyonSimulator: { integrationKey, allowSharedToken: true }, publicBaseUrl: 'http://localhost:5174', rateLimitPerMinute: 500 }); // parallel browser tests share one client address
+  meyonSimulator: { integrationKey, allowSharedToken: true }, sync: { url: 'http://127.0.0.1:' + port + '/sim/meyon/demo-builder/v1/events', secrets: ['dev-fake-event-secret-0123456789abcdefgh'], intervalMs: 1000 }, publicBaseUrl: 'http://localhost:5174', rateLimitPerMinute: 500 }); // parallel browser tests share one client address
 await app.listen({ port, host: '127.0.0.1' });

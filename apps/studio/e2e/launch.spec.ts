@@ -16,7 +16,7 @@ async function launchFromMeyon(page: Page, context: BrowserContext, o: { story: 
   await page.goto('/?sim=meyon');
   await page.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token'));
   await page.reload();
-  await page.getByTestId('sim').getByText(o.story, { exact: true }).click();
+  await page.locator('.sim-stories').getByText(o.story, { exact: true }).click();
   if (o.extend) { await page.getByLabel('Extend existing demo').check(); await page.getByLabel('Base demo').selectOption(o.extend); } // parallel tests create baselines too
   const opened = context.waitForEvent('page');
   await page.getByTestId('sim-open').click();
@@ -99,7 +99,7 @@ test('the MEYON prompt is composed from approved data, and AI adds a labelled sc
   await page.goto('/?sim=meyon');
   await page.evaluate(() => sessionStorage.setItem('db-access', 'e2e-token'));
   await page.reload();
-  await page.getByTestId('sim').getByText('US-101', { exact: true }).click();
+  await page.locator('.sim-stories').getByText('US-101', { exact: true }).click();
   const prompt = page.getByTestId('sim-prompt');
   await expect(prompt).toHaveValue(/Acceptance criteria \(approved; each must be demonstrated\)/);
   await expect(prompt).toHaveValue(/Maximum debt burden ratio is 50% of monthly salary/);
@@ -154,4 +154,9 @@ test('Extend: review the change plan, apply it as a new version; when the demo m
   await expect(dlg.getByTestId('ext-conflict')).toContainText('changed after the change plan was made');
   await dlg.getByTestId('ext-fork').click();
   await expect(dlg.getByTestId('ext-done')).toContainText('new copy of the demo', { timeout: 15000 });
+  // MEYON (simulated) received the signed sync events: the extended version with its story coverage.
+  const events = page.getByTestId('sim-events');
+  await expect(events).toContainText('Version saved', { timeout: 15000 });
+  await expect(events).toContainText('Launch confirmed');
+  await expect(events).toContainText('US-101');
 });

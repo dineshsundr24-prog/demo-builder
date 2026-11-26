@@ -46,18 +46,26 @@ if (!allowUatToken) console.info('Legacy shared UAT token disabled: sign-in requ
 const port = num('PORT', 8787);
 const simulator = (env.MEYON_SIMULATOR ?? '').toLowerCase() === 'on';
 if (simulator && env.MEYON_BASE_URL) { console.error('MEYON_SIMULATOR=on cannot be combined with MEYON_BASE_URL'); process.exit(1); }
-let meyon: MeyonClient | undefined, meyonSimulator: { integrationKey: string } | undefined;
+// Sync events: MEYON_EVENT_SECRETS (comma-separated, 32+ characters each; the first signs, all stay valid on MEYON's
+// side during a rotation). The simulator generates its own when none are set.
+const eventSecrets = (env.MEYON_EVENT_SECRETS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+if (eventSecrets.some(s => s.length < 32)) { console.error('Each MEYON_EVENT_SECRETS entry must be at least 32 characters'); process.exit(1); }
+let meyon: MeyonClient | undefined, meyonSimulator: { integrationKey: string; eventSecrets: string[] } | undefined, sync: { url: string; secrets: string[] } | undefined;
 if (simulator) {
-  meyonSimulator = { integrationKey: env.MEYON_INTEGRATION_KEY || randomBytes(32).toString('base64url') };
+  const secrets = eventSecrets.length ? eventSecrets : [randomBytes(32).toString('base64url')];
+  meyonSimulator = { integrationKey: env.MEYON_INTEGRATION_KEY || randomBytes(32).toString('base64url'), eventSecrets: secrets };
   meyon = httpMeyonClient('http://127.0.0.1:' + port + '/sim/meyon', meyonSimulator.integrationKey);
+  sync = { url: 'http://127.0.0.1:' + port + '/sim/meyon/demo-builder/v1/events', secrets };
   console.warn('MEYON simulator enabled: launches use simulated sample stories, not a real MEYON');
 } else if (env.MEYON_BASE_URL) {
   if (!env.MEYON_INTEGRATION_KEY || env.MEYON_INTEGRATION_KEY.length < 32) { console.error('MEYON_INTEGRATION_KEY (32+ characters) is required with MEYON_BASE_URL'); process.exit(1); }
   meyon = httpMeyonClient(env.MEYON_BASE_URL, env.MEYON_INTEGRATION_KEY);
+  if (eventSecrets.length) sync = { url: env.MEYON_BASE_URL.replace(/\/$/, '') + '/demo-builder/v1/events', secrets: eventSecrets };
+  else console.warn('MEYON_EVENT_SECRETS is not set: sync events are recorded but not delivered to MEYON');
 }
 if (meyon && !env.BUILDER_SESSION_SECRET) console.warn('BUILDER_SESSION_SECRET is not set: launches from MEYON are disabled');
 const app = await buildServer({
-  meyon, meyonSimulator,
+  meyon, meyonSimulator, sync,
   generator, model, accessToken: allowUatToken ? required('DEMO_ACCESS_TOKEN') : (env.DEMO_ACCESS_TOKEN ?? ''), allowUatToken, logger: true,
   demoStore, verifyUser, sessionSecret: env.BUILDER_SESSION_SECRET,
   publicBaseUrl: env.PUBLIC_DEMO_BASE_URL || (env.STUDIO_HOST ? 'https://' + env.STUDIO_HOST : undefined),

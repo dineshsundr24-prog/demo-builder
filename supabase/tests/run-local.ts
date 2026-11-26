@@ -61,3 +61,15 @@ for (const want of ['LAUNCHES_TESTS_PASSED', 'LAUNCHES_PRIVILEGES_PASSED', 'LAUN
   if (!notices4.includes(want)) { console.log('missing', want, notices4.join(' | ')); process.exit(1); }
   console.log(want);
 }
+
+// ---------- Migration 0005: sync events outbox ----------
+await db.exec(file('../migrations/0005_demo_events.sql'));
+try { await db.exec(file('../migrations/0005_demo_events.sql')); console.log('FAIL: 0005 second run was accepted'); process.exit(1); }
+catch (e: any) { console.log('0005 second run refused:', String(e.message).slice(0, 80)); await db.exec('rollback').catch(() => {}); }
+const notices5: string[] = [];
+await db.exec('begin; ' + file('./events_test.sql') + ' rollback;', { onNotice: (n: any) => notices5.push(n.message) } as any)
+  .catch((e: any) => { console.log('EVENTS TESTS FAILED:', e.message); process.exit(1); });
+for (const want of ['EVENTS_TESTS_PASSED', 'EVENTS_PRIVILEGES_PASSED', 'EVENTS_SERVER_ROLE_PASSED']) {
+  if (!notices5.includes(want)) { console.log('missing', want, notices5.join(' | ')); process.exit(1); }
+  console.log(want);
+}

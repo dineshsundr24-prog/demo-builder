@@ -11,6 +11,7 @@ import { registerLaunchRoutes } from './launch/routes.ts';
 import { registerExtendRoutes } from './launch/extend.ts';
 import { registerMeyonSimulator } from './launch/simulator.ts';
 import type { MeyonClient } from './launch/meyon.ts';
+import { Sync, type SyncOptions } from './sync/events.ts';
 
 export type ServerOptions = {
   generator: Generator; accessToken: string; origins: string[]; model: string; logger?: boolean;
@@ -20,8 +21,9 @@ export type ServerOptions = {
   /** Studio origin used to build public demo links. */ publicBaseUrl?: string;
   /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
   /** MEYON server-to-server client (launch grants). Absent: launches from MEYON are not available. */ meyon?: MeyonClient;
+  /** Where and how sync events are delivered to MEYON (absent: recorded, not delivered). */ sync?: SyncOptions;
   /** Requests per minute per client for paid actions and for launch exchanges (default 20). */ rateLimitPerMinute?: number;
-  /** Simulated MEYON for testing/UAT (never with a real MEYON). */ meyonSimulator?: { integrationKey: string; /** tests only: the shared UAT token may prepare launches */ allowSharedToken?: boolean };
+  /** Simulated MEYON for testing/UAT (never with a real MEYON). */ meyonSimulator?: { integrationKey: string; /** secrets the simulated MEYON accepts event signatures with */ eventSecrets?: string[]; /** tests only: the shared UAT token may prepare launches */ allowSharedToken?: boolean };
 };
 
 function tokenOk(given: unknown, expected: string) {
@@ -100,10 +102,13 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     const job = await gen.store.getJob(id).catch(() => null);
     if (job && !ownsJob(job, req)) return reply.code(404).send({ error: 'Job not found', category: 'not_found' });
   });
-  registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl });
-  registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret });
-  registerExtendRoutes(app, { store: demoStore, generator: gen });
-  if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
+  const sync = new Sync(demoStore, opts.sync, app.log);
+  app.decorate('sync', sync);
+  sync.start(); app.addHook('onClose', async () => sync.stop());
+  registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl, sync });
+  registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret, sync });
+  registerExtendRoutes(app, { store: demoStore, generator: gen, sync });
+  if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, eventSecrets: opts.meyonSimulator.eventSecrets ?? opts.sync?.secrets ?? [], allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/api/v2/status', async () => {
