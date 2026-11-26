@@ -9,6 +9,7 @@ import { registerDemoRoutes } from './demos/routes.ts';
 import { MemoryDemoStore, type DemoStore } from './demos/store.ts';
 import { registerLaunchRoutes } from './launch/routes.ts';
 import { registerExtendRoutes } from './launch/extend.ts';
+import { registerIntegrationRoutes } from './launch/integration.ts';
 import { registerMeyonSimulator } from './launch/simulator.ts';
 import type { MeyonClient } from './launch/meyon.ts';
 import { Sync, type SyncOptions } from './sync/events.ts';
@@ -21,6 +22,7 @@ export type ServerOptions = {
   /** Studio origin used to build public demo links. */ publicBaseUrl?: string;
   /** false: the legacy shared UAT token is rejected everywhere (sign-in only). Default true. */ allowUatToken?: boolean;
   /** MEYON server-to-server client (launch grants). Absent: launches from MEYON are not available. */ meyon?: MeyonClient;
+  /** Shared key MEYON presents when calling the Builder (same integration key). */ integrationKey?: string;
   /** Where and how sync events are delivered to MEYON (absent: recorded, not delivered). */ sync?: SyncOptions;
   /** Requests per minute per client for paid actions and for launch exchanges (default 20). */ rateLimitPerMinute?: number;
   /** Simulated MEYON for testing/UAT (never with a real MEYON). */ meyonSimulator?: { integrationKey: string; /** secrets the simulated MEYON accepts event signatures with */ eventSecrets?: string[]; /** tests only: the shared UAT token may prepare launches */ allowSharedToken?: boolean };
@@ -86,6 +88,8 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
     // Launch codes are exchanged before any session exists (rate-limited); MEYON's own endpoint checks its integration key.
     if (req.url === '/api/v2/launch/exchange') { if (req.method === 'POST' && limited(req, 'launch')) return reply.code(429).send({ error: 'Too many launch attempts; wait a minute', category: 'rate_limit' }); return; }
     if (opts.meyonSimulator && req.url.startsWith('/sim/meyon/demo-builder/')) return;
+    // MEYON's server-to-server calls carry the integration key (checked by the route), never a user session.
+    if (req.url.startsWith('/api/v2/integration/')) { if (req.method === 'POST' && limited(req)) return reply.code(429).send({ error: 'Too many requests; wait a minute', category: 'rate_limit' }); return; }
     try { req.caller = await resolveCaller({ store: demoStore, uatToken: opts.allowUatToken === false ? undefined : opts.accessToken, sessionSecret: opts.sessionSecret, verifyUser: opts.verifyUser }, req.headers); }
     catch (e) {
       if (e instanceof AuthError) return reply.code(e.status).send({ error: e.message, category: 'auth' });
@@ -108,6 +112,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl, sync });
   registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret, sync });
   registerExtendRoutes(app, { store: demoStore, generator: gen, sync });
+  registerIntegrationRoutes(app, { store: demoStore, generator: gen, integrationKey: opts.integrationKey ?? opts.meyonSimulator?.integrationKey });
   if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, eventSecrets: opts.meyonSimulator.eventSecrets ?? opts.sync?.secrets ?? [], allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));

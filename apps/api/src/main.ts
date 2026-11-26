@@ -65,7 +65,7 @@ if (simulator) {
 }
 if (meyon && !env.BUILDER_SESSION_SECRET) console.warn('BUILDER_SESSION_SECRET is not set: launches from MEYON are disabled');
 const app = await buildServer({
-  meyon, meyonSimulator, sync,
+  meyon, meyonSimulator, sync, integrationKey: env.MEYON_BASE_URL ? env.MEYON_INTEGRATION_KEY : undefined,
   generator, model, accessToken: allowUatToken ? required('DEMO_ACCESS_TOKEN') : (env.DEMO_ACCESS_TOKEN ?? ''), allowUatToken, logger: true,
   demoStore, verifyUser, sessionSecret: env.BUILDER_SESSION_SECRET,
   publicBaseUrl: env.PUBLIC_DEMO_BASE_URL || (env.STUDIO_HOST ? 'https://' + env.STUDIO_HOST : undefined),

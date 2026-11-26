@@ -204,3 +204,4 @@ Live: the UAT request handled correctly 3 of 3 times; the 10-case evaluation 10 
 - **Simulated MEYON** verifies, de-duplicates and lists what it received on its page ("Received by MEYON").
 
 **Evidence.** `apps/api/test/sync.test.ts` (event trail, signatures and rotation, retries with backoff, idempotency, no link token or document content, standalone demos silent); `supabase/tests/events_test.sql`; browser journey ends with MEYON showing the received version and coverage.
+- **MEYON to Builder.** `POST /api/v2/integration/suggest-screens` (Bearer `MEYON_INTEGRATION_KEY`, the same shared integration key): AI screen suggestions for the prompt MEYON's Demo tab is preparing; a base demo is read only when it belongs to the requesting tenant.
