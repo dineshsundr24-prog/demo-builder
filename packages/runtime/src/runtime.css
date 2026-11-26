@@ -334,3 +334,11 @@ h1.db-heading { font-size: 26px; } h2.db-heading { font-size: 20px; } h3.db-head
 .db-stat-value[data-long] { font-size: 18px; line-height: 1.25; letter-spacing: -.2px; }
 .db-upload .db-hint { display: block; color: var(--db-muted); font-size: 12px; margin: -2px 0 6px; }
 .db-chart svg { max-height: 240px; } /* wide portal charts do not scale their labels up */
+
+/* In-app confirmation (confirm action) */
+.db-confirm-scrim { position: absolute; inset: 0; background: rgb(15 23 42 / 45%); display: grid; place-items: center; padding: 20px; z-index: 40; }
+.db-confirm { background: var(--db-surface); border-radius: var(--db-radius); padding: 18px; width: min(360px, 100%); display: grid; gap: 8px; box-shadow: 0 20px 50px rgb(15 23 42 / 30%); }
+.db-confirm strong { font-size: 16px; } .db-confirm p { margin: 0; color: var(--db-muted); font-size: 14px; }
+.db-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.db-confirm-actions .db-button { width: auto; flex: 0 0 auto; padding-inline: 16px; }
+.db-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

@@ -119,3 +119,39 @@ test('the MEYON prompt is composed from approved data, and AI adds a labelled sc
   await expect(tab.locator('.gen-plan li')).toHaveCount(5, { timeout: 10000 });
   await expect(tab.getByLabel('Title of screen 3')).toHaveValue('Upload Documents');
 });
+
+test('Extend: review the change plan, apply it as a new version; when the demo moved on, apply to a copy', async ({ page, context }) => {
+  const first = await launchFromMeyon(page, context, { story: 'US-103' });
+  await first.tab.getByTestId('launch-go').click();
+  await first.tab.getByRole('button', { name: /Approve and generate/ }).click({ timeout: 10000 });
+  await expect(first.tab.locator('.gen-status')).toHaveAttribute('data-status', /completed/, { timeout: 15000 });
+  await first.tab.getByRole('button', { name: 'Close' }).click();
+  await first.tab.getByRole('button', { name: 'Save version' }).click();
+  await expect(first.tab.locator('[data-version="1"]')).toBeVisible();
+  const baseId = (await first.tab.getByTestId('versions').getAttribute('data-demo-id'))!;
+
+  const { tab } = await launchFromMeyon(page, context, { story: 'US-101', extend: baseId });
+  await tab.getByTestId('launch-go').click();
+  await tab.getByTestId('extend-open').click();
+  const dlg = tab.getByTestId('extend');
+  await expect(dlg).toContainText('New screens');
+  await expect(dlg).toContainText('Card Controls');
+  await expect(dlg.getByLabel('Remove Details')).not.toBeChecked(); // removals are never pre-selected
+  await expect(dlg).toContainText('screens stay exactly as they are');
+  await expect(dlg.getByTestId('ext-uncovered')).toContainText('AC3');
+  await dlg.getByTestId('ext-apply').click();
+  await expect(dlg.getByTestId('ext-done')).toContainText('Every journey still works', { timeout: 15000 });
+  await expect(dlg.getByTestId('ext-done')).toContainText('version 2');
+  await dlg.getByTestId('ext-open').click();
+  await expect(tab.locator('.studio-screens')).toContainText('Card Controls');
+  await expect(tab.locator('[data-version="2"]')).toBeVisible();
+  await expect(tab.locator('.studio-screens')).toContainText('Details'); // not removed
+
+  // The launch named version 1, which is no longer the latest: the plan says so, and applying offers the choices.
+  await tab.getByTestId('extend-open').click();
+  await expect(dlg.getByTestId('ext-base-moved')).toContainText('latest is version 2');
+  await dlg.getByTestId('ext-apply').click();
+  await expect(dlg.getByTestId('ext-conflict')).toContainText('changed after the change plan was made');
+  await dlg.getByTestId('ext-fork').click();
+  await expect(dlg.getByTestId('ext-done')).toContainText('new copy of the demo', { timeout: 15000 });
+});

@@ -6,6 +6,7 @@ export const ANY_BINDING = /\{\{([^}]*)\}\}/g;
 export const formatters: Record<string, (v: string) => string> = {
   aed: v => { const n = Number(String(v).replace(/[^0-9.-]/g, '')); return Number.isFinite(n) && String(v).trim() !== '' ? 'AED ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; },
   date: v => { const d = new Date(v); return isNaN(+d) ? v : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); },
+  /** Card freeze state ('true' / 'false') as a status word. */ frozen: v => (String(v) === 'true' ? 'Frozen' : 'Active'),
   upper: v => String(v).toUpperCase(),
   lower: v => String(v).toLowerCase(),
   title: v => String(v).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),

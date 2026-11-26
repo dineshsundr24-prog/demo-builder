@@ -10,6 +10,7 @@ import { generateScreen, refineBindings } from './screen.ts';
 import { addScreenWithAI, modifyScreenWithAI, routeInstruction, type AddScreenRequest, type AssistRequest } from './assist.ts';
 import { changeFlowWithAI } from './flow.ts';
 import { suggestScreens, type SuggestInput } from './suggest.ts';
+import { applyExtension, proposeExtension, type ChangePlan, type ExtendInput } from './extend.ts';
 import type { DemoDocument } from '@demo/schema';
 import { validateScreen, documentContext } from '@demo/schema';
 import { assemble } from './assemble.ts';
@@ -78,6 +79,28 @@ export class Generator {
     const cost = costUsd(call.model, call.usage);
     await this.store.addUsage({ job_id: null, kind: 'assist', model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: cost });
     return { ...suggestion, costUsd: Number(cost.toFixed(5)) };
+  }
+  private async assistUsage(call: CompletionResult) {
+    const cost = costUsd(call.model, call.usage);
+    await this.store.addUsage({ job_id: null, kind: 'assist', model: call.model, input_tokens: call.usage.inputTokens, cached_tokens: call.usage.cachedTokens, output_tokens: call.usage.outputTokens, cost_usd: cost });
+    return cost;
+  }
+  private async budgetGuard() {
+    const b = await this.budgetStatus();
+    if (b.remainingUsd <= 0) throw new ProviderError('budget', 'Monthly AI budget of USD ' + b.limitUsd + ' is used up (USD ' + b.spentUsd.toFixed(2) + ' spent). Raise MONTHLY_AI_BUDGET_USD to continue.', false);
+  }
+  /** EXTEND step 1: a reviewable change plan against the exact baseline (one AI call). */
+  async planExtension(doc: DemoDocument, input: ExtendInput) {
+    await this.budgetGuard();
+    const { plan, call } = await proposeExtension(this.provider, doc, input);
+    return { plan, costUsd: Number((await this.assistUsage(call)).toFixed(5)) };
+  }
+  /** EXTEND step 2: apply the approved items; returns the new document and the journey check (nothing is saved here). */
+  async applyExtension(doc: DemoDocument, plan: ChangePlan, approved: string[], criteria: { id: string; text: string }[], onStep?: (done: number, total: number, label: string) => void) {
+    await this.budgetGuard();
+    let cost = 0;
+    const r = await applyExtension({ add: this.provider, edit: this.assistProvider ?? this.provider }, doc, plan, approved, criteria, { onStep, onCall: async c => { cost += await this.assistUsage(c); } });
+    return { ...r, costUsd: Number(cost.toFixed(5)) };
   }
   /** Back-compat helper used by tests: add a screen. */
   async addScreen(doc: DemoDocument, req: AddScreenRequest) { return this.assist(doc, { instruction: req.requirement, mode: 'add', from: req.from, to: req.to, addToMenu: req.addToMenu }); }

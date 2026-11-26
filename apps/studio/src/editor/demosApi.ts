@@ -67,3 +67,19 @@ export const launchApi = {
   suggest: (body: { storyId: string; baseDemoId?: string }) => call<{ text: string; screens: number; gaps: string[]; costUsd: number }>('/sim/meyon/suggest-screens', json('POST', body)),
   grant: (body: { storyId: string; mode: 'create' | 'extend'; baseDemoId?: string; baseVersion?: number; prompt?: string }) => call<{ code: string; expiresAt: string }>('/sim/meyon/grants', json('POST', body)),
 };
+
+// ---------- EXTEND (A3) ----------
+export type ChangeItem =
+  | { key: string; kind: 'add'; title: string; purpose: string; details: string[]; criteria: string[]; openFrom: string | null; addToMenu: boolean }
+  | { key: string; kind: 'modify'; screenId: string; title: string; change: string; criteria: string[]; sharedWith: string[] }
+  | { key: string; kind: 'remove'; screenId: string; title: string; reason: string; sharedWith: string[] };
+export type ChangePlan = { story: { id: string; title: string; version?: number }; summary: string; items: ChangeItem[]; unchanged: { screenId: string; title: string }[]; navigation: string[]; gaps: string[]; uncovered: string[] };
+export type PlanResponse = { planId: string; plan: ChangePlan; base: { demoId: string; name: string; version: number; latestVersion: number; changedSince: boolean }; costUsd: number };
+export type JourneyCheck = { passed: boolean; reachableBefore: number; reachableAfter: number; lostScreens: string[]; unreachableNew: string[]; newErrors: string[] };
+export type ExtendTask = { status: 'running' | 'done' | 'failed'; done: number; total: number; label: string; error: string | null;
+  result: { demoId: string; version: number | null; forked: boolean; journey: JourneyCheck; applied: { key: string; summary: string[] }[]; costUsd: number } | null };
+export const extendApi = {
+  plan: (launchId: string, base?: 'latest') => call<PlanResponse>('/api/v2/launches/' + launchId + '/extend/plan', json('POST', base ? { base } : {})),
+  apply: (launchId: string, planId: string, approved: string[], mode?: 'fork') => call<{ taskId: string }>('/api/v2/launches/' + launchId + '/extend/apply', json('POST', { planId, approved, ...(mode ? { mode } : {}) })),
+  task: (taskId: string) => call<ExtendTask>('/api/v2/extend-tasks/' + taskId),
+};

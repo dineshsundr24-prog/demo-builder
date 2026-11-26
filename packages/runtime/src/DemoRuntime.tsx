@@ -35,10 +35,13 @@ export function DemoRuntime({ doc, screenId, onScreenChange, interactive = true,
 
   const latest = useRef(session);
   latest.current = session;
+  // A "confirm" action pauses the chain on an in-app dialog (never the browser's own confirm box).
+  const [asking, setAsking] = useState<{ title: string; message?: string; confirmLabel: string; answer: (ok: boolean) => void } | null>(null);
+  const confirm = useCallback((c: { title: string; message?: string; confirmLabel: string }) => new Promise<boolean>(resolve => setAsking({ ...c, answer: ok => { setAsking(null); resolve(ok); } })), []);
   const run = useCallback((actions: Action[], formId?: string) => {
     if (running.current) return; // one action chain at a time
     running.current = true;
-    void runActions(doc, latest.current, actions, { formId, onUpdate: next => { latest.current = next; setSession(next); } })
+    void runActions(doc, latest.current, actions, { formId, confirm, onUpdate: next => { latest.current = next; setSession(next); } })
       .finally(() => { running.current = false; });
   }, [doc]);
   const api: RuntimeApi = useMemo(() => ({
@@ -111,6 +114,11 @@ export function DemoRuntime({ doc, screenId, onScreenChange, interactive = true,
         {body}
       </>}
       {session.busy ? <div className="db-busy" role="status"><span className="db-spinner" />{session.busy}</div> : null}
+      {asking ? <div className="db-confirm-scrim"><div className="db-confirm" role="alertdialog" aria-modal="true" aria-label={asking.title}>
+        <strong>{asking.title}</strong>{asking.message ? <p>{asking.message}</p> : null}
+        <div className="db-confirm-actions"><button type="button" className="db-button" data-variant="secondary" onClick={() => asking.answer(false)}>Cancel</button>
+          <button type="button" className="db-button" data-variant="primary" autoFocus onClick={() => asking.answer(true)}>{asking.confirmLabel}</button></div>
+      </div></div> : null}
       <div className="db-toasts" aria-live="polite">{session.toasts.map(t => <div key={t.id} className="db-toast" data-tone={t.tone}>{t.message}</div>)}</div>
     </div>
   </RuntimeContext.Provider>;

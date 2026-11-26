@@ -60,6 +60,9 @@ function actionBar(id: (b: string) => string, primary: { label: string; actions:
   if (secondary && NAV_LABEL.test(secondary.label.trim())) secondary = { ...secondary, label: 'Cancel' };
   return { type: 'ActionBar', id: id('actions'), primary, ...(secondary ? { secondary } : {}) };
 }
+/** Freeze/unfreeze has its own buttons; a menu row for it would repeat them. */
+const FREEZE = /\b(un)?freeze|\bblock card|\block card/i;
+const last4 = (c: { last4: string }) => (String(c.last4).replace(/\D/g, '') + '4821').slice(0, 4);
 /** "Reference number: PL2026..." on a review screen: an id that is only issued after submitting. */
 export const isPreSubmitReference = (it: { label?: unknown; value?: unknown }) =>
   /\b(reference|ref\.?|application (no|number|id)|request (no|number|id)|tracking)\b/i.test(String(it.label ?? '')) && !/payment reference|purpose|remarks|your reference/i.test(String(it.label ?? '')) && /[0-9][0-9 -]{4,}/.test(String(it.value ?? ''));
@@ -346,14 +349,19 @@ def({ id: 'card-controls', label: 'Card management', channels: ['mobile', 'porta
     details: z.array(Pair).max(4), controls: z.array(S(40)).min(1).max(4), limitLabel: S(40).optional(), actions: z.array(Shortcut).max(4) }),
   build: (c, ctx) => { const id = ids(), k = (l: string) => fieldKey(ctx.screen.id, l); return [
     ...titleBlock(ctx, id, ctx.screen.title),
-    { type: 'CardVisual', id: id('card'), product: c.product, holder: c.holder.toUpperCase(), last4: (String(c.last4).replace(/\D/g, '') + '4821').slice(0, 4), expiry: /^\d{2}\/\d{2}$/.test(c.expiry) ? c.expiry : '08/29', network: c.network, kind: c.kind, frozenField: k('freeze') },
-    ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details.filter((d: any) => !/card number|pan\b/i.test(d.label)) } as NodeT] : []),
-    { type: 'Form', id: id('form'), title: 'Card controls', children: [
-      { type: 'Toggle', id: id('freeze'), field: k('freeze'), label: 'Freeze card' },
+    { type: 'CardVisual', id: id('card'), product: c.product, holder: c.holder.toUpperCase(), last4: last4(c), expiry: /^\d{2}\/\d{2}$/.test(c.expiry) ? c.expiry : '08/29', network: c.network, kind: c.kind, frozenField: k('freeze') },
+    // Status follows the freeze state; freezing and unfreezing ask for confirmation and say what happened.
+    { type: 'RecordFields', id: id('details'), items: [{ label: 'Card status', value: '{{state.' + k('freeze') + ' | frozen ?? Active}}' },
+      ...(c.details ?? []).filter((d: any) => !/card number|pan\b|status/i.test(d.label))] } as NodeT,
+    { type: 'Grid', id: id('freeze-actions'), columns: '2', gap: 'sm', children: [
+      { type: 'Button', id: id('freeze'), label: 'Freeze card', variant: 'danger', actions: [{ type: 'confirm', title: 'Freeze this card?', message: 'Payments with the card ending ' + last4(c) + ' are declined until you unfreeze it.', confirmLabel: 'Freeze card' }, { type: 'setState', key: k('freeze'), value: 'true' }, { type: 'toast', message: 'Card ending ' + last4(c) + ' is now frozen' }] },
+      { type: 'Button', id: id('unfreeze'), label: 'Unfreeze card', variant: 'secondary', actions: [{ type: 'confirm', title: 'Unfreeze this card?', message: 'The card ending ' + last4(c) + ' can be used again straight away.', confirmLabel: 'Unfreeze' }, { type: 'setState', key: k('freeze'), value: 'false' }, { type: 'toast', message: 'Card ending ' + last4(c) + ' is active again' }] }] } as NodeT,
+    // Other controls (online, international, limit) are settings saved together; freeze has its own buttons above.
+    ...((controls => controls.length ? [{ type: 'Form', id: id('form'), title: 'Card controls', children: [...controls,
+      actionBar(id, { label: 'Save settings', actions: [{ type: 'submit', validate: true }, { type: 'toast', message: 'Card settings saved' }] })] } as NodeT] : [])([
       ...c.controls.filter((l: string) => !/freeze|block|lock card/i.test(l)).map((l: string) => ({ type: 'Toggle', id: id(l), field: k(l), label: l }) as NodeT),
-      ...(c.limitLabel ? [{ type: 'Input', id: id('limit'), field: k('limit'), label: c.limitLabel, inputType: 'currency', required: false } as NodeT] : []),
-      actionBar(id, { label: 'Save settings', actions: [{ type: 'submit', validate: true }, { type: 'toast', message: 'Card settings saved' }] })] },
-    ...(c.actions?.length ? [{ type: 'MenuList', id: id('more'), title: 'More options', items: c.actions.filter((a: any) => a.target !== ctx.screen.id).map((a: any) => ({ label: a.label, icon: a.icon, actions: a.target ? nav(a.target) : [{ type: 'toast', message: a.label + ' is simulated in this demo' }] })) } as NodeT] : [])]; },
+      ...(c.limitLabel ? [{ type: 'Input', id: id('limit'), field: k('limit'), label: c.limitLabel, inputType: 'currency', required: false } as NodeT] : [])])),
+    ...(c.actions?.filter((a: any) => !NAV_LABEL.test(a.label.trim()) && !FREEZE.test(a.label)).length ? [{ type: 'MenuList', id: id('more'), title: 'More options', items: c.actions.filter((a: any) => a.target !== ctx.screen.id && !NAV_LABEL.test(a.label.trim()) && !FREEZE.test(a.label)).map((a: any) => ({ label: a.label, icon: a.icon, actions: a.target ? nav(a.target) : [{ type: 'toast', message: a.label + ' is simulated in this demo' }] })) } as NodeT] : [])]; },
   defaults: ctx => ({ product: 'Platinum Debit', holder: personName(ctx), last4: '4821', expiry: '08/29', network: 'visa', kind: 'debit', details: [], controls: ['Online payments', 'International use'], limitLabel: 'Daily spending limit (AED)', actions: [{ label: 'Change PIN', icon: 'lock' }, { label: 'Replace card', icon: 'credit-card' }] }) });
 
 def({ id: 'loan-offer', label: 'Loan / finance offer', channels: ['mobile', 'portal'], shell: () => 'default',

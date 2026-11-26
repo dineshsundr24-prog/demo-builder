@@ -21,6 +21,7 @@ import { API } from './GeneratePanel.tsx';
 import { LaunchGate, takeLaunchCode, type LaunchContext } from './editor/Launch.tsx';
 import { CoveragePanel, storiesOf } from './editor/Coverage.tsx';
 import { SimLauncher } from './editor/SimLauncher.tsx';
+import { ExtendDialog } from './editor/Extend.tsx';
 import kapiko from '../../../packages/schema/fixtures/kapiko-mobile.json';
 import portal from '../../../packages/schema/fixtures/staff-portal.json';
 import './studio.css';
@@ -69,6 +70,7 @@ function Studio({ launch }: { launch?: LaunchContext | null }) {
   useEffect(() => { refreshList(); }, [signedIn, refreshList]);
   // The MEYON simulator is offered to signed-in users when the API has it switched on (UAT/testing only).
   const [simulator, setSimulator] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
   useEffect(() => { if (!signedIn || launch) return; fetch(API + '/api/v2/status').then(r => r.json()).then(s => setSimulator(!!s?.meyonSimulator), () => setSimulator(false)); }, [signedIn, launch]);
   const openChat = (m: ChatMode = 'auto') => { setChatMode(m); setChatOpen(true); setRightTab('ai'); };
   // Portals render at desktop width (1280px) and are scaled to fit the stage, never squeezed.
@@ -233,6 +235,9 @@ function Studio({ launch }: { launch?: LaunchContext | null }) {
       <div className="studio-brand">Demo Builder <span>v2 preview</span></div>
       <AccountBox mustSetPassword={mustSetPassword} />
       {launch ? <p className="launch-banner" data-testid="launch-banner">From MEYON · <strong>{launch.launch.story.id}</strong> v{launch.launch.story.artifactVersion}<span>{launch.launch.project.name}</span></p> : null}
+      {launch?.launch.mode === 'extend' && cloud ? <button type="button" className="studio-generate ext-open" data-testid="extend-open" onClick={() => setExtendOpen(true)}><Sparkles size={15} />Extend with {launch.launch.story.id}</button> : null}
+      {extendOpen && launch ? <ExtendDialog launchId={launch.launch.id} story={launch.launch.story} criteria={launch.launch.approved.acceptanceCriteria}
+        onClose={() => setExtendOpen(false)} onDone={id => { setExtendOpen(false); void openSaved(id); refreshList(); }} /> : null}
       <button type="button" className="studio-generate" onClick={() => openGenerator(doc.channel)}><Sparkles size={15} />Generate with AI</button>
       <label className="studio-label">Project</label>
       <div className="studio-projects">
