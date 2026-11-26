@@ -95,3 +95,17 @@ test('search/filter and CSV export are safe', () => {
   const csv = csvFor([{ a: '=SUM(1)' }], [{ field: 'a', label: 'A' }]);
   assert.ok(csv.includes(`"'=SUM(1)"`));
 });
+
+test('a confirm step asks first: Cancel stops the chain, Confirm continues; card status follows the freeze state', async () => {
+  const actions: Action[] = [{ type: 'confirm', title: 'Freeze this card?', confirmLabel: 'Freeze card' }, { type: 'setState', key: 'cards.freeze', value: 'true' }, { type: 'toast', message: 'Card frozen' }];
+  const asked: string[] = [];
+  const no = await runActions(kapiko, createSession(kapiko), actions, { ...fast, confirm: async c => { asked.push(c.title); return false; } });
+  assert.equal((no.state as any).cards?.freeze, undefined, 'cancelled: nothing changed');
+  assert.equal(no.toasts.length, 0);
+  const yes = await runActions(kapiko, createSession(kapiko), actions, { ...fast, confirm: async () => true });
+  assert.equal((yes.state as any).cards.freeze, 'true');
+  assert.deepEqual(asked, ['Freeze this card?']);
+  const { resolveText } = await import('@demo/schema');
+  assert.equal(resolveText('{{state.cards.freeze | frozen ?? Active}}', { state: yes.state, record: null, params: {} } as any), 'Frozen');
+  assert.equal(resolveText('{{state.cards.freeze | frozen ?? Active}}', { state: {}, record: null, params: {} } as any), 'Active');
+});

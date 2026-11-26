@@ -35,6 +35,12 @@ const provider = new FakeProvider(async (req: CompletionRequest) => {
     if (/date/i.test(input.request) && table) { const { children, ...rest } = table; void children; return { reply: 'Switched on the date-range filter.', operations: [{ op: 'replace', target: table.id, node: { ...rest, dateFilterField: 'date' } }] }; }
     return { reply: 'I am not sure what to change. Could you say which part of the screen?', operations: [] };
   }
+  if (req.schemaName === 'change_plan') {
+    const ac = input.acceptanceCriteria.map((c: any) => c.id), first = input.app.screens[0].id, last = input.app.screens[input.app.screens.length - 1];
+    return { summary: 'Add a card management screen and link it from the start.', gaps: ['Can a frozen card still receive refunds?'],
+      changes: [{ action: 'add', screen: null, title: 'Card Controls', description: 'Freeze or unfreeze the debit card after confirming.', details: ['Card with masked number', 'Freeze toggle'], criteria: ac.slice(0, 2), openFrom: first, addToMenu: false },
+        { action: 'remove_candidate', screen: last.id, title: last.title, description: 'Possibly not needed for this story.', details: [], criteria: [], openFrom: null, addToMenu: false }] };
+  }
   if (req.schemaName === 'screen_suggestion') {
     const ac = input.acceptanceCriteria.map((c: any) => c.id);
     const titles = ['Loan Eligibility', 'Loan Calculator', 'Upload Documents', 'Review Application', 'Application Submitted'];

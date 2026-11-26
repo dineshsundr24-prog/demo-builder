@@ -63,3 +63,9 @@ For each test: the brief you used, the job time and cost, which screens were wro
 - **Story coverage** in the sidebar lists every approved criterion with the screens that demonstrate it: green when it is shown, amber when it is only partly shown or planned. Use **This screen** to confirm a criterion on the current screen, or the × on a screen to remove a link. Saved versions record this coverage.
 - Launch links work **once** and expire after **5 minutes**. Demos created through MEYON belong to the simulated MEYON tenant, not to your personal saved demos, and published links never show requirement references.
 - To leave the MEYON session in a tab, use **Leave** under the account.
+
+## Extending a demo with a new story (Phase A3)
+- In the simulator choose **Extend existing demo** and the base demo, then open Demo Builder and confirm. The base demo opens.
+- Select **Extend with US-xxx**. The change plan lists new screens, changed screens, screens possibly no longer needed (never removed unless you tick them), navigation changes, the screens that stay as they are, criteria not addressed, and open questions.
+- Untick anything you do not want and select **Apply**. When every existing journey still works, the result is saved as the next version; published versions stay as they were.
+- If the demo changed after the plan was made, choose **Plan again on the latest version**, **Apply to a copy**, or **Cancel**.

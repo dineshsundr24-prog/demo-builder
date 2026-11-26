@@ -78,7 +78,8 @@ function go(s: Session, screenId: string, record: RecordRef | null): Session {
   return { ...s, history: [...s.history, { screenId: s.screenId, record: s.record }], screenId, record, errors: {}, log: [...s.log, 'navigate ' + screenId] };
 }
 
-export type RunContext = { formId?: string; sleep?: (ms: number) => Promise<void>; onUpdate?: (s: Session) => void };
+export type RunContext = { formId?: string; sleep?: (ms: number) => Promise<void>; onUpdate?: (s: Session) => void;
+  /** Asks the user; resolves false when they cancel. Without it (headless), confirmations are accepted. */ confirm?: (c: { title: string; message?: string; confirmLabel: string }) => Promise<boolean> };
 /**
  * Run a button's actions in order. Stops on a failed submit or a simulated failure.
  * onUpdate receives intermediate states (e.g. the busy indicator during simulate).
@@ -124,6 +125,9 @@ export async function runActions(doc: DemoDocument, start: Session, actions: Act
         if (a.outcome === 'failure') { emit({ ...s, busy: null, toasts: [...s.toasts, { id: ++toastSeq, message: a.label + ' failed (simulated)', tone: 'error' }] }); return s; }
         emit({ ...s, busy: null, log: [...s.log, 'simulated ' + a.label] }); break;
       case 'toast': emit({ ...s, toasts: [...s.toasts, { id: ++toastSeq, message: a.message, tone: 'success' }] }); break;
+      case 'confirm':
+        if (ctx.confirm && !(await ctx.confirm(a))) { emit({ ...s, log: [...s.log, 'cancelled ' + a.title] }); return s; }
+        emit({ ...s, log: [...s.log, 'confirmed ' + a.title] }); break;
     }
   }
   return s;

@@ -10,6 +10,8 @@ export const Action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('updateRecord'), field: z.string().min(1).max(40), value: z.string().max(120) }).describe('Change a field of the current record, e.g. status for maker/checker.'),
   z.object({ type: z.literal('simulate'), label: z.string().min(1).max(120), durationMs: z.number().int().min(0).max(5000), outcome: z.enum(['success', 'failure']) }).describe('Show a simulated external step. Never contacts a real service.'),
   z.object({ type: z.literal('toast'), message: z.string().min(1).max(200) }),
+  z.object({ type: z.literal('confirm'), title: z.string().min(1).max(80), message: z.string().max(200).optional(), confirmLabel: z.string().min(1).max(24) })
+    .describe('Ask the user to confirm (e.g. "Freeze this card?") before the following actions run; Cancel stops them.'),
 ]);
 export type Action = z.infer<typeof Action>;
 export const Actions = z.array(Action.meta({ id: 'Action' })).max(8);

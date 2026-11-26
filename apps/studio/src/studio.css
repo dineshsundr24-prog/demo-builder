@@ -349,3 +349,27 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .versions-save input { flex-basis: 120px; }
 .sim-card .gen-secondary { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; }
 .sim-prompt textarea { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Extend change plan */
+.ext-panel { width: min(760px, 100%); }
+.ext-panel h3 { font-size: 13px; margin: 14px 0 6px; display: flex; align-items: center; gap: 6px; color: #344054; }
+.ext-panel h3 .muted { font-weight: 500; }
+.ext-story { margin: 0 0 8px; color: #344054; }
+.ext-summary { margin: 0; background: #f2f5fa; border-radius: 8px; padding: 9px 11px; font-size: 13px; }
+.ext-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ext-item { border: 1px solid var(--s-line); border-radius: 10px; padding: 10px 12px; }
+.ext-item[data-kind="remove"] { border-style: dashed; }
+.ext-item label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; }
+.ext-item p { margin: 4px 0 0 24px; font-size: 13px; color: #344054; }
+.ext-details { margin: 4px 0 0 24px; padding-left: 16px; font-size: 12.5px; color: var(--s-muted); }
+.ext-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.ext-chip { font-size: 11px; font-weight: 600; color: var(--s-accent); background: #eef4ff; border-radius: 999px; padding: 1px 7px; }
+.ext-warn { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; color: #9a6700; font-size: 12.5px; margin: 6px 0 0; }
+.ext-item .ext-warn { margin-left: 24px; }
+.ext-ok { display: flex; gap: 6px; align-items: center; color: #067647; font-weight: 600; }
+.ext-plain { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #344054; display: grid; gap: 3px; }
+.ext-unchanged { margin-top: 12px; font-size: 13px; } .ext-unchanged summary { cursor: pointer; color: var(--s-muted); }
+.ext-panel progress { width: 100%; }
+.ext-choices { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ext-choices .gen-primary, .ext-choices .gen-secondary, .ext-again { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; }
+.ext-open { background: #0b5cad; }

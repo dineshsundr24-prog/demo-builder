@@ -8,6 +8,7 @@ import { resolveCaller, AuthError, type VerifyUser } from './demos/auth.ts';
 import { registerDemoRoutes } from './demos/routes.ts';
 import { MemoryDemoStore, type DemoStore } from './demos/store.ts';
 import { registerLaunchRoutes } from './launch/routes.ts';
+import { registerExtendRoutes } from './launch/extend.ts';
 import { registerMeyonSimulator } from './launch/simulator.ts';
 import type { MeyonClient } from './launch/meyon.ts';
 
@@ -77,7 +78,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
   // Every route except health, status and public demo links needs a caller: a Supabase sign-in, a Builder
   // session (MEYON launch) or the shared UAT token (confined to its own UAT workspace).
-  const paid = (url: string) => /^\/api\/v2\/(jobs|assist)|^\/api\/v2\/launches\/[^/]+\/confirm$/.test(url);
+  const paid = (url: string) => /^\/api\/v2\/(jobs|assist)|^\/api\/v2\/launches\/[^/]+\/(confirm|extend\/plan|extend\/apply)$/.test(url);
   app.addHook('onRequest', async (req, reply) => {
     if (req.method === 'OPTIONS' || req.url === '/health' || req.url === '/api/v2/status' || req.url.startsWith('/api/v2/public/')) return;
     // Launch codes are exchanged before any session exists (rate-limited); MEYON's own endpoint checks its integration key.
@@ -101,6 +102,7 @@ export async function buildServer(opts: ServerOptions): Promise<FastifyInstance>
   });
   registerDemoRoutes(app, { store: demoStore, publicBaseUrl: opts.publicBaseUrl });
   registerLaunchRoutes(app, { store: demoStore, generator: gen, meyon: opts.meyon, sessionSecret: opts.sessionSecret });
+  registerExtendRoutes(app, { store: demoStore, generator: gen });
   if (opts.meyonSimulator) registerMeyonSimulator(app, { integrationKey: opts.meyonSimulator.integrationKey, allowSharedToken: opts.meyonSimulator.allowSharedToken, demoStore, generator: gen, publicBaseUrl: opts.publicBaseUrl });
 
   app.get('/health', async () => ({ status: 'ok' }));
