@@ -373,3 +373,6 @@ input.insp-id:hover, input.insp-id:focus { border-color: var(--s-line); backgrou
 .ext-choices { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .ext-choices .gen-primary, .ext-choices .gen-secondary, .ext-again { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; }
 .ext-open { background: #0b5cad; }
+.sim-events { margin-top: 8px; } .sim-events h2 { font-size: 15px; margin: 0; }
+.sim-events table { width: 100%; border-collapse: collapse; font-size: 12.5px; } .sim-events th, .sim-events td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--s-line); vertical-align: top; }
+.sim-events th { color: var(--s-muted); font-weight: 600; } .sim-events { overflow-x: auto; }

@@ -29,6 +29,10 @@ export type LaunchRow = {
 export type NewLaunch = Omit<LaunchRow, 'id' | 'status' | 'demo_id' | 'job_id' | 'created_at' | 'confirmed_at'>;
 export type LaunchPatch = Partial<Pick<LaunchRow, 'status' | 'demo_id' | 'job_id' | 'confirmed_at'>>;
 
+export type EventType = 'demo.created' | 'demo.version_saved' | 'demo.published' | 'demo.publication_revoked' | 'demo.primary_changed' | 'launch.confirmed' | 'launch.cancelled';
+/** A sync event for MEYON (migration 0005 outbox). */
+export type EventRow = { id: string; workspace_id: string; type: EventType; payload: Record<string, unknown>; created_at: string; attempts: number; next_attempt_at: string; delivered_at: string | null; last_error: string | null };
+
 /** Domain errors the API maps to HTTP statuses. */
 export class DemoConflict extends Error { readonly status = 409; }
 export class DemoNotFound extends Error { readonly status = 404; }
@@ -62,6 +66,14 @@ export interface DemoStore {
   getLaunch(id: string): Promise<LaunchRow | null>;
   /** Update a launch; with `ifStatus`, only when it is currently in that status (returns null otherwise). */
   updateLaunch(id: string, patch: LaunchPatch, ifStatus?: LaunchStatus): Promise<LaunchRow | null>;
+  getWorkspace(id: string): Promise<Workspace | null>;
+  // Sync events (outbox)
+  enqueueEvent(e: { workspace_id: string; type: EventType; payload: Record<string, unknown> }): Promise<EventRow>;
+  /** Due, undelivered events, each leased for leaseMs so no other instance sends it meanwhile. */
+  claimDueEvents(limit: number, leaseMs: number): Promise<EventRow[]>;
+  markEventDelivered(id: string): Promise<void>;
+  markEventFailed(id: string, attempts: number, nextAttemptAt: string, error: string): Promise<void>;
+  listEvents(workspaceId: string, limit: number): Promise<EventRow[]>;
 }
 
 const now = () => new Date().toISOString();
@@ -165,6 +177,20 @@ export class MemoryDemoStore implements DemoStore {
     if (!l || (ifStatus && l.status !== ifStatus)) return null;
     Object.assign(l, patch); return clone(l);
   }
+  async getWorkspace(id: string) { const w = this.workspaces.get(id); return w ? clone(w) : null; }
+  events = new Map<string, EventRow>();
+  async enqueueEvent(e: { workspace_id: string; type: EventType; payload: Record<string, unknown> }) {
+    const row: EventRow = { id: randomUUID(), ...clone(e), created_at: now(), attempts: 0, next_attempt_at: now(), delivered_at: null, last_error: null };
+    this.events.set(row.id, row); return clone(row);
+  }
+  async claimDueEvents(limit: number, leaseMs: number) {
+    const t = Date.now(), due = [...this.events.values()].filter(e => !e.delivered_at && Date.parse(e.next_attempt_at) <= t).sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(0, limit);
+    for (const e of due) e.next_attempt_at = new Date(t + leaseMs).toISOString();
+    return due.map(clone);
+  }
+  async markEventDelivered(id: string) { const e = this.events.get(id); if (e) { e.delivered_at = now(); e.last_error = null; } }
+  async markEventFailed(id: string, attempts: number, nextAttemptAt: string, error: string) { const e = this.events.get(id); if (e) Object.assign(e, { attempts, next_attempt_at: nextAttemptAt, last_error: error.slice(0, 500) }); }
+  async listEvents(workspaceId: string, limit: number) { return [...this.events.values()].filter(e => e.workspace_id === workspaceId).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, limit).map(clone); }
 }
 
 const enc = encodeURIComponent;
@@ -281,4 +307,21 @@ export class SupabaseDemoStore implements DemoStore {
     const rows = await this.req('demo_launches?id=eq.' + enc(id) + (ifStatus ? '&status=eq.' + ifStatus : ''), { method: 'PATCH', body: patch, prefer: 'return=representation' }) as LaunchRow[];
     return rows[0] ?? null;
   }
+  async getWorkspace(id: string) { return ((await this.req('workspaces?id=eq.' + enc(id) + '&select=id,name,kind,external_ref&limit=1')) as Workspace[])[0] ?? null; }
+  async enqueueEvent(e: { workspace_id: string; type: EventType; payload: Record<string, unknown> }) {
+    return ((await this.req('demo_events', { method: 'POST', body: e, prefer: 'return=representation' })) as EventRow[])[0];
+  }
+  async claimDueEvents(limit: number, leaseMs: number) {
+    const due = await this.req('demo_events?delivered_at=is.null&next_attempt_at=lte.' + enc(now()) + '&order=created_at.asc&limit=' + limit) as EventRow[];
+    const claimed: EventRow[] = [];
+    // Optimistic lease: only the instance whose update still sees the old next_attempt_at gets the event.
+    for (const e of due) {
+      const rows = await this.req('demo_events?id=eq.' + enc(e.id) + '&next_attempt_at=eq.' + enc(e.next_attempt_at) + '&delivered_at=is.null', { method: 'PATCH', body: { next_attempt_at: new Date(Date.now() + leaseMs).toISOString() }, prefer: 'return=representation' }) as EventRow[];
+      if (rows[0]) claimed.push(rows[0]);
+    }
+    return claimed;
+  }
+  async markEventDelivered(id: string) { await this.req('demo_events?id=eq.' + enc(id), { method: 'PATCH', body: { delivered_at: now(), last_error: null } }); }
+  async markEventFailed(id: string, attempts: number, nextAttemptAt: string, error: string) { await this.req('demo_events?id=eq.' + enc(id), { method: 'PATCH', body: { attempts, next_attempt_at: nextAttemptAt, last_error: error.slice(0, 500) } }); }
+  async listEvents(workspaceId: string, limit: number) { return await this.req('demo_events?workspace_id=eq.' + enc(workspaceId) + '&order=created_at.desc&limit=' + limit) as EventRow[]; }
 }

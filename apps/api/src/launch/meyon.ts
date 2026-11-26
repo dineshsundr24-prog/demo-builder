@@ -3,12 +3,18 @@
 export type ConsumeResult = { ok: true; package: unknown } | { ok: false; reason: 'unknown_or_used' | 'unavailable' };
 export interface MeyonClient { consumeGrant(code: string): Promise<ConsumeResult> }
 
-export function httpMeyonClient(baseUrl: string, integrationKey: string, fetcher: typeof fetch = fetch): MeyonClient {
+import type { KeyObject } from 'node:crypto';
+import { signBody } from '../sync/keys.ts';
+
+/** `credential`: the shared integration key (simulator, tests) or Demo Builder's Ed25519 signing key (real MEYON). */
+export function httpMeyonClient(baseUrl: string, credential: string | KeyObject, fetcher: typeof fetch = fetch): MeyonClient {
   const url = baseUrl.replace(/\/$/, '') + '/demo-builder/v1/launch-grants/consume';
   return {
     async consumeGrant(code) {
       try {
-        const res = await fetcher(url, { method: 'POST', headers: { authorization: 'Bearer ' + integrationKey, 'content-type': 'application/json' }, body: JSON.stringify({ code }), signal: AbortSignal.timeout(10_000) });
+        const body = JSON.stringify({ code });
+        const auth: Record<string, string> = typeof credential === 'string' ? { authorization: 'Bearer ' + credential } : { 'x-demo-builder-signature': signBody(credential, body) };
+        const res = await fetcher(url, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(10_000) });
         if (res.status === 404 || res.status === 410) return { ok: false, reason: 'unknown_or_used' };
         if (!res.ok) return { ok: false, reason: 'unavailable' };
         return { ok: true, package: await res.json() };

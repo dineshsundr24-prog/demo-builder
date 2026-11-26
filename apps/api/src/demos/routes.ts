@@ -5,6 +5,7 @@ import { DemoDocument, validateDocument } from '@demo/schema';
 import { JobError } from '@demo/generator';
 import { authorize, AuthError, newToken, sha256, type Caller, type Op } from './auth.ts';
 import { DemoConflict, DemoNotFound, DemoStoreError, type DemoRow, type DemoStore } from './store.ts';
+import { Sync } from '../sync/events.ts';
 
 declare module 'fastify' { interface FastifyRequest { caller?: Caller } }
 
@@ -29,6 +30,11 @@ export function traceSummary(doc: unknown) {
   }
   return stories;
 }
+/** What MEYON needs to know about a saved version: number, fingerprint, note, quality and story coverage. */
+export function versionEvent(v: { number: number; content_hash: string; note: string; created_at: string; metadata: Record<string, unknown> }, doc: unknown) {
+  const m = v.metadata as { validation?: unknown; screens?: number; extend?: unknown };
+  return { number: v.number, contentHash: v.content_hash, note: v.note, createdAt: v.created_at, screens: m.screens ?? null, validation: m.validation ?? null, coverage: traceSummary(doc), ...(m.extend ? { extend: m.extend } : {}) };
+}
 /** A published copy carries the demo only: traceability references stay internal. */
 const publicDocument = (doc: Record<string, unknown>) => ({ ...doc, screens: ((doc.screens ?? []) as Record<string, unknown>[]).map(({ trace: _t, ...s }) => (void _t, s)) });
 
@@ -46,8 +52,8 @@ export function demoErrorReply(reply: FastifyReply, e: unknown) {
   return reply.code(500).send({ error: 'Unexpected server error', category: 'internal' });
 }
 
-export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStore; publicBaseUrl?: string }) {
-  const store = opts.store;
+export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStore; publicBaseUrl?: string; sync?: Sync }) {
+  const store = opts.store, sync = opts.sync ?? new Sync(opts.store, undefined);
   const caller = (req: FastifyRequest) => { if (!req.caller) throw new AuthError('Sign in required'); return req.caller; };
   type Req = FastifyRequest & { params: any; body: any; query: any };
   const route = (fn: (req: Req, c: Caller) => Promise<unknown>) =>
@@ -105,6 +111,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
       const l = await store.getLaunch(b.launchId);
       if (l && l.workspace_id === workspaceId && l.mode === 'create' && l.status === 'confirmed' && !l.demo_id) await store.updateLaunch(l.id, { demo_id: d.id }, 'confirmed');
     }
+    await sync.emit('demo.created', d.workspace_id, { demo: Sync.demo(d) }, c);
     return { demo: versionView(d), document: d.draft };
   }));
 
@@ -142,6 +149,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     const metadata = { validation: { errors: issues.filter(i => i.severity === 'error').length, warnings: issues.filter(i => i.severity === 'warning').length },
       screens: Array.isArray((d.draft as any).screens) ? (d.draft as any).screens.length : 0, savedVia: c.via, trace: traceSummary(d.draft) };
     const v = await store.saveVersion(d.id, c.principal.id, b.expectedRevision!, contentHash(d.draft), text(b.note, 500), metadata);
+    await sync.emit('demo.version_saved', d.workspace_id, { demo: Sync.demo({ ...d, latest_version: v.number }), version: versionEvent(v, d.draft) }, c);
     return { version: { id: v.id, number: v.number, note: v.note, createdAt: v.created_at, contentHash: v.content_hash, metadata: v.metadata } };
   }));
 
@@ -156,6 +164,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
   app.post('/api/v2/demos/:id/primary', route(async (req, c) => {
     const d = await demoFor(c, req.params.id, 'primary');
     await store.setPrimary(d.id);
+    await sync.emit('demo.primary_changed', d.workspace_id, { demo: Sync.demo({ ...d, is_primary: true }) }, c);
     return { demo: versionView((await store.getDemo(d.id))!) };
   }));
 
@@ -166,6 +175,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     const v = Number.isInteger(b.version) ? await store.getVersion(d.id, b.version!) : null;
     if (!v) throw new DemoConflict('Choose a saved version to fork from');
     const f = await store.fork(v.id, c.principal.id, text(b.name, 120) || (d.name + ' (fork of v' + v.number + ')').slice(0, 120));
+    await sync.emit('demo.created', f.workspace_id, { demo: Sync.demo(f), forkedFrom: { demoId: d.id, version: v.number } }, c);
     return { demo: versionView(f), document: f.draft };
   }));
 
@@ -176,6 +186,8 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     if (Number((v.metadata as any)?.validation?.errors ?? 0) > 0) throw new DemoConflict('This version has validation errors; fix them and save a new version before publishing');
     const token = newToken();
     const p = await store.createPublication({ demo_id: d.id, workspace_id: d.workspace_id, version_id: v.id, token_hash: sha256(token), created_by: c.principal.id });
+    // The link itself is never sent or stored; MEYON learns that version N is published (and later revoked).
+    await sync.emit('demo.published', d.workspace_id, { demo: Sync.demo(d), publication: { id: p.id, version: v.number, createdAt: p.created_at } }, c);
     // The token is shown once; only its hash is stored.
     return { publication: { id: p.id, version: v.number, createdAt: p.created_at }, token, url: (opts.publicBaseUrl ?? '') + '/?p=' + token };
   }));
@@ -186,6 +198,7 @@ export function registerDemoRoutes(app: FastifyInstance, opts: { store: DemoStor
     const list = await store.listPublications(d.id);
     if (!list.some(p => p.id === req.params.pid)) throw new DemoNotFound('Not found');
     const p = await store.revokePublication(req.params.pid);
+    await sync.emit('demo.publication_revoked', d.workspace_id, { demo: Sync.demo(d), publication: { id: p!.id, version: (await store.listVersions(d.id)).find(v => v.id === p!.version_id)?.number ?? null, revokedAt: p!.revoked_at } }, c);
     return { publication: { id: p!.id, revoked: !!p!.revoked_at } };
   }));
 

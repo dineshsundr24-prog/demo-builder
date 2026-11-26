@@ -11,13 +11,14 @@ import { contentHash, demoErrorReply } from '../demos/routes.ts';
 import { DemoConflict, DemoNotFound, type DemoStore, type LaunchRow } from '../demos/store.ts';
 import { LaunchPackage, briefOf, channelLabel, requestOf } from './package.ts';
 import type { MeyonClient } from './meyon.ts';
+import { Sync } from '../sync/events.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** What a MEYON session may do: work on demos of its project; never archive. */
 export const LAUNCH_OPS: Op[] = ['read', 'edit', 'version', 'publish', 'fork', 'primary', 'create'];
 const SESSION_TTL = 8 * 3600;
 
-export type LaunchOptions = { store: DemoStore; generator: Generator; meyon?: MeyonClient; sessionSecret?: string };
+export type LaunchOptions = { store: DemoStore; generator: Generator; meyon?: MeyonClient; sessionSecret?: string; sync?: Sync };
 
 /** Is the requested baseline usable: same tenant workspace, project and application type, and the version exists? */
 async function baseCheck(store: DemoStore, l: LaunchRow) {
@@ -31,7 +32,8 @@ async function baseCheck(store: DemoStore, l: LaunchRow) {
 }
 
 export function registerLaunchRoutes(app: FastifyInstance, opts: LaunchOptions) {
-  const { store } = opts;
+  const { store } = opts, sync = opts.sync ?? new Sync(opts.store, undefined);
+  const launchInfo = (l: LaunchRow, extra: Record<string, unknown> = {}) => ({ launch: { id: l.id, grantId: l.grant_id, mode: l.mode, story: l.story_ref, storyVersion: l.story_version, channel: l.channel, projectRef: l.project_ref, ...extra } });
   type Req = FastifyRequest & { params: any; body: any };
   const route = (fn: (req: Req, c: Caller) => Promise<unknown>) => async (req: FastifyRequest, reply: FastifyReply) => {
     try { if (!req.caller) throw new AuthError('Sign in required'); return await fn(req as Req, req.caller); } catch (e) { return demoErrorReply(reply, e); }
@@ -97,6 +99,7 @@ export function registerLaunchRoutes(app: FastifyInstance, opts: LaunchOptions) 
       if (!check?.ok) throw new DemoConflict(check?.problem ?? 'The base demo is not available');
       const done = await store.updateLaunch(l.id, { status: 'confirmed', demo_id: check.demoId, confirmed_at: new Date().toISOString() }, 'pending');
       if (!done) throw new DemoConflict('This launch is already being opened in another window');
+      await sync.emit('launch.confirmed', l.workspace_id, launchInfo(l, { baseDemoId: check.demoId, baseVersion: check.version }), c);
       return { mode: 'extend', demoId: check.demoId, version: check.version, newerExists: check.newerExists };
     }
     await authorize(store, c, 'create', l.workspace_id, { project_ref: l.project_ref });
@@ -105,6 +108,7 @@ export function registerLaunchRoutes(app: FastifyInstance, opts: LaunchOptions) 
     try {
       const job = await opts.generator.startPlan(requestOf(p), briefOf(p), c.principal.id);
       await store.updateLaunch(l.id, { status: 'confirmed', job_id: job.id, confirmed_at: new Date().toISOString() });
+      await sync.emit('launch.confirmed', l.workspace_id, launchInfo(l), c);
       return { mode: 'create', jobId: job.id };
     } catch (e) { await store.updateLaunch(l.id, { status: 'pending' }, 'confirming'); throw e; }
   }));
@@ -113,6 +117,7 @@ export function registerLaunchRoutes(app: FastifyInstance, opts: LaunchOptions) 
     const l = await launchFor(c, req.params.id, 'read');
     if (l.status === 'cancelled') return { status: 'cancelled' };
     if (!(await store.updateLaunch(l.id, { status: 'cancelled' }, 'pending'))) throw new DemoConflict('This launch was already confirmed');
+    await sync.emit('launch.cancelled', l.workspace_id, launchInfo(l), c);
     return { status: 'cancelled' };
   }));
 }

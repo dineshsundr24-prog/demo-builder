@@ -14,6 +14,8 @@ import { authorize, AuthError, type Caller } from '../demos/auth.ts';
 import { contentHash, demoErrorReply, traceSummary } from '../demos/routes.ts';
 import { DemoConflict, DemoNotFound, type DemoStore } from '../demos/store.ts';
 import type { LaunchPackage } from './package.ts';
+import { Sync } from '../sync/events.ts';
+import { versionEvent } from '../demos/routes.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TTL = 2 * 3600_000;
@@ -21,8 +23,8 @@ type PlanEntry = { launchId: string; principalId: string; demoId: string; baseVe
 type Task = { principalId: string; status: 'running' | 'done' | 'failed'; done: number; total: number; label: string; at: number; error?: string;
   result?: { demoId: string; version: number | null; forked: boolean; journey: JourneyCheck; applied: { key: string; summary: string[] }[]; costUsd: number } };
 
-export function registerExtendRoutes(app: FastifyInstance, opts: { store: DemoStore; generator: Generator }) {
-  const { store, generator } = opts;
+export function registerExtendRoutes(app: FastifyInstance, opts: { store: DemoStore; generator: Generator; sync?: Sync }) {
+  const { store, generator } = opts, sync = opts.sync ?? new Sync(opts.store, undefined);
   // Plans and running tasks are short-lived and kept in memory: after a restart the user simply proposes again.
   const plans = new Map<string, PlanEntry>(), tasks = new Map<string, Task>();
   const sweep = () => { const now = Date.now(); for (const [k, v] of plans) if (now - v.at > TTL) plans.delete(k); for (const [k, v] of tasks) if (now - v.at > TTL) tasks.delete(k); };
@@ -90,6 +92,7 @@ export function registerExtendRoutes(app: FastifyInstance, opts: { store: DemoSt
         const r = await generator.applyExtension(baseDoc, entry.plan, approved, pkg.approved.acceptanceCriteria, (done, total, label) => Object.assign(task, { done, total, label }));
         task.label = 'Saving';
         let target = fork ? await store.fork(s.v.id, c.principal.id, (demo.name + ' + ' + pkg.story.id).slice(0, 120)) : s.demo;
+        if (fork) await sync.emit('demo.created', target.workspace_id, { demo: Sync.demo(target), forkedFrom: { demoId: demo.id, version: entry.baseVersion } }, c);
         // Compare-and-swap on the draft revision captured before applying: a concurrent edit is never overwritten.
         target = await store.saveDraft(target.id, fork ? target.draft_revision : startRevision, r.document as unknown as Record<string, unknown>, c.principal.id);
         let version: number | null = null;
@@ -100,6 +103,7 @@ export function registerExtendRoutes(app: FastifyInstance, opts: { store: DemoSt
             trace: traceSummary(r.document), extend: { launchId: launch.id, story: pkg.story.id, storyVersion: pkg.story.artifactVersion, baseVersion: entry.baseVersion, forkedFrom: fork ? demo.id : null,
               applied: r.applied.map(a => entry.plan.items.find(i => i.key === a.key)?.kind + ': ' + (entry.plan.items.find(i => i.key === a.key)?.title ?? '')), journey: r.journey } });
           version = v.number;
+          await sync.emit('demo.version_saved', target.workspace_id, { demo: Sync.demo({ ...target, latest_version: v.number }), version: versionEvent(v, r.document) }, c);
         }
         task.result = { demoId: target.id, version, forked: fork, journey: r.journey, applied: r.applied, costUsd: r.costUsd };
         task.status = 'done'; task.done = task.total; task.label = 'Done';

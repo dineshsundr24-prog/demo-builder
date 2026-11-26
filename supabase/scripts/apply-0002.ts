@@ -4,6 +4,7 @@
 //   node supabase/scripts/apply-0002.ts --verify      verification + live tests only
 //   node supabase/scripts/apply-0002.ts --apply-0003  apply 0003 (server-role grants), then verify
 //   node supabase/scripts/apply-0002.ts --apply-0004  apply 0004 (launches from MEYON), then verify
+//   node supabase/scripts/apply-0002.ts --apply-0005  apply 0005 (sync events outbox), then verify
 // The access token comes from the environment; it is never printed. Only the hard-coded project is touched.
 import { readFileSync } from 'node:fs';
 
@@ -70,10 +71,15 @@ async function verify() {
   const leftL = await sql("select count(*)::int as n from public.demo_launches where grant_id like 'grant-%'");
   if (leftL[0].n) throw Error('Launch test data was not rolled back');
   console.log('verified: demo_launches has RLS, no browser access, server role can insert but not delete; live launch tests passed (rolled back)');
+  if (!(await sql("select to_regclass('public.demo_events') is not null as ok"))[0].ok) { console.log('0005 (demo_events) not applied yet'); return; }
+  const ev = (await sql("select c.relrowsecurity as rls, (select count(*) from pg_policies where schemaname='public' and tablename='demo_events')::int as policies, has_table_privilege('anon','public.demo_events','select') as anon, has_table_privilege('authenticated','public.demo_events','select') as authed, has_table_privilege('service_role','public.demo_events','insert') as ins, has_table_privilege('service_role','public.demo_events','delete') as del from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='demo_events'"))[0];
+  if (!ev.rls || ev.policies || ev.anon || ev.authed || !ev.ins || ev.del) throw Error('demo_events privileges wrong: ' + JSON.stringify(ev));
+  await sql('begin;\n' + file('../tests/events_test.sql') + '\nrollback;');
+  console.log('verified: demo_events has RLS, no browser access, server role can insert but not delete; live event tests passed (rolled back)');
 }
 
 const mode = process.argv[2];
-if (!['--preflight', '--apply', '--verify', '--apply-0003', '--apply-0004'].includes(mode)) { console.log('usage: --preflight | --apply | --verify | --apply-0003 | --apply-0004'); process.exit(2); }
+if (!['--preflight', '--apply', '--verify', '--apply-0003', '--apply-0004', '--apply-0005'].includes(mode)) { console.log('usage: --preflight | --apply | --verify | --apply-0003 | --apply-0004 | --apply-0005'); process.exit(2); }
 const already = await preflight();
 if (mode === '--apply') {
   if (already.length) throw Error('ABORT: 0002 tables already exist; refusing to re-apply');
@@ -90,5 +96,11 @@ if (mode === '--apply-0004') {
   if ((await sql("select to_regclass('public." + LAUNCHES + "') is not null as ok"))[0].ok) throw Error('ABORT: 0004 already applied');
   await sql('begin;\n' + file('../migrations/0004_demo_launches.sql') + '\ncommit;');
   console.log('migration 0004 applied');
+}
+if (mode === '--apply-0005') {
+  if (!(await sql("select to_regclass('public.demo_launches') is not null as ok"))[0].ok) throw Error('ABORT: 0004 is not applied');
+  if ((await sql("select to_regclass('public.demo_events') is not null as ok"))[0].ok) throw Error('ABORT: 0005 already applied');
+  await sql('begin;\n' + file('../migrations/0005_demo_events.sql') + '\ncommit;');
+  console.log('migration 0005 applied');
 }
 if (mode !== '--preflight') await verify();

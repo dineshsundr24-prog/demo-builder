@@ -13,6 +13,17 @@ export function SimLauncher() {
   const [storyId, setStoryId] = useState(''), [prompt, setPrompt] = useState(''), [mode, setMode] = useState<'create' | 'extend'>('create');
   const [base, setBase] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [opened, setOpened] = useState('');
   const [suggesting, setSuggesting] = useState(false), [suggestNote, setSuggestNote] = useState('');
+  const [events, setEvents] = useState<Awaited<ReturnType<typeof launchApi.events>>>([]);
+  // What MEYON has received from Demo Builder (sync events), refreshed every few seconds.
+  useEffect(() => {
+    if (!signedIn) return;
+    let stop = false;
+    const tick = () => launchApi.events().then(e => { if (!stop) setEvents(e); }, () => {});
+    void tick(); const t = setInterval(tick, 5000);
+    return () => { stop = true; clearInterval(t); };
+  }, [signedIn]);
+  const LABEL: Record<string, string> = { 'launch.confirmed': 'Launch confirmed', 'launch.cancelled': 'Launch cancelled', 'demo.created': 'Demo created', 'demo.version_saved': 'Version saved',
+    'demo.published': 'Published', 'demo.publication_revoked': 'Link revoked', 'demo.primary_changed': 'Made primary' };
   useEffect(() => {
     if (!signedIn) return;
     launchApi.scenarios().then(d => { setData(d); setStoryId(d.scenarios[0]?.storyId ?? ''); setPrompt(d.scenarios[0]?.prompt ?? ''); }, e => setError(e.message));
@@ -63,6 +74,13 @@ export function SimLauncher() {
           {suggestNote ? <span className="muted small" data-testid="sim-suggest-note">{suggestNote}</span> : null}</div>
         {error ? <p className="studio-error" role="alert">{error}</p> : null}
         <div className="launch-actions"><button type="button" className="gen-primary" data-testid="sim-open" disabled={busy || prompt.trim().length < 15} onClick={open}><ExternalLink size={15} />Open Demo Builder</button></div>
+        <section className="sim-events" data-testid="sim-events"><h2>Received by MEYON</h2>
+          <p className="muted small">Signed sync events from Demo Builder, as MEYON's Demo tab will receive them: linked demos, versions, publication status and story coverage.</p>
+          {events.length ? <table><thead><tr><th>When</th><th>Event</th><th>Story</th><th>Demo</th><th>Version</th><th>Coverage</th></tr></thead><tbody>{events.map(e => <tr key={e.id}>
+            <td>{new Date(e.receivedAt).toLocaleTimeString()}</td><td>{LABEL[e.type] ?? e.type}{e.journeyPassed === true ? ' · journeys OK' : ''}</td><td>{e.story ?? '—'}</td>
+            <td>{e.demo ? e.demo.name + (e.demo.isPrimary ? ' (primary)' : '') : '—'}</td><td>{e.version ?? '—'}</td>
+            <td>{e.coverage ? Object.entries(e.coverage).map(([s, n]) => s + ': ' + n + ' criteria').join(', ') : '—'}</td></tr>)}</tbody></table> : <p className="muted small">Nothing received yet.</p>}
+        </section>
         {opened ? <p className="muted small" data-testid="sim-opened">Opened in a new tab. If your browser blocked it, <a href={opened} target="_blank" rel="noopener">open it here</a> (works once).</p> : null}
       </>}
     </section>
