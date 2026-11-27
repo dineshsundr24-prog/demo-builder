@@ -76,6 +76,15 @@ export function realSections<S extends { title?: string; fields: { label: string
 }
 const backOr = (t?: string): Action[] => (t ? nav(t) : [{ type: 'back' }]);
 const firstLink = (ctx: BuildCtx) => ctx.screen.links[0];
+// A sign-in/log-in action must lead to a sign-in screen; one that leads elsewhere (the story has no
+// sign-in) or repeats the primary action's target is dropped rather than shown as a broken link.
+const SIGN_IN_LABEL = /\b(sign|log)[ -]?in\b|existing (customer|user|account)/i;
+function keepSecondary(ctx: BuildCtx, a: { label: string; target?: string } | undefined, primaryTarget?: string) {
+  if (!a?.target) return undefined;
+  if (a.target === primaryTarget) return undefined;
+  if (SIGN_IN_LABEL.test(a.label) && ctx.plan.screens.find(x => x.id === a.target)?.archetype !== 'sign-in') return undefined;
+  return a;
+}
 
 const personName = (ctx: BuildCtx) => ctx.plan.sampleFacts?.find(f => /name|customer|account holder|member|patient|employee/i.test(f.label) && !/company|employer|bank|provider|number|id\b/i.test(f.label))?.value.slice(0, 60) ?? 'Customer';
 /** Current values card, minus rows that merely repeat a form field's label (the AI sometimes lists the fields). */
@@ -98,7 +107,7 @@ def({ id: 'welcome', label: 'Welcome / onboarding', channels: ['mobile', 'portal
   build: (c, ctx) => { const id = ids(); return [
     { type: 'Hero', id: id('hero'), title: c.headline, subtitle: c.subtitle, showLogo: true, illustration: 'none' },
     ...(c.highlights?.length ? [{ type: 'FeatureList', id: id('highlights'), items: c.highlights.map((h: any) => ({ icon: h.icon, title: h.title, text: h.text })) } as NodeT] : []),
-    actionBar(id, { label: c.primary.label, actions: nav(c.primary.target ?? firstLink(ctx)) }, c.secondary?.target ? { label: c.secondary.label, actions: nav(c.secondary.target) } : undefined)]; },
+    ((p, sec) => actionBar(id, { label: c.primary.label, actions: nav(p) }, sec ? { label: sec.label, actions: nav(sec.target) } : undefined))(c.primary.target ?? firstLink(ctx), keepSecondary(ctx, c.secondary, c.primary.target ?? firstLink(ctx)))]; },
   defaults: ctx => ({ headline: 'Welcome to ' + ctx.plan.brandName, subtitle: ctx.screen.purpose.slice(0, 160), highlights: [], primary: { label: 'Get started', target: firstLink(ctx) } }) });
 
 def({ id: 'sign-in', label: 'Sign in', channels: ['mobile', 'portal'], shell: mobileHidden,
@@ -117,7 +126,7 @@ def({ id: 'sign-up', label: 'Registration', channels: ['mobile', 'portal'], shel
     { type: 'Form', id: id('form'), children: [...c.fields.filter((f: any) => !(f.kind === 'checkbox' && /terms|conditions|privacy/i.test(f.label))).map((f: any) => fieldNode(f, ctx.screen.id, id)),
       { type: 'Checkbox', id: id('terms'), field: fieldKey(ctx.screen.id, 'terms'), label: c.termsLabel, required: true },
       actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, ...nav(c.next)] })] },
-    ...(c.signInTarget ? [{ type: 'Stack', id: id('signin'), direction: 'horizontal', gap: 'sm', align: 'center', children: [
+    ...(c.signInTarget && ctx.plan.screens.find(x => x.id === c.signInTarget)?.archetype === 'sign-in' ? [{ type: 'Stack', id: id('signin'), direction: 'horizontal', gap: 'sm', align: 'center', children: [
       { type: 'Text', id: id('have'), text: 'Already have an account?', tone: 'muted' }, { type: 'Button', id: id('go-signin'), label: 'Sign in', variant: 'link', actions: nav(c.signInTarget) }] } as NodeT] : [])]; },
   defaults: ctx => ({ headline: 'Create your account', subtitle: 'It only takes a minute', termsLabel: 'I agree to the terms and conditions', primaryLabel: 'Continue', next: firstLink(ctx) ?? ctx.plan.screens[0].id,
     fields: [{ label: 'Full name', kind: 'text', required: true }, { label: 'Email address', kind: 'email', required: true }, { label: 'Mobile number', kind: 'phone', required: true }, { label: 'Password', kind: 'password', required: true }] }) });
@@ -209,14 +218,22 @@ def({ id: 'document-upload', label: 'Document upload', channels: ['mobile', 'por
 def({ id: 'assessment', label: 'System checks', channels: ['mobile', 'portal'], shell: () => 'default',
   description: 'System checks on what the user submitted (field validation, existing/duplicate registration, eligibility, sanctions/AML, credit bureau): lists each check with what it verifies, runs them (simulated) and shows what the user sees when one fails. Use whenever acceptance criteria describe the system validating, checking or assessing something.',
   content: z.object({ intro: S(200).optional(), checks: z.array(z.object({ label: S(40).describe('e.g. "Duplicate registration check"'), detail: S(60).describe('What passes, with the sample data, e.g. "No existing account for 784-1990-1234567-1"') })).min(2).max(5),
-    failure: z.object({ check: S(40).describe('The check that fails in the failure example'), message: S(160).describe('The exact error message the user sees, e.g. "An account already exists for this Emirates ID. Sign in or contact us."') }),
+    failure: z.object({ check: z.string().max(40).describe('The check that fails in the failure example'), message: z.string().max(160).describe('The exact error message the user sees, e.g. "An account already exists for this Emirates ID. Sign in or contact us."') }),
     primaryLabel: S(28), next: ScreenRef, back: Target }),
-  build: (c, ctx) => { const id = ids(); return [
+  build: (c, ctx) => { const id = ids();
+    const blank = (t: string) => !t.trim() || /^(none|n\/?a|null|-|—|tbd)$/i.test(t.trim());
+    const check = !blank(c.failure.check) ? c.failure.check.trim()
+      : (c.checks.find((k: any) => /duplicate|existing|eligib/i.test(k.label)) ?? c.checks[c.checks.length - 1]).label;
+    const failure = { check, message: !blank(c.failure.message) ? c.failure.message.trim() : `${check}: not passed. Please check your details and try again, or contact us for help.` };
+    c = { ...c, failure };
+    // A planned error/declined screen is where "Show a failed check" leads, so it is reachable.
+    const errorScreen = ctx.plan.screens.find(x => x.id !== ctx.screen.id && /error|fail|declin|reject|unsuccessful/i.test(x.id + ' ' + x.title))?.id;
+    return [
     ...titleBlock(ctx, id, ctx.screen.title, c.intro),
     { type: 'StatusTimeline', id: id('checks'), title: 'Checks on your details', steps: c.checks.map((k: any) => ({ label: k.label, detail: k.detail, state: 'upcoming' as const })) },
     { type: 'Notice', id: id('failure'), tone: 'warning', title: 'If a check fails: ' + c.failure.check, body: c.failure.message },
     actionBar(id, { label: c.primaryLabel, actions: [...c.checks.map((k: any) => ({ type: 'simulate' as const, label: (k.label + '…').slice(0, 120), durationMs: 700, outcome: 'success' as const })), ...nav(c.next)] },
-      { label: 'Show a failed check', actions: [{ type: 'simulate', label: c.failure.check.slice(0, 110), durationMs: 700, outcome: 'failure' }, { type: 'toast', message: c.failure.message.slice(0, 200) }] })]; },
+      { label: 'Show a failed check', actions: [{ type: 'simulate', label: c.failure.check.slice(0, 110), durationMs: 700, outcome: 'failure' }, { type: 'toast', message: c.failure.message.slice(0, 200) }, ...(errorScreen ? nav(errorScreen) : [])] })]; },
   defaults: ctx => ({ checks: [{ label: 'Details validation', detail: 'All required details are valid' }, { label: 'Eligibility check', detail: 'Customer meets the eligibility criteria' }],
     failure: { check: 'Eligibility check', message: 'You are not eligible to continue. Please contact us for help.' }, primaryLabel: 'Run checks', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
 
@@ -241,7 +258,8 @@ def({ id: 'success', label: 'Success / confirmation', channels: ['mobile', 'port
   build: (c, ctx) => { const id = ids(); return [
     { type: 'Hero', id: id('hero'), title: c.headline, subtitle: c.message, showLogo: false, illustration: 'success' },
     ...(c.details?.filter((d: any) => !SECRET_LABEL.test(String(d.label))).length ? [{ type: 'RecordFields', id: id('details'), items: c.details.filter((d: any) => !SECRET_LABEL.test(String(d.label))) } as NodeT] : []),
-    actionBar(id, { label: c.primary.label, actions: nav(c.primary.target ?? firstLink(ctx) ?? ctx.plan.screens.find(x => x.archetype === 'dashboard')?.id) }, c.secondary?.target ? { label: c.secondary.label, actions: nav(c.secondary.target) } : undefined)]; },
+    ((p, sec) => actionBar(id, { label: c.primary.label, actions: nav(p) }, sec ? { label: sec.label, actions: nav(sec.target) } : undefined))(
+      c.primary.target ?? firstLink(ctx) ?? ctx.plan.screens.find(x => x.archetype === 'dashboard')?.id, keepSecondary(ctx, c.secondary, c.primary.target ?? firstLink(ctx)))]; },
   defaults: ctx => ({ headline: 'All done', message: ctx.screen.purpose.slice(0, 200), details: [], primary: { label: 'Done', target: firstLink(ctx) } }) });
 
 def({ id: 'list', label: 'List / records / history', channels: ['mobile', 'portal'], shell: () => 'default',
