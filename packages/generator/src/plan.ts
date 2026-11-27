@@ -75,6 +75,8 @@ ARCHETYPE_LIST
 - sampleFacts: 6-12 shared FICTIONAL facts every screen must reuse for consistency (customer name, account number, employer, current salary, balance, reference numbers...).
 - theme: use brand colours from the brief when given; otherwise a professional banking palette.
 - Never claim real integrations; never use real personal data.
+- Plan the journey of the story itself: start where the user starts it (a registration, sign-up or onboarding story starts at the welcome screen, before sign-in; otherwise the home/dashboard or work queue). Add sign-in, dashboard or profile screens only when the story needs them.
+- When the requirements describe the system validating, checking or assessing something (field validation, duplicate or existing registration, eligibility, sanctions, credit bureau), include an "assessment" screen after data entry that runs those checks and shows a failure message; never leave such checks invisible.
 - acceptanceCriteria (when given) are APPROVED requirements: every one must be demonstrated by at least one screen. criteria: the ids of the acceptance criteria each screen demonstrates (often one or two per screen; [] for screens that demonstrate none). Never invent ids, never reword or drop approved criteria.`;
 const planInstructions = (channel: 'mobile' | 'portal') => PLAN_INSTRUCTIONS_BASE.replace('ARCHETYPE_LIST', archetypesFor(channel).map(a => '  - ' + a.id + ': ' + a.description).join('\n'));
 
@@ -142,6 +144,7 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
       : /\b(pay (bills?|utilities)|bill payment|utility|dewa|etisalat|salik|addc)\b/.test(text) ? 'bill-payment'
       : /\b(my cards?|card (controls|management|settings)|freeze|unfreeze)\b/.test(text) ? 'card-controls'
       : /\b(emi|instal?ment calculator|loan calculator|finance offer|loan offer)\b/.test(text) || (/\bamount\b/.test(text) && /\btenure\b/.test(text) && /\b(instal?ment|emi|repay)/.test(text)) ? 'loan-offer'
+      : /\b(eligibility|duplicate|validation|verification) (check|checks|assessment|result)s?\b|\b(checking|assessing) (your )?(details|eligibility)\b/.test(s.title.toLowerCase()) && !/\b(review|summary|success)\b/.test(s.title.toLowerCase()) ? 'assessment'
       // Only a screen that IS the upload step (by its title); a form that also takes an upload stays a form.
       : /^(upload|attach)\b|\b(upload|supporting) (documents?|certificates?)\b|^documents?\b/.test(s.title.toLowerCase()) ? 'document-upload' : null;
     if (pick && ARCHETYPES[pick]?.channels.includes(req.channel)) { notes.push('"' + s.title + '" uses the ' + ARCHETYPES[pick].label.toLowerCase() + ' layout'); s.archetype = pick; }
@@ -165,7 +168,7 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
   if (req.channel === 'portal' && (kind === 'tabs' || kind === 'drawer')) kind = 'sidebar';
   const seenMenu = new Set<string>();
   // The app menu lists destinations (home, lists, profile...), never steps of a journey (form, upload, review, success).
-  const STEP = new Set(['form', 'document-upload', 'review', 'success', 'otp', 'verification', 'sign-in', 'sign-up', 'welcome', 'transfer', 'bill-payment']);
+  const STEP = new Set(['form', 'document-upload', 'assessment', 'review', 'success', 'otp', 'verification', 'sign-in', 'sign-up', 'welcome', 'transfer', 'bill-payment']);
   const archetypeOf = new Map(screens.map(s => [s.id, s.archetype ?? 'custom']));
   const items = p.menu.filter(m => ids.has(m.screen) && !STEP.has(archetypeOf.get(m.screen)!) && !seenMenu.has(m.screen) && seenMenu.add(m.screen)).map((m, i) => ({ id: 'menu-' + (i + 1), label: m.label, icon: m.icon, screen: m.screen }));
   const collections: Collection[] = p.collections.map(c => {
@@ -176,7 +179,7 @@ export function normalizePlan(p: z.infer<ReturnType<typeof planModel>>, req: Gen
     return { id: c.id, label: c.label, key, fields, rows };
   });
   const brandName = (p.brandName || req.company || req.name).trim().slice(0, 30);
-  return { ...(req.requirements?.length ? { requirements: req.requirements } : {}), appName: req.name, brandName, channel: req.channel, theme, shell: { kind: items.length ? kind : 'none', brand: brandName.slice(0, 60), showBack: true, items },
+  return { ...(req.requirements?.length ? { requirements: req.requirements } : {}), appName: req.name, brandName, channel: req.channel, theme, shell: { kind: items.length >= 2 ? kind : 'none', brand: brandName.slice(0, 60), showBack: true, items: items.length >= 2 ? items : [] },
     collections, screens, sampleFacts: p.sampleFacts, templates: allowed, ...(b.logo || b.font ? { brand: { ...(b.logo ? { logo: b.logo } : {}), ...(b.font ? { font: b.font } : {}) } } : {}), globalContext: parsed?.globalContext ?? brief.slice(0, 4000), notes };
 }
 

@@ -63,6 +63,8 @@ function actionBar(id: (b: string) => string, primary: { label: string; actions:
 /** Freeze/unfreeze has its own buttons; a menu row for it would repeat them. */
 const FREEZE = /\b(un)?freeze|\bblock card|\block card/i;
 const last4 = (c: { last4: string }) => (String(c.last4).replace(/\D/g, '') + '4821').slice(0, 4);
+/** Secrets are never repeated back on a summary (password, PIN, one-time code, card security code). */
+export const SECRET_LABEL = /\b(password|passcode|pin|otp|one[- ]time (code|password)|cvv|cvc|security (code|answer))\b/i;
 /** "Reference number: PL2026..." on a review screen: an id that is only issued after submitting. */
 export const isPreSubmitReference = (it: { label?: unknown; value?: unknown }) =>
   /\b(reference|ref\.?|application (no|number|id)|request (no|number|id)|tracking)\b/i.test(String(it.label ?? '')) && !/payment reference|purpose|remarks|your reference/i.test(String(it.label ?? '')) && /[0-9][0-9 -]{4,}/.test(String(it.value ?? ''));
@@ -204,6 +206,20 @@ def({ id: 'document-upload', label: 'Document upload', channels: ['mobile', 'por
       actionBar(id, { label: c.primaryLabel, actions: [{ type: 'submit', validate: true }, ...nav(c.next)] }, { label: c.cancel?.label ?? 'Cancel', actions: backOr(c.cancel?.target) })] }]; },
   defaults: ctx => ({ documents: [{ label: 'Supporting document', hint: 'PDF, JPG or PNG, up to 5 MB', required: true }], primaryLabel: 'Continue', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
 
+def({ id: 'assessment', label: 'System checks', channels: ['mobile', 'portal'], shell: () => 'default',
+  description: 'System checks on what the user submitted (field validation, existing/duplicate registration, eligibility, sanctions/AML, credit bureau): lists each check with what it verifies, runs them (simulated) and shows what the user sees when one fails. Use whenever acceptance criteria describe the system validating, checking or assessing something.',
+  content: z.object({ intro: S(200).optional(), checks: z.array(z.object({ label: S(40).describe('e.g. "Duplicate registration check"'), detail: S(60).describe('What passes, with the sample data, e.g. "No existing account for 784-1990-1234567-1"') })).min(2).max(5),
+    failure: z.object({ check: S(40).describe('The check that fails in the failure example'), message: S(160).describe('The exact error message the user sees, e.g. "An account already exists for this Emirates ID. Sign in or contact us."') }),
+    primaryLabel: S(28), next: ScreenRef, back: Target }),
+  build: (c, ctx) => { const id = ids(); return [
+    ...titleBlock(ctx, id, ctx.screen.title, c.intro),
+    { type: 'StatusTimeline', id: id('checks'), title: 'Checks on your details', steps: c.checks.map((k: any) => ({ label: k.label, detail: k.detail, state: 'upcoming' as const })) },
+    { type: 'Notice', id: id('failure'), tone: 'warning', title: 'If a check fails: ' + c.failure.check, body: c.failure.message },
+    actionBar(id, { label: c.primaryLabel, actions: [...c.checks.map((k: any) => ({ type: 'simulate' as const, label: (k.label + '…').slice(0, 120), durationMs: 700, outcome: 'success' as const })), ...nav(c.next)] },
+      { label: 'Show a failed check', actions: [{ type: 'simulate', label: c.failure.check.slice(0, 110), durationMs: 700, outcome: 'failure' }, { type: 'toast', message: c.failure.message.slice(0, 200) }] })]; },
+  defaults: ctx => ({ checks: [{ label: 'Details validation', detail: 'All required details are valid' }, { label: 'Eligibility check', detail: 'Customer meets the eligibility criteria' }],
+    failure: { check: 'Eligibility check', message: 'You are not eligible to continue. Please contact us for help.' }, primaryLabel: 'Run checks', next: firstLink(ctx) ?? ctx.plan.screens[0].id }) });
+
 def({ id: 'review', label: 'Review & confirm', channels: ['mobile', 'portal'], shell: () => 'default',
   description: 'Summary of what the user entered before submitting; consent; confirm + edit.',
   content: z.object({ intro: S(200), groups: z.array(z.object({ title: S(40), items: z.array(Pair).min(1).max(8) })).min(1).max(3), consentLabel: S(160).optional(), primaryLabel: S(28), next: ScreenRef, editTarget: Target }),
@@ -211,7 +227,7 @@ def({ id: 'review', label: 'Review & confirm', channels: ['mobile', 'portal'], s
     ...titleBlock(ctx, id, ctx.screen.title, c.intro),
     // Summary rows only: consent statements and form-control names ("checkbox") are not data.
     // ...and a reference number does not exist before submission (it belongs on the success screen).
-    ...c.groups.map((g: any) => ({ ...g, items: g.items.filter((it: any) => !isPreSubmitReference(it) && !/^(i |by |please )/i.test(it.label) && !/^(checkbox|toggle|radio|true|false|yes\/no)$/i.test(String(it.value).trim()) && !/consent|agree|terms/i.test(it.label)) }))
+    ...c.groups.map((g: any) => ({ ...g, items: g.items.filter((it: any) => !isPreSubmitReference(it) && !SECRET_LABEL.test(String(it.label)) && !/^(i |by |please )/i.test(it.label) && !/^(checkbox|toggle|radio|true|false|yes\/no)$/i.test(String(it.value).trim()) && !/consent|agree|terms/i.test(it.label)) }))
       .filter((g: any) => g.items.length && !/consent|terms/i.test(g.title))
       .map((g: any) => ({ type: 'Card', id: id(g.title), title: g.title, children: [{ type: 'RecordFields', id: id(g.title + '-items'), items: g.items }] }) as NodeT),
     { type: 'Form', id: id('form'), children: [
@@ -224,7 +240,7 @@ def({ id: 'success', label: 'Success / confirmation', channels: ['mobile', 'port
   content: z.object({ headline: S(60), message: S(200), details: z.array(Pair).max(6).describe('Outcome details, starting with the reference number when the brief mentions one'), primary: Act, secondary: Act.optional() }),
   build: (c, ctx) => { const id = ids(); return [
     { type: 'Hero', id: id('hero'), title: c.headline, subtitle: c.message, showLogo: false, illustration: 'success' },
-    ...(c.details?.length ? [{ type: 'RecordFields', id: id('details'), items: c.details } as NodeT] : []),
+    ...(c.details?.filter((d: any) => !SECRET_LABEL.test(String(d.label))).length ? [{ type: 'RecordFields', id: id('details'), items: c.details.filter((d: any) => !SECRET_LABEL.test(String(d.label))) } as NodeT] : []),
     actionBar(id, { label: c.primary.label, actions: nav(c.primary.target ?? firstLink(ctx) ?? ctx.plan.screens.find(x => x.archetype === 'dashboard')?.id) }, c.secondary?.target ? { label: c.secondary.label, actions: nav(c.secondary.target) } : undefined)]; },
   defaults: ctx => ({ headline: 'All done', message: ctx.screen.purpose.slice(0, 200), details: [], primary: { label: 'Done', target: firstLink(ctx) } }) });
 
