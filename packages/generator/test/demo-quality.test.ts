@@ -103,3 +103,28 @@ test('an AI screen suggestion becomes a numbered screen list that the brief pars
 });
 
 void (null as unknown as DemoDocument);
+
+test('summaries never repeat a password, PIN or one-time code; checks screens show each check and a failure message', () => {
+  const r = build('review', { intro: 'Check.', groups: [{ title: 'You', items: [{ label: 'Customer name', value: 'Aisha' }, { label: 'Password', value: 'At least 8 characters' }, { label: 'OTP', value: '123456' }] }], primaryLabel: 'Submit', next: 'done' }, 'review');
+  assert.deepEqual(all(r.children as NodeT[]).flatMap(n => ((n.items as { label: string }[]) ?? []).map(i => i.label)), ['Customer name']);
+  const a = build('assessment', { checks: [{ label: 'Duplicate registration check', detail: 'No account for 784-1985-7151234-5' }, { label: 'Eligibility check', detail: 'Eligible for housing finance' }],
+    failure: { check: 'Duplicate registration check', message: 'An account already exists for this Emirates ID.' }, primaryLabel: 'Run checks', next: 'done' }, 'review');
+  const nodes = all(a.children as NodeT[]);
+  assert.equal((nodes.find(n => n.type === 'StatusTimeline')!.steps as unknown[]).length, 2);
+  assert.match(String(nodes.find(n => n.type === 'Notice')!.body), /already exists/);
+  const bar = nodes.find(n => n.type === 'ActionBar') as any;
+  assert.deepEqual(bar.primary.actions.map((x: any) => x.type), ['simulate', 'simulate', 'navigate']);
+  assert.ok(bar.secondary.actions.some((x: any) => x.type === 'simulate' && x.outcome === 'failure'));
+});
+
+test('over-long AI text is cut at a sentence or word, never mid-word; one menu destination means no tab bar', async () => {
+  const { shorten } = await import('@demo/schema');
+  assert.equal(shorten('Please have your details ready. Your information will be validated for eligibility and duplicate registration.', 60), 'Please have your details ready.');
+  const cut = shorten('Your information will be validated for eligibility and duplicate registration checks', 50);
+  assert.ok(cut.endsWith('…') && !/regi…$/.test(cut) && cut.length <= 50, cut);
+  const p = basePlan();
+  const raw = { theme: p.theme, sampleFacts: [], shellKind: 'tabs', collections: [], brandName: 'Nexa', menu: [{ label: 'Profile', icon: 'user', screen: 'profile' }, { label: 'Form', icon: 'list', screen: 'form' }],
+    screens: [['welcome', 'welcome'], ['form', 'form'], ['profile', 'profile']].map(([id, archetype]) => ({ id, title: id, purpose: id, archetype, collection: null, template: null, links: [], shell: 'default', mustInclude: [] })) };
+  const plan = normalizePlan(raw as any, { name: 'Nexa', channel: 'mobile' }, 'brief', null);
+  assert.equal(plan.shell.kind, 'none'); assert.deepEqual(plan.shell.items, []);
+});

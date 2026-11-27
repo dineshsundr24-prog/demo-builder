@@ -56,6 +56,7 @@ export function assemble(plan: Plan, screens: Screen[], meta: { id?: string } = 
   doc = { ...doc, screens: doc.screens.map((s, si) => {
     const link = (items: any[]) => items.map(it => {
       if (typeof it?.value !== 'string' || it.value.includes('{{') || typeof it.label !== 'string') return it;
+      if (/\b(password|passcode|pin|otp|cvv|cvc)\b/i.test(it.label)) return it; // secrets are never echoed back
       const l = norm(it.label), fallback = it.value.replace(/[{}]/g, '').slice(0, 80);
       const calc = calcs.filter(c => c.screen < si).at(-1);
       if (calc && /total (repayable|repayment|payable|amount payable|cost)|amount payable|total to repay/.test(l)) { linkedRows++; return { ...it, value: '{{state.' + calc.key + '.totalText ?? ' + fallback + '}}' }; }

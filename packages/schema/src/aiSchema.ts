@@ -15,6 +15,15 @@ export function aiScreenSchema(ctx: AiContext) {
   return toStrictSchema(Screen.omit({ trace: true }), { screen: ctx.screenIds, collection: ctx.collectionIds, template: templateIds });
 }
 /** Any Zod schema -> strict structured-output JSON Schema; `ref` markers become enums. */
+/** Shorten AI text to `max` characters at a sentence end when possible, else at a word boundary (never mid-word). */
+export function shorten(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const sentence = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  if (sentence >= max * 0.5) return cut.slice(0, sentence + 1);
+  const word = cut.slice(0, max - 1).lastIndexOf(' ');
+  return (word > max * 0.3 ? cut.slice(0, word) : cut.slice(0, max - 1)).replace(/[\s,;:•·-]+$/, '') + '…';
+}
 export function toStrictSchema(schema: z.ZodType, refs: Record<string, string[]> = {}) {
   return strictify(z.toJSONSchema(schema, { io: 'input', unrepresentable: 'throw' }), refs);
 }
@@ -105,7 +114,7 @@ export function clampToSchema<T>(schema: z.ZodType<T>, value: unknown, passes = 
       let parent = v;
       for (const k of x.path.slice(0, -1)) parent = parent?.[k as any];
       const key = x.path[x.path.length - 1];
-      if (parent && typeof parent[key] === 'string') parent[key] = parent[key].slice(0, Math.max(1, x.maximum - 1)).trimEnd() + '…';
+      if (parent && typeof parent[key] === 'string') parent[key] = shorten(parent[key], x.maximum);
     }
   }
   return v;
