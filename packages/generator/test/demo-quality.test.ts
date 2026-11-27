@@ -128,3 +128,27 @@ test('over-long AI text is cut at a sentence or word, never mid-word; one menu d
   const plan = normalizePlan(raw as any, { name: 'Nexa', channel: 'mobile' }, 'brief', null);
   assert.equal(plan.shell.kind, 'none'); assert.deepEqual(plan.shell.items, []);
 });
+
+test('a checks screen with an empty failure message still builds (no fallback); sign-in actions need a sign-in screen', () => {
+  const a = build('assessment', { checks: [{ label: 'Field validation', detail: 'All fields valid' }, { label: 'Duplicate check', detail: 'No existing account' }],
+    failure: { check: 'None', message: '' }, primaryLabel: 'Run checks', next: 'done' }, 'review');
+  const notice = all(a.children as NodeT[]).find(n => n.type === 'Notice')!;
+  assert.match(String(notice.title), /Duplicate check/);
+  assert.match(String(notice.body), /^Duplicate check: not passed\. Please check your details/);
+  // A planned error screen is where the failed check leads.
+  const ep = basePlan(); ep.screens.find(s => s.id === 'detail')!.title = 'Registration error';
+  const ea = build('assessment', { checks: [{ label: 'Field validation', detail: 'All fields valid' }, { label: 'Eligibility check', detail: 'Eligible' }],
+    failure: { check: 'Eligibility check', message: 'Not eligible.' }, primaryLabel: 'Run checks', next: 'done' }, 'review', ep);
+  assert.equal((all(ea.children as NodeT[]).find(n => n.type === 'ActionBar') as any).secondary.actions.at(-1).screen, 'detail');
+
+  // No sign-in screen in the plan: "Existing customer? Sign in" (pointing at the registration form) is dropped.
+  const w = build('welcome', { headline: 'Welcome', subtitle: 'Register in minutes', highlights: [],
+    primary: { label: 'Start registration', target: 'apply' }, secondary: { label: 'Existing sign-in', target: 'apply' } });
+  const bar = all(w.children as NodeT[]).find(n => n.type === 'ActionBar') as any;
+  assert.equal(bar.secondary, undefined);
+  // With a real sign-in screen it stays.
+  const plan = basePlan(); plan.screens.find(s => s.id === 'loans')!.archetype = 'sign-in';
+  const w2 = build('welcome', { headline: 'Welcome', subtitle: 'Register in minutes', highlights: [],
+    primary: { label: 'Start registration', target: 'apply' }, secondary: { label: 'Sign in', target: 'loans' } }, 'home', plan);
+  assert.equal((all(w2.children as NodeT[]).find(n => n.type === 'ActionBar') as any).secondary.label, 'Sign in');
+});
